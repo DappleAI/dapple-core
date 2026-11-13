@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc b126886428692cbc2b1f0acd2d1e1a210a070ecec5dcaad9410aa6e71bebac39 # shrinks to rows = [CohortTxn { issuer: "GAMMA", code: "P", shares: None, trans_date: None }, CohortTxn { issuer: "ACME", code: " s ", shares: Some(77435.38539573895), trans_date: None }, CohortTxn { issuer: "ACME", code: " s ", shares: Some(3270849.327057636), trans_date: None }, CohortTxn { issuer: "ACME", code: " s ", shares: Some(5853369.314728214), trans_date: None }], seed = 4

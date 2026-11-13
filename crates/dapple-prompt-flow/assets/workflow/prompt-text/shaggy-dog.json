@@ -1,0 +1,196 @@
+{
+    "id": "complete_workflow",
+    "name": "Complete Workflow Example",
+    "priority": 0,
+    "description": "Demonstrates fetch -> enrich -> validate flow",
+    "condition": { "==": [true, true] },
+    "tasks": [
+        {
+            "id": "fetch_joke",
+            "name": "Fetch Dad Joke",
+            "description": "Get a random dad joke if one was not provided",
+            "function": {
+                "name": "http",
+                "input": {
+                    "url": "https://icanhazdadjoke.com/",
+                    "method": "GET",
+                    "headers": {
+                        "Accept": "application/json"
+                    }
+                }
+            }
+        },
+        {
+            "id": "initialize_joke",
+            "name": "Initialize Joke Structure",
+            "description": "Create empty joke object in data",
+            "function": {
+                "name": "map",
+                "input": {
+                    "mappings": [
+                        {
+                            "path": "data",
+                            "logic": { "preserve": {"joke": {}} }
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "id": "transform_joke_data",
+            "name": "Transform Joke Data",
+            "description": "Map API response to our data model",
+            "function": {
+                "name": "map",
+                "input": {
+                    "mappings": [
+                        {
+                            "path": "data.joke.id",
+                            "logic": { "var": "temp_data.body.id" }
+                        },
+                        {
+                            "path": "data.joke.joke",
+                            "logic": { "var": "temp_data.body.joke" }
+                        },
+                        {
+                            "path": "data.joke.status",
+                            "logic": { "var": "temp_data.body.status" }
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "id": "debugging_force_joke",
+            "name": "Debugging Reset Debug",
+            "description": "Some weird debug task that resets the message. Note that this can easily be removed while I am debugging. id's starting with debugging_ should be reserved for playing around on dev only and checked for on both qa and production environments..",
+            "function": {
+                "name": "",
+                "input": {
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "joke": {
+                                "type": "object",
+                                "properties": {
+                                    "id": { "type": "string" },
+                                    "joke": { "type": "string" },
+                                    "status": { "type": "integer" }
+                                },
+                                "required": ["id", "joke", "status"]
+                            }
+                        },
+                        "required": ["joke"]
+                    }
+                }
+            },
+            "condition": {
+                "==": [
+                    { "var": "data.body.debug" },
+                    true
+                ]
+            }
+        },
+        {
+            "id": "prompt_story_opener",
+            "name": "Prompt Story Opener",
+            "description": "The setup for the shaggy dog story",
+            "function": {
+                "name": "prompt_text",
+                "input": {
+                    "lookups":  {
+                        "joke": "data.prompt_story_opener"
+                    },
+                    "output_path": "data.prompt_story_opener"
+                }
+            }
+        },
+        {
+            "id": "prompt_story_facts_outline",
+            "name": "Prompt Story Facts Outline",
+            "description": "The details for the shaggy dog story",
+            "function": {
+                "name": "prompt_text",
+                "input": {
+                    "prompt_template":  "Return a JSON list of 10 unique highly varied plot points that could be used considering only a future story's opening line: \"$opener\" list 10 ways this story .",
+                    "lookups": {
+                        "opener": "data.story_opener"
+                    },
+                    "output_path": "data.story_facts"
+                }
+            }
+        },
+        {
+            "id": "prompt_story_details",
+            "name": "Prompt Story Details Outline",
+            "description": "The details for the shaggy dog story",
+            "function": {
+                "name": "prompt_text",
+                "input": {
+                    "lookups": [
+                        {
+                            "outline": "data.story_facts"
+                        }
+                    ],
+                    "output_path": "data.story_details"
+                }
+            }
+        },
+        {
+            "id": "prompt_story_meandering_middle",
+            "name": "Prompt Story Meandering Phase",
+            "description": "The story for the shaggy dog story",
+            "function": {
+                "name": "prompt_text",
+                "input": {
+                    "lookups":  [{
+                        "story_outline": "data.story_meandering_middle"
+                    }],
+                    "output_path": "data.story_meandering_middle"
+                }
+            }
+        },
+        {
+            "id": "prompt_story_promise",
+            "name": "The Promise",
+            "description": "The is a promise to the reader that all of these details will come together",
+            "function": {
+                "name": "prompt_text",
+                "input": {
+                    "lookups": [{
+                        "outline": "data.story.story_outline"
+                    }],
+                    "output_path": "data.story_promise"
+                }
+            }
+        },
+        {
+            "id": "prompt_story_fadeout",
+            "name": "Prompt Story Fadeout",
+            "description": "The story for the shaggy dog story",
+            "function": {
+                "name": "prompt_text",
+                "input": {
+                    "lookups":  [{
+                        "outline": "data.story.story_outline"
+                    }],
+                    "output_path": "data.story_fadeout"
+                }
+            }
+        },
+        {
+            "id": "the_drop",
+            "name": "The Drop",
+            "description": "The punchline for the shaggy dog story",
+            "function": {
+                "name": "prompt_text",
+                "input": {
+                    "lookups":  [{
+                        "joke": "data.joke.joke"
+                    }]
+                },
+                "output_path": "data.story_drop"
+            }
+        }
+    ]
+}

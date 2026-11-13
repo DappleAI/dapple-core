@@ -1,0 +1,82 @@
+[
+  {
+    "context": {
+
+    },
+    "stages": [
+      {
+        "id": "fetch_joke",
+        "prompt_context": {},
+        "input": {}
+      },
+      {
+        "id": "initialize_joke",
+        "prompt_context": {},
+        "input": {}
+      },
+      {
+        "id": "transform_joke_data",
+        "prompt_context": {},
+        "input": {}
+      }
+    ]
+  },
+  {
+    "context": {
+    },
+    "stages": [
+      {
+        "id": "debugging_force_joke",
+        "prompt_context": {},
+        "input": {}
+      },
+      {
+        "id": "prompt_story_opener",
+        "prompt_context": {},
+        "input": {}
+      }
+    ]
+  },
+  {
+    "context": {
+    },
+    "stages": [
+      {
+        "id": "prompt_story_facts_outline",
+        "prompt_context": {},
+        "input": {}
+      },
+      {
+        "id": "prompt_story_details_outline",
+        "prompt_context": {},
+        "input": {}
+      }
+    ]
+  },
+  {
+    "context": {
+    },
+    "stages": [
+      {
+        "id": "prompt_story_meandering_middle",
+        "prompt_context": {},
+        "input": {}
+      }
+    ]
+  },
+  {
+    "id": "prompt_story_promise",
+    "prompt_context": {},
+    "input": {}
+  },
+  {
+    "id": "prompt_story_fadeout",
+    "prompt_context": {},
+    "input": {}
+  },
+  {
+    "id": "the_drop",
+    "prompt_context": {},
+    "input": {}
+  }
+]

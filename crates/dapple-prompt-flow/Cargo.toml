@@ -1,0 +1,82 @@
+[package]
+name = "dapple-prompt-flow"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[dependencies]
+dataflow-rs = "2.0.3"
+datalogic-rs = "4.0.4"
+serde = "1.0.219"
+serde_json = "1.0.142"
+tokio = { version = "1.47.1", features = ["full"] }
+dapple-fluent = { path = "../dapple-fluent" }
+async-trait = "0.1.88"
+log = "0.4.27"
+tracing = "0.1"
+dapple-data = { path = "../dapple-data" }
+sqlx = { workspace = true, features = ["json"] }
+rust_decimal = { version = "1.38", features = ["serde"] }
+
+# HTTP client for conduit communication
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls-native-roots"] }
+
+tokio-stream = "0.1"
+futures-util = "0.3"
+uuid = { version = "1", features = ["serde"] }
+time = { version = "0.3.41", features = ["formatting"] }
+
+# Nushell engine integration
+nu-engine = "0.109"
+nu-protocol = "0.109"
+nu-parser = "0.109"
+nu-cmd-lang = "0.109"
+nu-command = "0.109"
+sha2 = "0.10"
+thiserror = "1.0"
+base64 = "0.22"
+
+# PDF text extraction
+pdf_oxide = "0.3.20"
+
+# SEC EDGAR (`edgar *` commands) — rate-limited async client + HTML flattening
+# for 10-K Item sectioning. Opt-in at call time via DAPPLE_EDGAR_USER_AGENT.
+edgarkit = "0.3.0"
+html2text = "0.16"
+regex = "1"
+# DOM-accurate HTML table parsing for the DEF 14A Summary Compensation Table
+# (`edgar_comp`) — name and total must come from the same <tr>, so text
+# flattening (html2text) is not enough. html5ever is already in-tree via html2text.
+scraper = "0.20"
+
+# SEC DERA Form 13F Data Sets (`edgar holders`) are distributed as DEFLATE zip
+# archives; read the SUBMISSION/COVERPAGE/INFOTABLE members out of them.
+zip = { version = "1", default-features = false, features = ["deflate"] }
+
+# SVG shape extraction (`svg shapes` command) — plain XML attribute reads.
+# Also the parser for N-CEN (`edgar ncen`), which is ~280 KB and fits a DOM fine.
+roxmltree = "0.20"
+
+# Streaming XML for N-PORT (`edgar nport`). A single NPORT-P primary_doc.xml runs
+# ~900 bytes/holding — 3.0 MB for a 3,524-position index fund — and the guide pulls
+# many periods per series, so the holdings parse must be pull-based, not a DOM.
+quick-xml = "0.38"
+
+# SEC investment-company series/class registry (`edgar fund`) is a 690 KB CSV whose
+# entity names contain commas and quotes; hand-splitting would corrupt them.
+csv = "1"
+
+# HTTP server
+axum = "0.8"
+env_logger = "0.11"
+
+[dev-dependencies]
+dapple-data = { path = "../dapple-data", features = ["test-helpers"] }
+time = { version = "0.3.41" }
+# Property tests (promise-leveling Plan F): bounded-case invariants that run in the
+# normal `cargo test` suite. Committed regressions live in proptest-regressions/.
+proptest = "1"
+
+[[bin]]
+name = "dapple-prompt-flow"
+path = "src/main.rs"

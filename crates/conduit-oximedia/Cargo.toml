@@ -1,0 +1,68 @@
+[package]
+name = "conduit-oximedia"
+version = "0.1.0"
+edition = "2021"
+license.workspace = true
+
+# Isolated sub-service for OxiMedia-based media work: audio "song map" analysis
+# (oximedia-mir + oximedia-analysis) and editable OTIO timeline composition
+# (oximedia-timeline). Kept out of the main conduit so the young (v0.1.x) OxiMedia
+# family never compiles into it. Callers (dapple-prompt-flow commands) hit this
+# service directly at its own URL; it is only active when that URL env is set.
+#
+# The OxiMedia work is ALSO gated behind the `oximedia` cargo feature (off by
+# default), mirroring the conduit's `candle`/`cuda` optional-dep pattern: a plain
+# `cargo build --workspace` compiles this crate as a bare health-check binary
+# without the young deps; a `--features oximedia` build (or the deploy) pulls them
+# in and enables the /analyze-audio + /compose-av endpoints.
+
+[dependencies]
+dapple-data = { path = "../dapple-data" }
+axum = { version = "0.8.4", features = ["http2", "macros"] }
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.18", features = ["v4", "v7", "serde"] }
+thiserror = "2.0"
+log = "0.4"
+env_logger = "0.11"
+tower-http = { version = "0.6", features = ["cors"] }
+
+# WAV decode for audio-analysis input. Optional — only under `oximedia`.
+hound = { version = "3.5", optional = true }
+
+# Dot-geometry extraction off an operator's mask SVG (the progression
+# strategy's placement policy — the generic renderer in conduit-media-gateway
+# only rasterizes mattes and never reads geometry). Optional — only under
+# `oximedia`.
+roxmltree = { version = "0.20", optional = true }
+
+# OxiMedia — audio analysis + MIR + timeline interchange. Optional, behind the
+# `oximedia` feature, pinned exact (young v0.1.x family). We use only the
+# audio-analysis and OTIO-export paths; none of OxiMedia's codec/mux crates.
+oximedia-mir = { version = "=0.1.8", optional = true }
+oximedia-analysis = { version = "=0.1.8", optional = true }
+oximedia-timeline = { version = "=0.1.8", optional = true }
+oximedia-core = { version = "=0.1.8", optional = true }
+
+[features]
+default = []
+# Compile the OxiMedia-backed endpoints (/analyze-audio, /compose-av) and their
+# deps. Off by default → the crate builds as a bare health-check service.
+oximedia = [
+    "dep:hound",
+    "dep:oximedia-mir",
+    "dep:oximedia-analysis",
+    "dep:oximedia-timeline",
+    "dep:oximedia-core",
+    "dep:roxmltree",
+]
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+tokio-test = "0.4"
+
+[[bin]]
+name = "conduit-oximedia"
+path = "src/main.rs"

@@ -1,0 +1,87 @@
+[package]
+name = "conduit-media-gateway"
+version = "0.1.0"
+edition = "2021"
+license.workspace = true
+
+# Isolated, opt-in sub-service that turns long Twitch VODs into short "learning
+# highlight" clips: yt-dlp download + Helix metadata, whisper.cpp ASR, a
+# deterministic keyword/pacing "teaching moment" detector, ffmpeg clip cutting,
+# and an OxiMedia OTIO/EDL reel export. Kept out of the main conduit AND out of
+# conduit-oximedia (which is already heavy) so its native deps (whisper.cpp) and
+# runtime binaries (ffmpeg, yt-dlp) never bloat a plain `cargo build --workspace`
+# or the cross-compiled api/flow binaries.
+#
+# The media pipeline is gated behind the `media-gateway` cargo feature (off by
+# default), mirroring conduit-oximedia's `oximedia` feature: a plain build
+# compiles this crate as a bare health-check binary; a `--features media-gateway`
+# build (Docker-only, what the deploy uses) pulls in the heavy deps and mounts the
+# pipeline endpoints. The service is reachable only when a caller sets
+# DAPPLE_MEDIA_GATEWAY_URL, and its deploy is gated on DAPPLE_MEDIA_GATEWAY_ENABLED.
+
+[dependencies]
+dapple-data = { path = "../dapple-data" }
+axum = { version = "0.8.4", features = ["http2", "macros"] }
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.18", features = ["v4", "v7", "serde"] }
+thiserror = "2.0"
+log = "0.4"
+env_logger = "0.11"
+tower-http = { version = "0.6", features = ["cors"] }
+
+# --- `media-gateway` feature deps ---
+# Added incrementally by the build stages that use them. All optional, all behind
+# the feature. whisper-rs / oximedia-* land in their respective later stages.
+hound = { version = "3.5", optional = true }
+
+# Twitch Helix metadata + VOD validation (Stage B). Brings its own reqwest-based
+# HttpClient impl + re-exports twitch_oauth2 for the app-access-token flow.
+twitch_api = { version = "0.8", optional = true, features = [
+    "helix",
+    "reqwest",
+    "twitch_oauth2",
+] }
+# Direct reqwest handle to construct the Helix HTTP client (Stage B). Pinned to
+# 0.13.x to MATCH twitch_api's reqwest (a version split makes the twitch_oauth2
+# `Client` impl not apply to our `reqwest::Client`). 0.13's `rustls` feature pulls
+# rustls + the platform verifier (native roots). Docker-only service, so this
+# second reqwest major in the workspace is acceptable and isolated here.
+reqwest = { version = "0.13.1", optional = true, default-features = false, features = [
+    "rustls",
+] }
+
+# Local whisper.cpp ASR (Stage C). CPU by default (no cuda/metal/etc. accel
+# features); build.rs compiles whisper.cpp natively (needs cmake + a C/C++
+# toolchain — present in the Docker build stage).
+whisper-rs = { version = "0.16", optional = true }
+
+# SVG matte support for the composition renderer: resvg (pure Rust: usvg +
+# tiny-skia) rasterizes a layer's matte SVG once into the luma matte ffmpeg's
+# alphamerge consumes. Geometry EXTRACTION (reading shapes out of an SVG) is
+# policy and lives with the strategy compilers in conduit-oximedia. Docker-only
+# service, so the dep weight stays out of every workspace build.
+resvg = { version = "0.45", optional = true }
+
+[features]
+default = []
+# Compile the media pipeline endpoints + their heavy/native deps. Off by default
+# → bare health-check binary. ffmpeg and yt-dlp are runtime BINARIES bundled in
+# the image, not cargo deps. The deploy passes --features media-gateway.
+media-gateway = [
+    "dep:hound",
+    "dep:twitch_api",
+    "dep:reqwest",
+    "dep:whisper-rs",
+    "dep:resvg",
+]
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+tokio-test = "0.4"
+
+[[bin]]
+name = "conduit-media-gateway"
+path = "src/main.rs"

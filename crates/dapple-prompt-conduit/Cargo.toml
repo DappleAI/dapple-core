@@ -1,0 +1,97 @@
+[package]
+name = "dapple-prompt-conduit"
+version = "0.1.0"
+edition = "2021"
+license.workspace = true
+
+[dependencies]
+dapple-data = { path = "../dapple-data" }
+dapple-fluent = { path = "../dapple-fluent" }
+dapple-render = { path = "../dapple-render" }
+axum = { version = "0.8.4", features = ["http2", "macros"] }
+tokio = { version = "1", features = ["full"] }
+tokio-stream = "0.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.18", features = ["v4", "v7", "serde"] }
+async-stream = "0.3"
+thiserror = "2.0"
+async-trait = "0.1"
+log = "0.4"
+env_logger = "0.11"
+tower-http = { version = "0.6", features = ["cors"] }
+futures = "0.3"
+time = "0.3"
+base64 = "0.22"
+hmac = "0.12"
+sha2 = "0.10"
+
+# LLM backend - rig-core (native Anthropic provider: real streaming + real token usage)
+rig-core = { version = "0.39.0", features = ["derive"] }
+
+# Provider-agnostic hosted image/video (and, later, text) generation. Replaces the
+# hand-rolled Stability/LTX direct-HTTP backends: image + video are reached through
+# rath's ImageClient/VideoClient behind the ImageBackend/VideoBackend traits, with
+# Fal as the provider (LayerDiffuse images, LTX video). Shared plumbing lives in
+# service/rath_util.rs so a future Fal text backend can reuse it.
+rath-rs = "0.2.4"
+
+# HTTP client for other conduit backends (conduit-llm sub-service, etc.) and for
+# fetching Fal result URLs returned by the rath image/video backends.
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls-native-roots"] }
+
+# ONNX Runtime inference backend
+# Supports AMD ROCm, NVIDIA CUDA, Apple CoreML, and CPU at runtime
+ort = { version = "=2.0.0-rc.11", default-features = false, features = ["load-dynamic", "std", "ndarray"] }
+
+# Tokenizers for text preprocessing (shared with ONNX models)
+tokenizers = "0.21"
+
+# Candle ML framework (optional — for future candle-vllm work)
+candle-core = { version = "0.8", optional = true }
+candle-nn = { version = "0.8", optional = true }
+candle-transformers = { version = "0.8", optional = true }
+hf-hub = { version = "0.4", features = ["tokio"], optional = true }
+rand = { version = "0.8", optional = true }
+
+# mistral.rs inference engine (GGUF local LLM)
+mistralrs = "0.7"
+
+# CPU detection for ONNX Runtime thread configuration
+num_cpus = "1.16"
+
+# N-dimensional arrays for tensor operations (0.17 aligns with ort rc.11)
+ndarray = "0.17"
+
+# Deterministic image compositing + color-grade for the generate-only pipeline.
+# zune-image = PNG decode/encode + colorspace/channel model (png feature only —
+# we don't need the jpeg-xl/bmp/hdr/etc codec family). zune-imageprocs = the
+# resize/blur/contrast ops + moxcms ICC color management, used to match
+# independently generated pieces into one palette. No generative edit: the model
+# only ever produces net-new pixels; assembly never round-trips through a model.
+zune-image = { version = "0.5.0", default-features = false, features = ["png"] }
+zune-imageprocs = "0.5.1"
+# Shared core types for zune (BitDepth, ColorSpace, ZCursor, DecoderOptions).
+# zune-image uses but does not re-export it; version-matched to zune-image 0.5.0.
+zune-core = { version = "0.5.1", default-features = false, features = ["std"] }
+# Pure-Rust SVG rasterizer (usvg + tiny-skia) — clips the reveal collage to an
+# operator-uploaded silhouette SVG (`/compose` silhouette option). Version-
+# matched with conduit-media-gateway's mask rasterizer.
+resvg = "0.45"
+
+[dev-dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls-native-roots"] }
+tokio-test = "0.4"
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+
+[features]
+default = []
+# Candle ML backend (legacy Mistral inference, future candle-vllm)
+candle = ["dep:candle-core", "dep:candle-nn", "dep:candle-transformers", "dep:hf-hub", "dep:rand"]
+cuda = ["candle", "candle-core/cuda", "candle-nn/cuda", "candle-transformers/cuda"]
+metal = ["candle", "candle-core/metal", "candle-nn/metal", "candle-transformers/metal"]
+
+[[bin]]
+name = "dapple-prompt-conduit"
+path = "src/main.rs"
