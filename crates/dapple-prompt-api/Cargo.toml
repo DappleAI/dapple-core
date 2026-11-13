@@ -1,0 +1,84 @@
+[package]
+name = "dapple-prompt-api"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[features]
+default = []
+test-helpers = []
+
+[dependencies]
+axum = { version = "0.8.4", features = ["http2", "macros", "multipart"] }
+# `rc` enables Serialize/Deserialize impls for Arc<T> and Rc<T>. Required so
+# `serve_api_json` can return `Json(Arc<OpenApi>)` after we wrapped the spec
+# in Arc to avoid the per-request deep clone (commit a4a45745). The build
+# happens to satisfy this today via a transitive enable, but relying on that
+# is brittle — opt in explicitly here so dep updates can't silently break us.
+serde = { version = "1.0.219" , features = ["derive", "rc"]}
+serde_json = { version = "1.0.119", features = ["std"] }
+tokio = { version = "1", features = ["full"] }
+tracing-subscriber = "0.3.19"
+dapple-data = { path = "../dapple-data"}
+dapple-parser = { path = "../dapple-parser" }
+dapple-prompt-flow = { path = "../dapple-prompt-flow" }
+dapple-render = { path = "../dapple-render" }
+sqlx = { workspace = true }
+tower-http = { version = "0.6.6", features = ["cors", "normalize-path"] }
+uuid = { version = "1.18.0", features = ["v4", "v7", "serde"] }
+chrono = { version = "0.4.41", features = ["serde"] }
+env_logger = "0.11.8"
+log = "0.4.27"
+aide = { version = "0.15.1", features = ["axum", "axum-json", "axum-query", "axum-matched-path", "redoc"] }
+schemars = { version = "0.9.0", features = ["uuid1"] }
+rust_decimal = { version = "1.37.0", features = ["serde-str"] }
+base64 = "0.22.1"
+rand = "0.8.5"
+thiserror = "2.0.17"
+url = "2.5.7"
+jsonwebtoken = { version = "10.2.0", features = ["rust_crypto"] }
+async-trait = "0.1.89"
+alloy-primitives = "0.8"
+k256 = { version = "0.13", features = ["ecdsa", "ecdsa-core"] }
+sha2 = "0.10"
+hmac = "0.12"
+sha3 = "0.10"
+ed25519-dalek = { version = "2", features = ["pem"] }
+time = { version = "0.3", features = ["formatting"] }
+futures = "0.3"
+reqwest = { version = "0.12.24", default-features = false, features = ["json", "multipart", "rustls-tls-native-roots"] }
+tar = "0.4"
+flate2 = "1.1"
+tempfile = "3"
+indexmap = "2"
+
+[dev-dependencies]
+reqwest = { version = "0.12.24", default-features = false, features = ["json", "multipart", "rustls-tls-native-roots"] }
+fake = { version = "4.4.0", features = ["time", "uuid", "email_address", "serde_json"] }
+thiserror = "2.0.17"
+libtest-mimic = "0.8.1"
+serial_test = "3.2.0"
+once_cell = "1.21.3"
+redis = { version = "1.0.1", features = ["aio", "tokio-comp"] }
+dapple-prompt-api = { path = ".", features = ["test-helpers"] }
+hyper = "1.5"
+tower = { version = "0.5", features = ["util"] }
+
+[[bin]]
+name = "dapple-prompt-api"
+path = "src/main.rs"
+
+[[test]]
+name = "user-lifecycle"
+path = "tests/user_lifecycle.rs"
+harness = false
+
+[[test]]
+name = "auth-token-lifecycle"
+path = "tests/auth_token_lifecycle.rs"
+required-features = ["test-helpers"]
+
+[[test]]
+name = "guide-lifecycle"
+path = "tests/guide_lifecycle.rs"
+harness = false

@@ -1,0 +1,8 @@
+title = "Stub Flow"
+description = "Minimal guide fixture for external-api happy-path tests. One stage, one step, one nushell task that returns a known value."
+author = ""
+classification = "workflow"
+source_path = "stub-flow"
+
+[chapters."introduction.md"]
+subtitle = "A stub guide that does just enough to exercise the dispatch runner end-to-end."

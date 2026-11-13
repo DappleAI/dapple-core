@@ -1,0 +1,37 @@
+[package]
+name = "dapple-prompt-mock-api"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[dependencies]
+axum = { version = "0.8.4", features = ["http2", "macros"] }
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = { version = "1.0.119", features = ["std"] }
+tokio = { version = "1", features = ["full"] }
+uuid = { version = "1.18.0", features = ["v4", "v7", "serde"] }
+chrono = { version = "0.4.41", features = ["serde"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tower-http = { version = "0.6.6", features = ["cors", "normalize-path", "trace"] }
+thiserror = "2.0.17"
+schemars = { version = "0.9.0", features = ["uuid1"] }
+
+# Auth token verification and JWT
+alloy-primitives = "0.8"
+k256 = { version = "0.13", features = ["ecdsa", "ecdsa-core"] }
+sha3 = "0.10"
+base64 = "0.22.1"
+rand = "0.8.5"
+jsonwebtoken = { version = "10.2.0", features = ["rust_crypto"] }
+
+# Re-use types from the main API crate
+dapple-data = { path = "../dapple-data" }
+
+# For OpenAPI documentation (reused from real API)
+dapple-prompt-api = { path = "../dapple-prompt-api" }
+aide = { version = "0.15.1", features = ["axum", "redoc"] }
+
+[[bin]]
+name = "dapple-prompt-mock-api"
+path = "src/main.rs"

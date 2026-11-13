@@ -1,0 +1,68 @@
+[package]
+name = "dapple-prompt-external-api"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+# The external API surface served on `external-api.dapple.x`. Pattern B:
+# this crate exposes a `routes()` and `AppState` constructor; the eventual
+# `dapple-prompt-server` binary mounts it when launched with
+# `--surface=external`. See docs/plans/external-api/00-architecture.md.
+
+[[bin]]
+name = "dapple-prompt-external-api"
+path = "src/main.rs"
+
+[dependencies]
+axum = { version = "0.8.4", features = ["http2", "macros", "multipart"] }
+env_logger = "0.11.8"
+chrono = { version = "0.4.41", features = ["serde"] }
+time = { version = "0.3", features = ["serde"] }
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = { version = "1.0.119", features = ["std"] }
+tokio = { version = "1", features = ["full"] }
+sqlx = { workspace = true }
+uuid = { version = "1.18.0", features = ["v4", "v7", "serde"] }
+log = "0.4.27"
+aide = { version = "0.15.1", features = ["axum", "axum-json", "axum-query", "axum-matched-path"] }
+schemars = { version = "0.9.0", features = ["uuid1"] }
+thiserror = "2.0.17"
+jsonwebtoken = { version = "10.2.0", features = ["rust_crypto"] }
+async-trait = "0.1.89"
+indexmap = { version = "2", features = ["serde"] }
+
+# Workspace deps
+dapple-data = { path = "../dapple-data" }
+# Used only to reuse the Ed25519 verify_service_token utility (re-exported from
+# dapple-prompt-api::lib). TODO: extract that small piece into a shared
+# dapple-auth crate so the external surface doesn't pull in the internal API's
+# transitive deps.
+dapple-prompt-api = { path = "../dapple-prompt-api" }
+# Used for in-process dispatch execution (spawned from dispatch + bindings
+# handlers). External V1 always runs in-process — no flow-url branch yet.
+dapple-prompt-flow = { path = "../dapple-prompt-flow" }
+
+[dev-dependencies]
+ed25519-dalek = { version = "2", features = ["pem", "rand_core"] }
+rand = "0.8"
+base64 = "0.22"
+sqlx = { workspace = true, features = ["uuid"] }
+serial_test = "3"
+# Real-HTTP client used by every lifecycle scenario — every test hits the
+# spawned external-api server over real HTTP rather than going through an
+# in-process `tower::oneshot` shortcut, matching the spawn_app pattern in
+# dapple-prompt-api/tests/consumer/mod.rs.
+reqwest = { version = "0.12.24", default-features = false, features = ["json", "multipart", "rustls-tls-native-roots"] }
+# For building the gzipped tarball that exercises the external ingest endpoint.
+tar = "0.4"
+flate2 = "1.1"
+# Test fixture ingest path: re-use the internal materialize_guide pipeline
+# via the test-helpers feature so we don't reinvent guide ingest in tests.
+dapple-prompt-api = { path = "../dapple-prompt-api", features = ["test-helpers"] }
+# SDK round-trip tests — exercise the ExternalDappleClient surface end-to-end
+# against the spawned external-api server. `tarball` is needed for the
+# upsert_from_dir tests.
+dapple-sdk = { path = "../dapple-sdk", features = ["external", "tarball"] }
+# `tempfile` is used by the upsert and PATCH tests to mutate a copy of the
+# stub-flow fixture without dirtying the on-disk one.
+tempfile = "3"
