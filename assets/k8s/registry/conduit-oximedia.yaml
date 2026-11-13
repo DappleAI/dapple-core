@@ -1,0 +1,76 @@
+---
+# conduit-oximedia — isolated OxiMedia media sub-service (audio song-map analysis
+# + OTIO timeline compose). Called directly by dapple-prompt-flow commands via
+# DAPPLE_PROMPT_CONDUIT_MEDIA_URL. Holds a DB pool (reads input assets, persists
+# output assets). The binary must be built with `--features oximedia` for the
+# /analyze-audio + /compose-av endpoints to exist.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: conduit-oximedia
+  namespace: dapple-sandbox
+  labels:
+    app: conduit-oximedia
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: conduit-oximedia
+  template:
+    metadata:
+      labels:
+        app: conduit-oximedia
+    spec:
+      containers:
+        - name: conduit-oximedia
+          image: registry.kube.dappleai.dev/conduit-oximedia:dapple-latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8085
+              name: http
+          env:
+            - name: OXIMEDIA_PORT
+              value: "8085"
+            - name: RUST_LOG
+              value: "warn,conduit_oximedia=debug"
+            # This service reads input assets + persists output assets, so unlike
+            # conduit-onnx it needs the prompt database.
+            - name: DAPPLE_PROMPT_DATABASE_URL
+              value: postgres://dapple:ai@prompt-db:5432/dapple
+            - name: CONDUIT_INTERNAL_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: conduit-internal-auth
+                  key: internal-key
+                  optional: true
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits:   { cpu: "2000m", memory: "2Gi" }  # FFT/autocorrelation over full-length stems
+          readinessProbe:
+            httpGet:
+              path: /api/health_check
+              port: 8085
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/health_check
+              port: 8085
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: conduit-oximedia
+  namespace: dapple-sandbox
+  labels:
+    app: conduit-oximedia
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8085
+      targetPort: 8085
+      protocol: TCP
+  selector:
+    app: conduit-oximedia

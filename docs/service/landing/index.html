@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>dapple-prompt Documentation</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            dapple: { green: '#49a013' }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-white text-slate-800 min-h-screen">
+  <header class="bg-gradient-to-b from-dapple-green/30 to-dapple-green/10 py-16 px-8">
+    <div class="max-w-6xl mx-auto flex items-center gap-8">
+      <img src="/logo.svg" alt="dapple logo" class="w-24 h-24">
+      <div>
+        <h1 class="text-5xl font-bold mb-4">dapple-prompt Documentation</h1>
+        <p class="text-xl text-slate-600">Comprehensive guides and API reference for the dapple-prompt system</p>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-8 py-12">
+    <section class="mb-16">
+      <h2 class="text-3xl font-semibold mb-8">Guides</h2>
+      <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div class="rounded-2xl border border-slate-200 p-6 hover:shadow-lg hover:border-dapple-green transition">
+          <h3 class="text-xl font-semibold mb-2">API Consumer Guide</h3>
+          <p class="text-slate-600 mb-4">REST API usage and integration patterns for frontend developers and API consumers.</p>
+          <div class="flex gap-4">
+            <a href="/guides/api-consumer/" class="text-dapple-green hover:underline font-medium">Read Online</a>
+            <a href="/downloads/api-consumer-guide.pdf" class="text-slate-500 hover:text-dapple-green hover:underline">PDF</a>
+          </div>
+        </div>
+
+        <div class="rounded-2xl border border-slate-200 p-6 hover:shadow-lg hover:border-dapple-green transition">
+          <h3 class="text-xl font-semibold mb-2">Journey Planner Guide</h3>
+          <p class="text-slate-600 mb-4">Building playbooks and designing user journeys through the dapple-prompt system.</p>
+          <div class="flex gap-4">
+            <a href="/guides/journey-planner/" class="text-dapple-green hover:underline font-medium">Read Online</a>
+            <a href="/downloads/journey-planner-guide.pdf" class="text-slate-500 hover:text-dapple-green hover:underline">PDF</a>
+          </div>
+        </div>
+
+        <div class="rounded-2xl border border-slate-200 p-6 hover:shadow-lg hover:border-dapple-green transition">
+          <h3 class="text-xl font-semibold mb-2">Journey Builder Guide</h3>
+          <p class="text-slate-600 mb-4">Technical guide for developers building on the dapple-prompt platform.</p>
+          <div class="flex gap-4">
+            <a href="/guides/journey-builder/" class="text-dapple-green hover:underline font-medium">Read Online</a>
+            <a href="/downloads/journey-builder-guide.pdf" class="text-slate-500 hover:text-dapple-green hover:underline">PDF</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2 class="text-3xl font-semibold mb-8">Rust API Documentation</h2>
+      <p class="text-slate-600 mb-6">Generated rustdoc documentation for workspace crates.</p>
+      <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <a href="/rustdoc/dapple_data/" class="block rounded-xl border border-slate-200 p-4 hover:border-dapple-green hover:shadow transition">
+          <h3 class="font-semibold text-dapple-green">dapple_data</h3>
+          <p class="text-sm text-slate-500">Data access layer (PostgreSQL, SQLx, models, queries)</p>
+        </a>
+
+        <a href="/rustdoc/dapple_prompt_api/" class="block rounded-xl border border-slate-200 p-4 hover:border-dapple-green hover:shadow transition">
+          <h3 class="font-semibold text-dapple-green">dapple_prompt_api</h3>
+          <p class="text-sm text-slate-500">REST API service (Axum handlers, routes, OpenAPI)</p>
+        </a>
+
+        <a href="/rustdoc/dapple_prompt_conduit/" class="block rounded-xl border border-slate-200 p-4 hover:border-dapple-green hover:shadow transition">
+          <h3 class="font-semibold text-dapple-green">dapple_prompt_conduit</h3>
+          <p class="text-sm text-slate-500">Prompt rendering and LLM routing service</p>
+        </a>
+
+        <a href="/rustdoc/dapple_prompt_flow/" class="block rounded-xl border border-slate-200 p-4 hover:border-dapple-green hover:shadow transition">
+          <h3 class="font-semibold text-dapple-green">dapple_prompt_flow</h3>
+          <p class="text-sm text-slate-500">Workflow engine (Nushell integration, dataflow-rs)</p>
+        </a>
+
+        <a href="/rustdoc/dapple_prompt_mock_api/" class="block rounded-xl border border-slate-200 p-4 hover:border-dapple-green hover:shadow transition">
+          <h3 class="font-semibold text-dapple-green">dapple_prompt_mock_api</h3>
+          <p class="text-sm text-slate-500">Mock API service for testing</p>
+        </a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="border-t border-slate-200 py-8 px-8 text-center text-slate-500 mt-16">
+    <p>Generated from <a href="https://github.com/DappleAI/dapple-core" class="text-dapple-green hover:underline">dapple-prompt</a></p>
+  </footer>
+</body>
+</html>

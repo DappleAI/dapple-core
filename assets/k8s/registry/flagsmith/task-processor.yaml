@@ -1,0 +1,50 @@
+# Flagsmith Task Processor - Background task worker
+# Only needed when TASK_RUN_METHOD is set to TASK_PROCESSOR
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flagsmith-task-processor
+  namespace: flagsmith
+  labels:
+    app: flagsmith-task-processor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: flagsmith-task-processor
+  template:
+    metadata:
+      labels:
+        app: flagsmith-task-processor
+    spec:
+      containers:
+        - name: flagsmith-task-processor
+          image: flagsmith/flagsmith:latest
+          imagePullPolicy: IfNotPresent
+          command: ["run-task-processor"]
+          envFrom:
+            - configMapRef:
+                name: flagsmith-config
+            - secretRef:
+                name: flagsmith-secrets
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: flagsmith-task-processor
+  namespace: flagsmith
+spec:
+  type: ClusterIP
+  selector:
+    app: flagsmith-task-processor
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000

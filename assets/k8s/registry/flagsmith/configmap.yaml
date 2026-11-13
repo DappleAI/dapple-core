@@ -1,0 +1,37 @@
+# Flagsmith ConfigMap - Non-secret configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: flagsmith-config
+  namespace: flagsmith
+data:
+  # Application settings
+  ENVIRONMENT: "production"
+  DJANGO_ALLOWED_HOSTS: "*"
+  FLAGSMITH_DOMAIN: "flagsmith.kube.dappleai.dev"
+
+  # Task processor configuration
+  # TASK_PROCESSOR runs background tasks asynchronously
+  TASK_RUN_METHOD: "TASK_PROCESSOR"
+
+  # Analytics stored in Postgres (no separate analytics service needed)
+  USE_POSTGRES_FOR_ANALYTICS: "true"
+
+  # Prometheus metrics enabled
+  PROMETHEUS_ENABLED: "true"
+
+  # Database settings
+  POSTGRES_DB: "flagsmith"
+  POSTGRES_USER: "flagsmith"
+  POSTGRES_HOST: "flagsmith-postgres"
+  POSTGRES_PORT: "5432"
+
+  # Redis settings (for task processor)
+  REDIS_HOST: "flagsmith-redis"
+  REDIS_PORT: "6379"
+
+  # Disable signup after initial setup (can be enabled temporarily)
+  # PREVENT_SIGNUP: "true"
+
+  # Allow registration without invite (set to false for invite-only)
+  # ALLOW_REGISTRATION_WITHOUT_INVITE: "true"

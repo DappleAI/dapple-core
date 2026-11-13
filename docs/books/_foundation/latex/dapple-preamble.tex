@@ -1,0 +1,348 @@
+% ============================================
+% DAPPLE SHARED LATEX PREAMBLE
+% ============================================
+% This file contains common styling for all dapple-prompt PDF guides.
+% Include via pandoc's include-in-header option.
+
+\usepackage{fancyhdr}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usepackage{tcolorbox}
+\usepackage{etoolbox}
+\tcbuselibrary{skins,breakable}
+
+% ============================================
+% DAPPLE BRAND COLORS
+% ============================================
+\definecolor{dapplegreen}{RGB}{73,160,19}
+\definecolor{dapplegreenlight}{RGB}{200,230,180}
+\definecolor{dapplegreenxlight}{RGB}{235,245,225}
+\definecolor{dapplegrey}{RGB}{45,58,45}
+\definecolor{dappledarkgrey}{RGB}{30,41,59}
+
+% ============================================
+% CUSTOM TITLE PAGE
+% ============================================
+% Each guide sets these commands before \maketitle:
+%   \dappletitle{Title}
+%   \dapplesubtitle{Subtitle}
+%   \dapplesubsubtitle{For whom} (optional)
+%   \dapplefooter{Footer text}
+
+\makeatletter
+\newcommand{\dappletitle}[1]{\def\@dappletitle{#1}}
+\newcommand{\dapplesubtitle}[1]{\def\@dapplesubtitle{#1}}
+\newcommand{\dapplesubsubtitle}[1]{\def\@dapplesubsubtitle{#1}}
+\newcommand{\dapplefooter}[1]{\def\@dapplefooter{#1}}
+
+% Defaults
+\dappletitle{\@title}
+\dapplesubtitle{}
+\dapplesubsubtitle{}
+\dapplefooter{dapple-prompt Documentation}
+\makeatother
+
+\makeatletter
+\renewcommand{\maketitle}{%
+  \begin{titlepage}
+    \begin{tikzpicture}[remember picture,overlay]
+      % Green header band
+      \fill[dapplegreen] (current page.north west) rectangle ([yshift=-4cm]current page.north east);
+      % Light green accent stripe
+      \fill[dapplegreenlight] ([yshift=-4cm]current page.north west) rectangle ([yshift=-4.15cm]current page.north east);
+    \end{tikzpicture}
+
+    \vspace*{1cm}
+
+    % Logo
+    \begin{center}
+      \includegraphics[width=2.5cm]{logo.pdf}
+    \end{center}
+
+    \vspace{2cm}
+
+    % Title
+    \begin{center}
+      {\fontsize{36}{42}\selectfont\bfseries\sffamily\color{dapplegreen}\@dappletitle\par}
+      \vspace{0.8cm}
+      {\Large\color{dapplegrey}\@dapplesubtitle\par}
+      \ifx\@dapplesubsubtitle\empty\else
+        {\large\color{dapplegrey}\@dapplesubsubtitle\par}
+      \fi
+    \end{center}
+
+    \vfill
+
+    % Decorative line
+    \begin{center}
+      \begin{tikzpicture}
+        \draw[dapplegreen, line width=2pt] (0,0) -- (8,0);
+        \fill[dapplegreen] (4,0) circle (4pt);
+      \end{tikzpicture}
+    \end{center}
+
+    \vspace{1cm}
+
+    % Author and version info
+    \begin{center}
+      {\large\sffamily\color{dapplegrey}\@author\par}
+      \vspace{0.5cm}
+      {\normalsize\color{gray}\@date\par}
+    \end{center}
+
+    \vspace{2cm}
+
+    % Footer band
+    \begin{tikzpicture}[remember picture,overlay]
+      \fill[dapplegreenxlight] (current page.south west) rectangle ([yshift=1.5cm]current page.south east);
+      \node[anchor=south] at ([yshift=0.5cm]current page.south) {\color{dapplegrey}\small\sffamily dapple-prompt Documentation};
+    \end{tikzpicture}
+  \end{titlepage}
+}
+\makeatother
+
+% ============================================
+% TOC STYLING
+% ============================================
+\AtBeginDocument{%
+  \addtocontents{toc}{\protect\thispagestyle{empty}}%
+}
+
+% ============================================
+% HEADERS AND FOOTERS (base setup)
+% ============================================
+% Note: The footer text is set per-guide using \dapplefooter
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\color{dapplegreen}\sffamily\nouppercase{\leftmark}}
+\fancyhead[R]{\color{dapplegrey}\thepage}
+\makeatletter
+\fancyfoot[C]{\color{gray}\small\sffamily\@dapplefooter}
+\makeatother
+\renewcommand{\headrulewidth}{0.5pt}
+\renewcommand{\headrule}{\hbox to\headwidth{\color{dapplegreen}\leaders\hrule height \headrulewidth\hfill}}
+\renewcommand{\footrulewidth}{0.3pt}
+\renewcommand{\footrule}{\hbox to\headwidth{\color{dapplegreenlight}\leaders\hrule height \footrulewidth\hfill}}
+
+% Plain style for chapter pages
+\makeatletter
+\fancypagestyle{plain}{%
+  \fancyhf{}
+  \fancyfoot[C]{\color{gray}\small\sffamily\@dapplefooter}
+  \fancyfoot[R]{\color{dapplegrey}\thepage}
+  \renewcommand{\headrulewidth}{0pt}
+  \renewcommand{\footrulewidth}{0.3pt}
+}
+\makeatother
+
+% ============================================
+% CHAPTER AND SECTION STYLING
+% ============================================
+% Chapter: Green title with decorative underline
+\newcommand{\chapmark}{}
+\titleformat{\chapter}{\normalfont\Huge\bfseries\sffamily\color{dapplegreen}}{%
+  \colorbox{dapplegreenxlight}{\makebox[2.5em]{\color{dapplegreen}\thechapter}}%
+}{20pt}{\renewcommand{\chapmark}}
+\titlespacing*{\chapter}{0pt}{0pt}{20pt}
+
+% Add decorative rule after chapter title
+\newcommand{\chapterrule}{%
+  \par\nobreak\vspace{10pt}%
+  \hbox to \textwidth{\color{dapplegreen}\leaders\hrule height 2pt\hfill}%
+  \par\nobreak\vspace{20pt}%
+}
+
+% Section: Green with subtle underline
+\titleformat{\section}{\normalfont\Large\bfseries\sffamily\color{dapplegreen}}{%
+  \colorbox{dapplegreenlight}{\makebox[1.8em]{\color{white}\thesection}}%
+}{0.8em}{}
+\titlespacing*{\section}{0pt}{2em}{0.8em}
+
+% Subsection: Grey with green number box
+\titleformat{\subsection}{\normalfont\large\bfseries\sffamily\color{dapplegrey}}{%
+  \fcolorbox{dapplegreen}{white}{\makebox[2.2em]{\color{dapplegreen}\thesubsection}}%
+}{0.8em}{}
+\titlespacing*{\subsection}{0pt}{1.5em}{0.5em}
+
+% Subsubsection: Smaller, with green accent
+\titleformat{\subsubsection}{\normalfont\normalsize\bfseries\sffamily\color{dapplegrey}}{%
+  \textcolor{dapplegreen}{\thesubsubsection}%
+}{0.8em}{}
+
+% ============================================
+% COLORED BOXES FOR CALLOUTS
+% ============================================
+\newtcolorbox{tipbox}{
+  enhanced,
+  colback=dapplegreenxlight,
+  colframe=dapplegreen,
+  coltitle=white,
+  fonttitle=\bfseries\sffamily,
+  title=Tip,
+  left=8pt,
+  right=8pt,
+  top=6pt,
+  bottom=6pt,
+  boxrule=1pt,
+  arc=3pt,
+  breakable
+}
+
+\newtcolorbox{notebox}{
+  enhanced,
+  colback=blue!5,
+  colframe=blue!50!black,
+  coltitle=white,
+  fonttitle=\bfseries\sffamily,
+  title=Note,
+  left=8pt,
+  right=8pt,
+  top=6pt,
+  bottom=6pt,
+  boxrule=1pt,
+  arc=3pt,
+  breakable
+}
+
+\newtcolorbox{warningbox}{
+  enhanced,
+  colback=orange!10,
+  colframe=orange!80!black,
+  coltitle=white,
+  fonttitle=\bfseries\sffamily,
+  title=Warning,
+  left=8pt,
+  right=8pt,
+  top=6pt,
+  bottom=6pt,
+  boxrule=1pt,
+  arc=3pt,
+  breakable
+}
+
+% ============================================
+% CODE BLOCK STYLING
+% ============================================
+\definecolor{codebg}{RGB}{248,250,252}
+\definecolor{codeborder}{RGB}{200,230,180}
+
+% Style code blocks with green left border
+\usepackage{mdframed}
+\surroundwithmdframed[
+  hidealllines=true,
+  leftline=true,
+  linewidth=3pt,
+  linecolor=dapplegreen,
+  backgroundcolor=codebg,
+  innerleftmargin=10pt,
+  innerrightmargin=10pt,
+  innertopmargin=8pt,
+  innerbottommargin=8pt
+]{verbatim}
+
+% ============================================
+% BLOCKQUOTE STYLING
+% ============================================
+\usepackage{quoting}
+\quotingsetup{
+  leftmargin=0pt,
+  rightmargin=0pt,
+  vskip=1em
+}
+
+% Redefine quote environment with green styling
+\renewenvironment{quote}{%
+  \begin{mdframed}[
+    hidealllines=true,
+    leftline=true,
+    linewidth=4pt,
+    linecolor=dapplegreen,
+    backgroundcolor=dapplegreenxlight,
+    innerleftmargin=15pt,
+    innerrightmargin=15pt,
+    innertopmargin=10pt,
+    innerbottommargin=10pt,
+    skipabove=1em,
+    skipbelow=1em
+  ]
+  \itshape\color{dapplegrey}
+}{%
+  \end{mdframed}
+}
+
+% ============================================
+% TABLE STYLING
+% ============================================
+\usepackage{colortbl}
+\usepackage{booktabs}
+
+% Make table headers green
+\let\oldtabular\tabular
+\let\endoldtabular\endtabular
+\renewenvironment{tabular}[1]{%
+  \rowcolors{2}{white}{dapplegreenxlight}%
+  \oldtabular{#1}%
+  \rowcolor{dapplegreen}%
+}{%
+  \endoldtabular%
+}
+
+% ============================================
+% TOC DECORATION
+% ============================================
+\usepackage{tocloft}
+\renewcommand{\cfttoctitlefont}{\Huge\bfseries\sffamily\color{dapplegreen}}
+\renewcommand{\cftchapfont}{\bfseries\sffamily\color{dapplegrey}}
+\renewcommand{\cftchappagefont}{\bfseries\color{dapplegreen}}
+\renewcommand{\cftsecfont}{\sffamily\color{dapplegrey}}
+\renewcommand{\cftsecpagefont}{\color{dapplegreen}}
+\renewcommand{\cftsubsecfont}{\small\sffamily\color{gray}}
+\renewcommand{\cftsubsecpagefont}{\small\color{dapplegreen}}
+
+% Add dots to TOC entries
+\renewcommand{\cftchapleader}{\cftdotfill{\cftchapdotsep}}
+\renewcommand{\cftchapdotsep}{\cftdotsep}
+
+% TOC title spacing
+\setlength{\cftbeforetoctitleskip}{0pt}
+\setlength{\cftaftertoctitleskip}{2em}
+
+% ============================================
+% LIST STYLING
+% ============================================
+\usepackage{enumitem}
+\setlist{itemsep=0.3em,parsep=0.2em}
+\setlist[itemize,1]{label={\color{dapplegreen}\textbullet}}
+\setlist[itemize,2]{label={\color{dapplegreenlight}\textbullet}}
+\setlist[enumerate,1]{label={\color{dapplegreen}\arabic*.}}
+\setlist[enumerate,2]{label={\color{dapplegrey}\alph*)}}
+
+% ============================================
+% TASK LIST CHECKBOXES
+% ============================================
+% Define checkbox commands using tikz for consistent rendering
+\newcommand{\uncheckedbox}{%
+  \tikz[baseline=-0.5ex]{\draw[dapplegreen,line width=1pt] (0,0) rectangle (0.8em,0.8em);}%
+  \hspace{0.3em}%
+}
+\newcommand{\checkedbox}{%
+  \tikz[baseline=-0.5ex]{%
+    \draw[dapplegreen,line width=1pt] (0,0) rectangle (0.8em,0.8em);%
+    \draw[dapplegreen,line width=1.5pt] (0.15em,0.4em) -- (0.35em,0.15em) -- (0.7em,0.65em);%
+  }%
+  \hspace{0.3em}%
+}
+
+% ============================================
+% HYPERREF STYLING (must be last)
+% ============================================
+\usepackage{hyperref}
+\hypersetup{
+  colorlinks=true,
+  linkcolor=dapplegreen,
+  urlcolor=dapplegreen,
+  citecolor=dapplegreen,
+  pdfborder={0 0 0}
+}

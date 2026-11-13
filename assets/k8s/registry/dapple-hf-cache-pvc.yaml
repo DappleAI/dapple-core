@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dapple-hf-cache
+  namespace: dapple-sandbox
+  labels:
+    app: dapple-prompt-conduit
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi  # Enough for Parler-TTS (~3.3GB) + headroom
+  storageClassName: microk8s-hostpath

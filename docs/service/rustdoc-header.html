@@ -1,0 +1,156 @@
+<style>
+:root {
+  --dapple-green: #49a013;
+  --dapple-green-dark: #3d8410;
+  --dapple-green-light: rgba(73, 160, 19, 0.1);
+  --dapple-green-lighter: rgba(73, 160, 19, 0.05);
+
+  /* Green-tinted grey palette */
+  --dapple-bg: #f5f8f4;
+  --dapple-bg-darker: #e8ede6;
+  --dapple-bg-darkest: #dce4da;
+  --dapple-border: #d4ddd2;
+  --dapple-text: #1e2a1e;
+  --dapple-text-muted: #4a5a4a;
+}
+
+/* Override rustdoc theme colors */
+:root, :root[data-theme="light"], :root[data-theme="dark"], :root[data-theme="ayu"] {
+  --main-background-color: var(--dapple-bg);
+  --main-color: var(--dapple-text);
+  --settings-input-color: var(--dapple-text);
+  --sidebar-background-color: var(--dapple-bg-darker);
+  --sidebar-background-color-hover: var(--dapple-bg-darkest);
+  --code-block-background-color: var(--dapple-bg-darker);
+  --scrollbar-track-background-color: var(--dapple-bg-darker);
+  --scrollbar-thumb-background-color: var(--dapple-border);
+  --scrollbar-color: var(--dapple-border) var(--dapple-bg-darker);
+  --headings-border-bottom-color: var(--dapple-border);
+  --border-color: var(--dapple-border);
+  --button-background-color: var(--dapple-bg-darker);
+  --right-side-color: var(--dapple-text-muted);
+  --code-highlight-kw-color: var(--dapple-green);
+  --code-highlight-kw-2-color: var(--dapple-green);
+  --code-highlight-lifetime-color: var(--dapple-green-dark);
+  --code-highlight-prelude-color: var(--dapple-green);
+  --code-highlight-prelude-val-color: var(--dapple-green-dark);
+  --code-highlight-number-color: #2d5a2d;
+  --code-highlight-string-color: #3d6a3d;
+  --code-highlight-literal-color: var(--dapple-green-dark);
+  --code-highlight-attribute-color: var(--dapple-green);
+  --code-highlight-self-color: var(--dapple-green);
+  --code-highlight-macro-color: var(--dapple-green-dark);
+  --code-highlight-question-mark-color: var(--dapple-green);
+  --code-highlight-comment-color: #6b7a6b;
+  --code-highlight-doc-comment-color: #4a6a4a;
+  --src-line-numbers-span-color: var(--dapple-text-muted);
+  --src-line-number-highlighted-background-color: var(--dapple-green-light);
+  --search-result-link-focus-background-color: var(--dapple-bg-darker);
+  --search-result-border-color: var(--dapple-border);
+  --search-color: var(--dapple-text);
+  --search-error-code-background-color: var(--dapple-bg-darker);
+  --search-results-alias-color: var(--dapple-text-muted);
+  --search-results-grey-color: var(--dapple-text-muted);
+  --search-tab-title-count-color: var(--dapple-text-muted);
+  --search-tab-button-not-selected-border-top-color: var(--dapple-border);
+  --search-tab-button-not-selected-background: var(--dapple-bg);
+  --search-tab-button-selected-border-top-color: var(--dapple-green);
+  --search-tab-button-selected-background: var(--dapple-bg-darker);
+  --stab-background-color: var(--dapple-green-lighter);
+  --stab-code-color: var(--dapple-text);
+  --code-example-button-color: var(--dapple-text-muted);
+  --code-example-button-hover-color: var(--dapple-text);
+  --codeblock-error-hover-color: #a02020;
+  --codeblock-error-color: #c04040;
+  --codeblock-ignore-hover-color: var(--dapple-text-muted);
+  --codeblock-ignore-color: #6b7a6b;
+  --warning-border-color: #c0a000;
+  --type-link-color: var(--dapple-green);
+  --trait-link-color: var(--dapple-green-dark);
+  --assoc-item-link-color: var(--dapple-green);
+  --function-link-color: var(--dapple-green);
+  --macro-link-color: var(--dapple-green-dark);
+  --keyword-link-color: var(--dapple-green);
+  --mod-link-color: var(--dapple-green);
+  --link-color: var(--dapple-green);
+  --sidebar-link-color: var(--dapple-text);
+  --sidebar-current-link-background-color: var(--dapple-bg-darkest);
+  --target-background-color: var(--dapple-green-light);
+  --target-border-color: var(--dapple-green);
+  --kbd-color: var(--dapple-text);
+  --kbd-background: var(--dapple-bg-darker);
+  --kbd-box-shadow-color: var(--dapple-border);
+  --table-alt-row-background-color: var(--dapple-bg-darker);
+  --crate-search-div-filter: none;
+  --crate-search-div-hover-filter: none;
+  --source-sidebar-background-color: var(--dapple-bg-darker);
+  --source-sidebar-background-hover: var(--dapple-bg-darkest);
+  --example-line-numbers-border-color: var(--dapple-border);
+  --src-line-numbers-span-color: var(--dapple-text-muted);
+  --src-line-number-highlighted-background-color: var(--dapple-green-light);
+  --test-arrow-color: var(--dapple-green);
+  --test-arrow-background-color: var(--dapple-bg-darker);
+  --test-arrow-hover-color: var(--dapple-green-dark);
+  --test-arrow-hover-background-color: var(--dapple-bg-darkest);
+  --settings-input-border-color: var(--dapple-border);
+  --settings-button-border-focus: var(--dapple-green);
+  --copy-path-button-color: var(--dapple-text-muted);
+  --copy-path-img-filter: none;
+  --copy-path-img-hover-filter: none;
+  --sidebar-menu-filter: none;
+  --mobile-sidebar-menu-filter: none;
+}
+
+/* Logo container in sidebar */
+.rustdoc .sidebar .logo-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  margin-bottom: 8px;
+}
+
+.rustdoc .sidebar .logo-container img {
+  width: 64px;
+  height: 64px;
+}
+
+/* Links */
+.rustdoc a {
+  color: var(--dapple-green);
+}
+
+.rustdoc a:hover {
+  color: var(--dapple-green-dark);
+}
+
+/* Inline code */
+.rustdoc code {
+  background-color: var(--dapple-bg-darker);
+  color: var(--dapple-text);
+}
+
+/* Ensure proper contrast in tables */
+.rustdoc table td code,
+.rustdoc table th code {
+  background-color: var(--dapple-bg-darkest);
+  color: var(--dapple-text);
+}
+
+/* Checkboxes */
+.rustdoc input[type="checkbox"] {
+  accent-color: var(--dapple-green);
+}
+</style>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Add logo to sidebar
+  const sidebar = document.querySelector('.sidebar');
+  if (sidebar) {
+    const logoContainer = document.createElement('div');
+    logoContainer.className = 'logo-container';
+    logoContainer.innerHTML = '<a href="/"><img src="/rustdoc/logo.svg" alt="dapple"></a>';
+    sidebar.insertBefore(logoContainer, sidebar.firstChild);
+  }
+});
+</script>

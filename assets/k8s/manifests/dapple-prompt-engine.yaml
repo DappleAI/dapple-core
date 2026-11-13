@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dapple-sandbox
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{NAME}}
+  namespace: dapple-sandbox
+  labels:
+    app: {{NAME}}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{NAME}}
+  template:
+    metadata:
+      labels:
+        app: {{NAME}}
+    spec:
+      containers:
+        - name: {{NAME}}
+          #image: registry.kube.dappleai.dev/dapple-prompt-event:dapple-latest
+          image: registry.kube.dappleai.dev/{{IMAGE_NAME}}:dapple-latest
+          imagePullPolicy: Always
+          env:
+            - name: DAPPLE_PROMPT_DATABASE_URL
+              value: postgres://dapple:ai@prompt-db:5432/dapple
+          resources:
+            requests: { cpu: "100m", memory: "128Mi" }
+            limits:   { cpu: "500m", memory: "512Mi" }

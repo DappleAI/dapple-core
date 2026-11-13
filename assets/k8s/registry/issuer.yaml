@@ -1,0 +1,60 @@
+# 1) Bootstrap: a self-signed ClusterIssuer to mint the root CA
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: local-dev-selfsigned
+spec:
+  selfSigned: {}
+
+---
+# 2) Mint the root CA (in cert-manager namespace) using the self-signed issuer
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: local-dev-root-ca
+  namespace: cert-manager
+spec:
+  isCA: true
+  commonName: local-dev-root-ca
+  secretName: local-dev-root-ca    # => tls.crt (CA) + tls.key (CA key)
+  # Long-lived dev root CA. Without an explicit duration the root inherits
+  # cert-manager's 90-day default and self-rotates every quarter, which
+  # invalidates each node's trust store (containerd rejects the registry cert
+  # -> ImagePullBackOff on every image-mode pod). A dev root gains nothing from
+  # quarterly rotation, so pin it to 10y: issued once, trusted once, stable.
+  duration: 87600h     # 10 years
+  renewBefore: 2160h   # 90 days
+  privateKey:
+    algorithm: RSA
+    size: 2048
+  issuerRef:
+    kind: ClusterIssuer
+    name: local-dev-selfsigned     # <- self-signed bootstrap issuer
+
+---
+# 3) Actual CA ClusterIssuer that signs leaf certs using that root keypair
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: local-dev-ca
+spec:
+  ca:
+    secretName: local-dev-root-ca  # secret is in the cert-manager namespace
+
+---
+# 4) Wildcard cert for your sandbox namespace
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wildcard-kube.dappleai.dev
+  namespace: dapple-sandbox
+spec:
+  secretName: wildcard-kube.dappleai.dev     # shared by all ingresses in this ns
+  issuerRef:
+    kind: ClusterIssuer
+    name: local-dev-ca                       # <- sign with the CA ClusterIssuer
+  dnsNames:
+    - kube.dappleai.dev
+    - "*.kube.dappleai.dev"
+  duration: 8760h      # 365d
+  renewBefore: 720h    # 30d

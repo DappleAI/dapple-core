@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{NAME}}
+  namespace: {{NAMESPACE}}
+spec:
+  template:
+    spec:
+      securityContext:
+        runAsUser: {{RUN_AS_USER}}
+        runAsGroup: {{RUN_AS_GROUP}}
+        fsGroup: {{RUN_AS_GROUP}}
+      containers:
+        - name: {{NAME}}
+          command: ["/app/bin/{{NAME}}"]
+          volumeMounts:
+            - name: cargo-target
+              mountPath: /app/bin
+              readOnly: true
+      volumes:
+        - name: cargo-target
+          hostPath:
+            path: {{SOURCE_PATH}}/target/{{TARGET_DIR}}
+            type: Directory

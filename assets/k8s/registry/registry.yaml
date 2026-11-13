@@ -1,0 +1,41 @@
+# Certificate for registry.kube.dappleai.dev in the container-registry ns
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: registry-tls
+  namespace: container-registry
+spec:
+  secretName: registry-tls
+  dnsNames:
+    - registry.kube.dappleai.dev
+  issuerRef:
+    kind: ClusterIssuer
+    name: local-dev-ca
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: registry
+  namespace: container-registry
+  annotations:
+    cert-manager.io/cluster-issuer: local-dev-ca
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+spec:
+  ingressClassName: public
+  tls:
+    - hosts: ["registry.kube.dappleai.dev"]
+      secretName: registry-tls          # <-- lives in container-registry
+  rules:
+    - host: registry.kube.dappleai.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: registry          # microk8s registry svc
+                port:
+                  number: 5000          # internal svc port

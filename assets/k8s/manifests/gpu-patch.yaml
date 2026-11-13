@@ -1,0 +1,56 @@
+# GPU resource patch for dapple-prompt-conduit
+#
+# This patch is applied by the deployment script when a GPU is detected.
+# It adds GPU resource limits, device mounts, and environment variables
+# for the ONNX Runtime execution provider.
+#
+# Usage: kubectl patch deployment {{NAME}} -n {{NAMESPACE}} --type=strategic --patch-file gpu-patch.yaml
+#
+# Variables to render:
+#   {{NAME}} - Deployment name (e.g., dapple-prompt-conduit)
+#   {{NAMESPACE}} - Kubernetes namespace (e.g., dapple-sandbox)
+#   {{GPU_RESOURCE}} - GPU resource name (e.g., amd.com/gpu, nvidia.com/gpu)
+#   {{ONNX_EP}} - ONNX execution provider (e.g., ROCMExecutionProvider)
+#   {{HSA_OVERRIDE}} - Optional: HSA_OVERRIDE_GFX_VERSION for AMD GPUs
+#   {{IS_AMD}} - true if AMD GPU, for AMD-specific mounts
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{NAME}}
+  namespace: {{NAMESPACE}}
+spec:
+  template:
+    spec:
+      containers:
+        - name: {{NAME}}
+          resources:
+            limits:
+              {{GPU_RESOURCE}}: 1
+          env:
+            - name: ONNX_EXECUTION_PROVIDER
+              value: "{{ONNX_EP}}"
+            {{#if HSA_OVERRIDE}}
+            - name: HSA_OVERRIDE_GFX_VERSION
+              value: "{{HSA_OVERRIDE}}"
+            {{/if}}
+          {{#if IS_AMD}}
+          # AMD GPUs require access to /dev/dri and /dev/kfd
+          securityContext:
+            capabilities:
+              add: ["SYS_PTRACE"]
+          volumeMounts:
+            - name: dri
+              mountPath: /dev/dri
+            - name: kfd
+              mountPath: /dev/kfd
+          {{/if}}
+      {{#if IS_AMD}}
+      volumes:
+        - name: dri
+          hostPath:
+            path: /dev/dri
+        - name: kfd
+          hostPath:
+            path: /dev/kfd
+      {{/if}}

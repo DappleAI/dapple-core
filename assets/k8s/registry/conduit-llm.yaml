@@ -1,0 +1,102 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: conduit-llm
+  namespace: dapple-sandbox
+  labels:
+    app: conduit-llm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: conduit-llm
+  template:
+    metadata:
+      labels:
+        app: conduit-llm
+    spec:
+      containers:
+        - name: conduit-llm
+          image: registry.kube.dappleai.dev/conduit-llm:dapple-latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8084
+              name: http
+          env:
+            - name: LLM_PORT
+              value: "8084"
+            - name: RUST_LOG
+              value: "warn,conduit_llm=debug"
+            - name: MISTRALRS_MODEL_ID
+              value: "bartowski/Mistral-7B-Instruct-v0.3-GGUF"
+            - name: MISTRALRS_GGUF_FILE
+              value: "Mistral-7B-Instruct-v0.3-Q4_K_M.gguf"
+            - name: MISTRALRS_TOK_MODEL_ID
+              value: "mistralai/Mistral-7B-Instruct-v0.3"
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: dapple-llm-keys
+                  key: hf-token
+                  optional: true
+            - name: HF_HUB_CACHE
+              value: /cache/huggingface/hub
+            - name: CONDUIT_INTERNAL_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: conduit-internal-auth
+                  key: internal-key
+                  optional: true
+          resources:
+            requests: { cpu: "100m", memory: "512Mi" }
+            limits:   { cpu: "4000m", memory: "8Gi" }  # Mistral 7B Q4 ~4-5Gi + overhead
+          # Mistral 7B Q4 takes minutes to load on CPU and ~30+s even on GPU.
+          # Use a startupProbe to gate readiness/liveness until the model has
+          # actually loaded — the previous fixed-delay liveness probe killed
+          # the container after ~40s, well before model load completed.
+          # startupProbe semantics: failureThreshold * periodSeconds is the
+          # total time the container has to come up. 60 * 10s = 10 minutes,
+          # which is generous for a cold first-pull-and-load and not
+          # catastrophic if something is genuinely stuck.
+          startupProbe:
+            httpGet:
+              path: /api/health_check
+              port: 8084
+            periodSeconds: 10
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /api/health_check
+              port: 8084
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/health_check
+              port: 8084
+            periodSeconds: 30
+            failureThreshold: 3
+          volumeMounts:
+            - name: hf-cache
+              mountPath: /cache/huggingface
+      volumes:
+        - name: hf-cache
+          hostPath:
+            path: /home/placeholder/.cache/huggingface
+            type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: conduit-llm
+  namespace: dapple-sandbox
+  labels:
+    app: conduit-llm
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8084
+      targetPort: 8084
+      protocol: TCP
+  selector:
+    app: conduit-llm

@@ -1,0 +1,14 @@
+:8080 {
+    respond /api/health_check 200
+
+    root * /srv
+    try_files {path} {path}/ {path}/index.html
+    file_server
+
+    encode gzip
+
+    log {
+        output stdout
+        format console
+    }
+}

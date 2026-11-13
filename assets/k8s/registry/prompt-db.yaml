@@ -1,0 +1,194 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: prompt-db-secret
+  namespace: dapple-sandbox
+type: Opaque
+stringData:
+  POSTGRES_PASSWORD: "ai"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prompt-db-pvc
+  namespace: dapple-sandbox
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: microk8s-hostpath
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prompt-db-init-sql
+  namespace: dapple-sandbox
+data:
+  01-extensions.sql: |
+    CREATE EXTENSION IF NOT EXISTS hstore;
+    CREATE EXTENSION IF NOT EXISTS vector;
+    CREATE EXTENSION IF NOT EXISTS postgis;
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prompt-db
+  namespace: dapple-sandbox
+  labels: { app: prompt-db }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: prompt-db }
+  template:
+    metadata:
+      labels: { app: prompt-db }
+    spec:
+      securityContext:
+        fsGroup: 999
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: prompt-db
+          image: registry.kube.dappleai.dev/prompt-db:dapple-latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5432
+          env:
+            - { name: POSTGRES_DB, value: "dapple" }
+            - { name: POSTGRES_USER, value: "dapple" }
+            - { name: POSTGRES_PASSWORD, valueFrom: { secretKeyRef: { name: prompt-db-secret, key: POSTGRES_PASSWORD } } }
+          # Sized against observed behaviour, not guesswork: the pod idles at
+          # ~300Mi with ~45 pooled connections, so the previous 1Gi limit left
+          # <700Mi for query spikes and OOMKilled (exit 137) repeatedly — 113
+          # restarts. Each OOM signs every user out of dapple-ui, because the
+          # NextAuth `jwt` callback (withUserExistenceCheck) fails CLOSED on a
+          # DB error and returns a null session -> 401 on every page fetch.
+          # The node has 123Gi with ~7% requested, so headroom is free here.
+          # requests bumped off 256Mi so the pod isn't sitting above its own
+          # request (a preferred eviction target under node memory pressure).
+          resources:
+            requests: { cpu: "250m", memory: "1Gi" }
+            limits:   { cpu: "1",    memory: "2Gi" }
+          volumeMounts:
+            - name: pg-data
+              mountPath: /var/lib/postgresql/18/docker
+            - name: init-sql
+              mountPath: /docker-entrypoint-initdb.d
+          readinessProbe:
+            tcpSocket: { port: 5432 }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket: { port: 5432 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+      volumes:
+        - name: pg-data
+          persistentVolumeClaim:
+            claimName: prompt-db-pvc
+        - name: init-sql
+          configMap:
+            name: prompt-db-init-sql
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prompt-db
+  namespace: dapple-sandbox
+spec:
+  type: ClusterIP
+  selector: { app: prompt-db }
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+---
+# Gateway DaemonSet for external access (same pattern as dapple-postgres-gateway)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prompt-db-gateway
+  namespace: dapple-sandbox
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: prompt-db-gateway
+  namespace: dapple-sandbox
+rules:
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: prompt-db-gateway
+  namespace: dapple-sandbox
+subjects:
+  - kind: ServiceAccount
+    name: prompt-db-gateway
+    namespace: dapple-sandbox
+roleRef:
+  kind: Role
+  name: prompt-db-gateway
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: prompt-db-gateway
+  namespace: dapple-sandbox
+spec:
+  selector:
+    matchLabels: { app: prompt-db-gateway }
+  template:
+    metadata:
+      labels: { app: prompt-db-gateway }
+    spec:
+      serviceAccountName: prompt-db-gateway
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+      initContainers:
+        - name: resolve-service-ip
+          image: curlimages/curl:8.5.0
+          command:
+            - sh
+            - -c
+            - |
+              SERVICE_DNS="prompt-db.dapple-sandbox.svc.cluster.local"
+              echo "$SERVICE_DNS" > /shared/service-ip
+          volumeMounts:
+            - name: shared-data
+              mountPath: /shared
+      containers:
+        - name: prompt-db-gateway
+          image: alpine/socat:1.8.0.0
+          command:
+            - sh
+            - -c
+            - |
+              SERVICE_IP=$(cat /shared/service-ip)
+              exec socat tcp-listen:5432,reuseaddr,fork tcp:$SERVICE_IP:5432
+          volumeMounts:
+            - name: shared-data
+              mountPath: /shared
+          readinessProbe:
+            tcpSocket: { port: 5432 }
+            initialDelaySeconds: 1
+            periodSeconds: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              add: ["NET_BIND_SERVICE"]
+              drop: ["ALL"]
+          resources:
+            requests: { cpu: "10m", memory: "16Mi" }
+            limits:   { cpu: "100m", memory: "64Mi" }
+      volumes:
+        - name: shared-data
+          emptyDir: {}

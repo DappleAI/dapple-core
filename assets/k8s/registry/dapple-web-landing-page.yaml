@@ -1,0 +1,192 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dapple-sandbox
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dapple-web-landing-page
+  namespace: dapple-sandbox
+  labels:
+    app: dapple-web-landing-page
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dapple-web-landing-page
+  template:
+    metadata:
+      labels:
+        app: dapple-web-landing-page
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+
+      volumes:
+        - name: src
+          hostPath:
+            path: "{{SOURCE_PATH}}"
+            type: Directory
+        - name: next-build
+          emptyDir: {}
+        - name: node-mods
+          emptyDir: {}
+        - name: pnpm-store
+          emptyDir: {}
+
+      containers:
+        - name: dapple-web-landing-page
+          image: "node:24.8-bookworm"
+          imagePullPolicy: IfNotPresent
+          workingDir: /app
+          env:
+            # Node.js basics
+            - name: NODE_ENV
+              value: "development"
+            - name: HOST
+              value: "0.0.0.0"
+            - name: HOSTNAME
+              value: "0.0.0.0"
+            - name: PORT
+              value: "4444"
+            # pnpm/npm cache configuration
+            - name: XDG_CACHE_HOME
+              value: /pnpm-store/.cache
+            - name: PNPM_STORE_DIR
+              value: /pnpm-store/store
+            - name: PNPM_HOME
+              value: /pnpm-store/pnpm-home
+            - name: npm_config_cache
+              value: /pnpm-store/.npm-cache
+            - name: PNPM_TMPDIR
+              value: /pnpm-store/tmp
+            - name: NPM_CONFIG_PREFIX
+              value: /pnpm-store/pnpm-home
+            - name: PATH
+              value: /pnpm-store/pnpm-home/bin:/usr/local/bin:/usr/bin:/bin
+            - name: COREPACK_HOME
+              value: /pnpm-store/corepack
+            # File watching for dev
+            - name: CHOKIDAR_USEPOLLING
+              value: "1"
+            - name: WATCHPACK_POLLING
+              value: "true"
+            - name: NEXT_TELEMETRY_DISABLED
+              value: "1"
+            # Auth secrets from k8s secret
+            - name: NEXTAUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: dapple-ui-auth
+                  key: NEXTAUTH_SECRET
+            - name: NEXTAUTH_URL
+              valueFrom:
+                secretKeyRef:
+                  name: dapple-ui-auth
+                  key: NEXTAUTH_URL
+            # Internal API (dapple-prompt-api)
+            - name: DAPPLE_PROMPT_API_INTERNAL_URL
+              valueFrom:
+                secretKeyRef:
+                  name: dapple-ui-auth
+                  key: DAPPLE_PROMPT_API_INTERNAL_URL
+            - name: DAPPLE_UI_SAT_SIGNING_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: dapple-ui-auth
+                  key: DAPPLE_UI_SAT_SIGNING_KEY
+            - name: DAPPLE_UI_SERVICE_ID
+              valueFrom:
+                secretKeyRef:
+                  name: dapple-ui-auth
+                  key: DAPPLE_UI_SERVICE_ID
+            # PostHog analytics (public, but managed via secret for consistency)
+            - name: NEXT_PUBLIC_POSTHOG_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: dapple-ui-auth
+                  key: NEXT_PUBLIC_POSTHOG_KEY
+            - name: NEXT_PUBLIC_POSTHOG_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: dapple-ui-auth
+                  key: NEXT_PUBLIC_POSTHOG_HOST
+          ports:
+            - containerPort: 4444
+              name: http
+          volumeMounts:
+            - name: src
+              mountPath: /app
+            - name: next-build
+              mountPath: /app/.next
+            - name: node-mods
+              mountPath: /mods
+            - name: pnpm-store
+              mountPath: /pnpm-store
+          command: ["bash", "-c"]
+          args:
+            - |
+              set -euo pipefail
+              install -d -m 2775 "$COREPACK_HOME" "$PNPM_STORE_DIR" "$PNPM_HOME" "$XDG_CACHE_HOME"
+
+              echo "NPM home: $PNPM_HOME"
+              echo "PATH: $PATH"
+
+              echo "setting up prefixes"
+              npm config set prefix "$PNPM_HOME"
+              echo "setting up cache"
+              npm config set cache "$npm_config_cache"
+
+              echo "npm install pnpm"
+              npm install -g pnpm@9.12.0
+
+              echo "pnpm config"
+              pnpm config set store-dir "$PNPM_STORE_DIR"
+              pnpm config set prefix "$PNPM_HOME"
+
+              echo "pnpm install"
+              pnpm install --ignore-scripts --prod=false
+              echo "kick off server"
+              exec pnpm dev -H 0.0.0.0 -p 4444 --experimental-https
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dapple-web-landing-page
+  namespace: dapple-sandbox
+  labels:
+    app: dapple-web-landing-page
+spec:
+  type: ClusterIP
+  selector:
+    app: dapple-web-landing-page
+  ports:
+    - name: http
+      port: 4444
+      targetPort: 4444
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: dapple-web-landing-page
+  namespace: dapple-sandbox
+spec:
+  ingressClassName: public
+  tls:
+    - hosts: ["landing-page.kube.dappleai.dev"]
+      secretName: wildcard-kube.dappleai.dev  # managed by issuer.yaml Certificate
+  rules:
+    - host: "landing-page.kube.dappleai.dev"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: dapple-web-landing-page
+                port:
+                  number: 4444
