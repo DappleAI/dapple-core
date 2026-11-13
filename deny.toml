@@ -1,0 +1,48 @@
+# cargo-deny configuration — dependency license policy.
+#
+# Run locally:  cargo deny check licenses
+# CI runs the same check (.github/workflows/license-check.yml).
+#
+# Policy: this repo is Apache-2.0, so every dependency must be available under
+# a license compatible with redistributing it in an Apache-2.0 project. Strong
+# copyleft (GPL/LGPL/AGPL) is NOT on the list; dual-licensed crates offering
+# one of them as an alternative (self_cell "Apache-2.0 OR GPL-2.0-only", r-efi
+# "MIT OR Apache-2.0 OR LGPL-2.1-or-later") resolve to the permissive option.
+#
+# To allow a new license, add it here with a one-line reason in the PR.
+
+[graph]
+all-features = true
+
+[licenses]
+confidence-threshold = 0.9
+allow = [
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "MIT",
+  "MIT-0",
+  "BSD-1-Clause",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "ISC",
+  "0BSD",
+  "Zlib",
+  "BSL-1.0",
+  "NCSA",
+  "Unicode-3.0",
+  "Unlicense",
+  "CC0-1.0",
+  # Public-domain dedication (pwd).
+  "CC-PDDC",
+  # Mozilla's root-certificate bundle data (webpki-roots, webpki-root-certs).
+  "CDLA-Permissive-2.0",
+  # File-level weak copyleft (cssparser, selectors, symphonia, option-ext).
+  # Used unmodified as dependencies; modifying those crates' own files would
+  # require publishing the modified files under MPL-2.0.
+  "MPL-2.0",
+]
+
+[licenses.private]
+# First-party workspace crates are never published (Apache-2.0 via
+# [workspace.package]); don't evaluate them as third-party dependencies.
+ignore = true

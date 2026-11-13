@@ -1,0 +1,399 @@
+# Build and push prod Docker images to ghcr.io/dappleai/*.
+#
+# Trigger: push to main, or tag matching v*. No pull_request trigger — see
+# the COST NOTE below.
+#
+# Tagging strategy:
+#   - push to main      → ghcr.io/dappleai/<svc>:main-<sha7>
+#                       → ghcr.io/dappleai/<svc>:main
+#   - tag vX.Y.Z        → ghcr.io/dappleai/<svc>:<tag>
+#                       → ghcr.io/dappleai/<svc>:latest
+#
+# EVERY push to main produces a main-<sha7> tag, whether or not it triggers a
+# compile. That invariant is load-bearing: deploys take an explicit image
+# tag, and production manifests use imagePullPolicy: IfNotPresent, so
+# the floating :main tag cannot be deployed safely (a node that already holds
+# an older :main never re-pulls). Deploys are pinned by sha or they are wrong.
+#
+# DappleAI's own production deploy tooling (kept outside this repository)
+# consumes these tags.
+#
+# NOTE: the UI is NOT built here. dapple-ui-demo's source lives in the
+# dapple-ui repo, which ships ghcr.io/dappleai/dapple-ui-demo:<tag> via
+# that repo's own workflow.
+
+name: Build and push prod images
+
+# COST NOTE: a build run fans out to six jobs, and the Rust services take
+# 60-90 minutes cold — so one build bills ~300+ minutes. Two rules keep that
+# in check:
+#
+#   1. No pull_request trigger. A PR build and the post-merge build compile
+#      the IDENTICAL commit, so PR builds doubled the spend to validate
+#      something the merge build validates anyway. Use workflow_dispatch on
+#      the branch if you genuinely need to prove a Dockerfile change builds
+#      before merging.
+#   2. The `decide` job gates the compile on content. Docs, k8s manifests and
+#      nu scripts cannot reach an image (the runtime stage copies only the
+#      compiled binary, and every include_str!/include_bytes! asset lives
+#      under crates/), so a push touching only those does not recompile.
+#
+# A skipped push mints NO tag. Every main-<sha7> that exists was compiled from
+# that exact sha — a tag never aliases a digest built from other source, so
+# `main-<sha7>` is always a truthful build record. The cost is that not every
+# commit HAS a tag, which is why `decide` resolves and prints the one to
+# deploy: the newest commit at-or-behind HEAD that touched an image-relevant
+# path is, by definition, the commit whose build produced the current image.
+# That is a pure-git lookup — no registry query, no docker on the prod VM.
+#
+# This is deliberately a job-level gate and NOT an `on.push.paths` filter.
+# `paths` applies to the whole push event including tag pushes, and a v* tag
+# whose commit is already on main carries no file diff — so a paths filter
+# silently suppressed every release build. A filter also skips the run
+# entirely, so nothing reports which tag is deployable.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag_override:
+        description: "Override image tag (default: branch-sha7)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: build-and-push-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Every image this workflow owns. Keep in sync with the rust-services
+  # matrix below (+ prompt-db).
+  IMAGES: >-
+    dapple-prompt-api dapple-prompt-external-api dapple-prompt-conduit
+    dapple-prompt-flow conduit-onnx prompt-db
+
+jobs:
+  decide:
+    name: Decide
+    runs-on: ubuntu-24.04
+    outputs:
+      mode: ${{ steps.decide.outputs.mode }}
+      tag_names: ${{ steps.decide.outputs.tag_names }}
+      source_tag: ${{ steps.decide.outputs.source_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          # Need history back to github.event.before to diff the push.
+          fetch-depth: 0
+
+      # For `docker buildx imagetools inspect` below.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Decide
+        id: decide
+        env:
+          BEFORE: ${{ github.event.before }}
+          TAG_OVERRIDE: ${{ inputs.tag_override }}
+        run: |
+          set -uo pipefail
+          SHA7="${GITHUB_SHA::7}"
+
+          # Which tag names this ref earns, if it earns any.
+          if [ -n "${TAG_OVERRIDE}" ]; then
+            TAG_NAMES="${TAG_OVERRIDE}"
+          elif [ "${GITHUB_REF}" = "refs/heads/main" ]; then
+            TAG_NAMES="main-${SHA7},main"
+          elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            TAG_NAMES="${GITHUB_REF#refs/tags/},latest"
+          else
+            # workflow_dispatch on a feature branch.
+            TAG_NAMES="${GITHUB_REF_NAME//\//-}-${SHA7}"
+          fi
+
+          # THE path list — the single source of truth for "can this change an
+          # image?", used as a git pathspec below. Keep in sync with what the
+          # Dockerfiles COPY and what the binaries embed. Anything new that
+          # reaches an image MUST be added here in the same PR, or its commit
+          # will skip the build and the tag will point at stale content.
+          PATHS=(
+            crates
+            assets/docker
+            .sqlx
+            Cargo.toml
+            Cargo.lock
+            rust-toolchain.toml
+            Dockerfile
+            .github/workflows/build-and-push.yml
+          )
+
+          # Resolve the newest main-<sha7> at-or-behind HEAD that actually
+          # exists in the registry — that is the image this tree produces.
+          #
+          # This walks commits and probes the registry rather than deriving the
+          # answer from git alone, because a tag records the PUSH HEAD, not the
+          # commit that changed image content. A push carrying two commits
+          # where only the first is image-relevant tags the second one, so
+          # "last commit touching PATHS" names a tag that was never minted.
+          # All six images are pushed together, so probing one is sufficient.
+          resolve_built_tag() {
+            local sha7
+            for sha in $(git rev-list --max-count=50 "$1"); do
+              sha7="${sha::7}"
+              if docker buildx imagetools inspect \
+                   "ghcr.io/dappleai/dapple-prompt-api:main-${sha7}" >/dev/null 2>&1; then
+                echo "main-${sha7}"
+                return 0
+              fi
+            done
+            return 1
+          }
+
+          NEED_BUILD=1
+          SOURCE_TAG=""
+          REASON="manual dispatch always builds"
+
+          if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+            if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+              # A release tag is a POINTER to a release, not a build record —
+              # pointing it at the already-tested digest is more honest than
+              # recompiling bits nobody validated.
+              if SOURCE_TAG="$(resolve_built_tag "${GITHUB_SHA}")"; then
+                NEED_BUILD=0
+                REASON="release tag points at the digest main built as ${SOURCE_TAG}"
+              else
+                REASON="no built main-<sha7> in the last 50 commits to point at"
+              fi
+            elif ! git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+              REASON="cannot diff against ${BEFORE} (force push or unknown parent)"
+            else
+              CHANGED="$(git diff --name-only "${BEFORE}" "${GITHUB_SHA}" -- "${PATHS[@]}")"
+              if [ -n "${CHANGED}" ]; then
+                echo "Image-relevant changes:"; echo "${CHANGED}" | sed 's/^/  /'
+                REASON="image-relevant files changed"
+              else
+                NEED_BUILD=0
+                REASON="no image-relevant files changed"
+              fi
+            fi
+          fi
+
+          # resolve_built_tag probes one image; a release must point ALL six at
+          # the same digest, so confirm the rest before promising that.
+          if [ "${NEED_BUILD}" = "0" ] && [ -n "${SOURCE_TAG}" ]; then
+            MISSING=""
+            for img in ${IMAGES}; do
+              docker buildx imagetools inspect "ghcr.io/dappleai/${img}:${SOURCE_TAG}" >/dev/null 2>&1 \
+                || MISSING="${MISSING} ${img}"
+            done
+            if [ -n "${MISSING}" ]; then
+              NEED_BUILD=1
+              REASON="source tag :${SOURCE_TAG} missing for:${MISSING}"
+            fi
+          fi
+
+          DEPLOY_TAG=""
+          if [ "${NEED_BUILD}" = "1" ]; then
+            MODE=build
+          elif [ -n "${SOURCE_TAG}" ]; then
+            MODE=release
+          else
+            MODE=skip
+            TAG_NAMES=""
+            DEPLOY_TAG="$(resolve_built_tag "${GITHUB_SHA}" || echo "")"
+          fi
+
+          {
+            echo "mode=${MODE}"
+            echo "tag_names=${TAG_NAMES}"
+            echo "source_tag=${SOURCE_TAG}"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "## ${MODE}"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| reason | ${REASON} |"
+            case "${MODE}" in
+              build)   echo "| tags | \`${TAG_NAMES}\` |" ;;
+              release) echo "| tags | \`${TAG_NAMES}\` |"
+                       echo "| points at | \`${SOURCE_TAG}\` |" ;;
+              skip)    echo "| deploy this tag | \`${DEPLOY_TAG:-none found}\` |" ;;
+            esac
+            echo ""
+            if [ "${MODE}" = "skip" ]; then
+              echo "No image can change from this commit, so no tag was minted —"
+              echo "every \`main-<sha7>\` that exists was compiled from that sha."
+              if [ -n "${DEPLOY_TAG}" ]; then
+                echo "Deploy \`${DEPLOY_TAG}\`; it is this tree's image content."
+              else
+                echo "No built tag found in the last 50 commits — run a build."
+              fi
+              echo "Force a compile anyway with the **Run workflow** button."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Release tags only. main-<sha7> is NEVER minted here — it is always a real
+  # build record. This job just points vX.Y.Z + latest at the digest main
+  # already built and tested for that commit.
+  release:
+    name: Point release tag at tested digest
+    needs: decide
+    if: needs.decide.outputs.mode == 'release'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # `imagetools create` copies the manifest registry-side — no layer is
+      # pulled or pushed, so all six images retag in seconds.
+      - name: Alias digests to the new tags
+        env:
+          SOURCE_TAG: ${{ needs.decide.outputs.source_tag }}
+          TAG_NAMES: ${{ needs.decide.outputs.tag_names }}
+        run: |
+          set -euo pipefail
+          for img in ${IMAGES}; do
+            ARGS=()
+            IFS=',' read -ra NAMES <<< "${TAG_NAMES}"
+            for t in "${NAMES[@]}"; do
+              ARGS+=(-t "ghcr.io/dappleai/${img}:${t}")
+            done
+            echo "::group::${img}"
+            docker buildx imagetools create "${ARGS[@]}" \
+              "ghcr.io/dappleai/${img}:${SOURCE_TAG}"
+            echo "::endgroup::"
+          done
+
+  rust-services:
+    name: Build ${{ matrix.service }}
+    needs: decide
+    if: needs.decide.outputs.mode == 'build'
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        # All Rust services share the same Dockerfile with BIN arg.
+        service:
+          - dapple-prompt-api
+          - dapple-prompt-external-api
+          - dapple-prompt-conduit
+          - dapple-prompt-flow
+          - conduit-onnx
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # Rust builder stages + buildx layer cache overflow the ~14 GB free on
+      # a stock runner (run 30178501481 died with ENOSPC). Reclaim ~30 GB of
+      # preinstalled bloat before building.
+      - name: Free runner disk space
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc \
+                      /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force
+          df -h /
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute image tags
+        id: tags
+        env:
+          TAG_NAMES: ${{ needs.decide.outputs.tag_names }}
+        run: |
+          set -euo pipefail
+          TAGS="$(echo "${TAG_NAMES}" | tr ',' '\n' \
+            | sed 's#^#ghcr.io/dappleai/${{ matrix.service }}:#' | paste -sd, -)"
+          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
+          echo "Building tags: ${TAGS}"
+
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64
+          build-args: |
+            BIN=${{ matrix.service }}
+            PROFILE=release
+            GPU_TYPE=none
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          # GHA's gha cache backend — scoped per-service so they don't fight.
+          # ignore-error: cache export is best-effort; the gha backend
+          # intermittently 404s mid-export (evicted entry) and that must not
+          # fail a build whose image is already complete.
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,scope=${{ matrix.service }},mode=max,ignore-error=true
+          provenance: false
+
+  prompt-db:
+    name: Build prompt-db
+    needs: decide
+    if: needs.decide.outputs.mode == 'build'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute image tags
+        id: tags
+        env:
+          TAG_NAMES: ${{ needs.decide.outputs.tag_names }}
+        run: |
+          set -euo pipefail
+          TAGS="$(echo "${TAG_NAMES}" | tr ',' '\n' \
+            | sed 's#^#ghcr.io/dappleai/prompt-db:#' | paste -sd, -)"
+          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
+          echo "Building tags: ${TAGS}"
+
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: assets/docker/prompt-db
+          file: assets/docker/prompt-db/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          cache-from: type=gha,scope=prompt-db
+          cache-to: type=gha,scope=prompt-db,mode=max,ignore-error=true
+          provenance: false

@@ -1,0 +1,92 @@
+name: CI - Rust tests
+
+on:
+  # Both triggers are scoped to main. A bare `push:` fires on EVERY branch,
+  # so pushing a feature branch and then opening its PR ran this workflow
+  # twice on the identical commit — 28 of the last 60 runs were feature-branch
+  # pushes duplicating a pull_request run. Scoped this way: feature pushes
+  # don't run, the PR runs once, the merge to main runs once.
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  # Manual trigger. Needed because a run that fails at STARTUP (invalid
+  # workflow, or an action blocked by the repo's allowed-actions policy)
+  # cannot be re-run — `gh run rerun` refuses with "cannot be retried" —
+  # so without this the only way to retest a policy or workflow fix is to
+  # push a commit. That is exactly the situation this line was added in.
+  workflow_dispatch:
+
+# Superseded runs on the same ref are pointless once a newer commit exists;
+# main is excluded so merge-commit runs always complete.
+concurrency:
+  group: rust-tests-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # No toolchain action: rust-toolchain.toml is the single source of truth
+      # for BOTH the channel (1.95.0, the sqlx 0.9 MSRV) and the components
+      # (rustfmt, clippy), and the rustup preinstalled on GitHub runners honors
+      # it automatically. The action this replaced asked for `stable` and then
+      # got silently overridden by the toolchain file anyway — so it added a
+      # second, misleading declaration of the version rather than controlling it.
+      - name: Show active toolchain
+        run: rustup show active-toolchain && cargo --version
+      # Cache the cargo registry + target dir. The clippy gate below compiles the
+      # whole workspace incl. the ML stack (mistralrs/ort), so without a warm cache
+      # CI would recompile it from scratch every run.
+      - uses: Swatinem/rust-cache@v2
+      - name: Run dapple-data tests (fast)
+        run: |
+          # Run crate-scoped tests to avoid workspace tests that require services.
+          # --locked: use the committed Cargo.lock verbatim and fail loudly if it
+          # is stale, instead of silently re-resolving (which previously pulled a
+          # mismatched sqlx/pgvector graph that only broke in CI).
+          cargo test -p dapple-data --locked
+
+      - name: Run dapple-render tests (pure Rust, no services)
+        run: |
+          # The Typst render pipeline: slugger anchor contract, admonish
+          # grammar, escaping, transform snapshots, and lopdf assertions on
+          # real compiled PDFs (outline, link annotations, TOC, metadata).
+          # This is the only automated coverage those features have.
+          cargo test -p dapple-render --locked
+
+      - name: Clippy (deny warnings, whole workspace)
+        run: |
+          # Lint every crate and every target (incl. tests) with warnings denied,
+          # so dead/unused code AND clippy debt fail CI instead of accumulating.
+          # Clippy runs the rustc lints too, so this subsumes a plain build gate.
+          #
+          # No services required:
+          #   * SQLX_OFFLINE=true uses the committed .sqlx cache, which covers
+          #     test-target inline `sqlx::query!` macros because `dapple sqlx
+          #     prepare` runs with `-- --all-targets`. If this fails with "no
+          #     cached data for this query", re-run `dapple sqlx prepare` + commit.
+          #   * The conduit crates' `ort` uses load-dynamic (onnxruntime is loaded
+          #     at runtime, not linked), so no ONNX runtime is needed to compile.
+          SQLX_OFFLINE=true cargo clippy --workspace --all-targets --locked -- -D warnings
+
+  redis-integration:
+    runs-on: ubuntu-latest
+    needs: test
+    env:
+      DAPPLE_REDIS_HOST: ${{ secrets.DAPPLE_REDIS_HOST }}
+    steps:
+      - uses: actions/checkout@v7
+        if: env.DAPPLE_REDIS_HOST != ''
+      # Same as above: rust-toolchain.toml drives the toolchain, no action needed.
+      - name: Show active toolchain
+        if: env.DAPPLE_REDIS_HOST != ''
+        run: rustup show active-toolchain && cargo --version
+      - name: Run Redis integration tests (ignored)
+        if: env.DAPPLE_REDIS_HOST != ''
+        run: |
+          cargo test -p dapple-data --locked -- --ignored
+      - name: Skip (no Redis configured)
+        if: env.DAPPLE_REDIS_HOST == ''
+        run: echo "Skipping Redis integration tests - DAPPLE_REDIS_HOST secret not configured"

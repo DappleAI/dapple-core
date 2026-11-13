@@ -1,0 +1,34 @@
+Dapple Prompt
+Copyright 2025-2026 DappleAI Co.
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+"Dapple", "DappleAI" and the Dapple logos are trademarks of DappleAI Co.
+The Apache License does not grant permission to use them; see TRADEMARK.md.
+
+------------------------------------------------------------------------------
+Third-party components included in this repository
+------------------------------------------------------------------------------
+
+crates/fluent-syntax-unicode/
+  A modified copy of fluent-syntax 0.11.1 from Project Fluent
+  (https://github.com/projectfluent/fluent-rs).
+  Copyright 2017 Mozilla.
+  Licensed under the Apache License, Version 2.0 or the MIT license, at your
+  option (crates/fluent-syntax-unicode/LICENSE-APACHE, LICENSE-MIT).
+  Modified by DappleAI Co. to accept Unicode identifiers; the changes are
+  listed in crates/fluent-syntax-unicode/README.md.
+
+crates/dapple-render/assets/fonts/Liberation*.ttf
+  Liberation Fonts. Copyright (c) 2012 Red Hat, Inc. with Reserved Font Name
+  Liberation. Licensed under the SIL Open Font License, Version 1.1
+  (crates/dapple-render/assets/fonts/LICENSE).
+
+crates/dapple-render/assets/fonts/DejaVu*.ttf
+  DejaVu Fonts. Copyright (c) 2003 by Bitstream, Inc.; DejaVu changes are in
+  the public domain. Licensed under the Bitstream Vera Fonts license
+  (crates/dapple-render/assets/fonts/LICENSE-DejaVu).
+
+Third-party Rust crates pulled in through Cargo.lock are not vendored here;
+each is distributed under its own license, checked in CI by cargo-deny
+(see deny.toml).

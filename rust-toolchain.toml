@@ -1,0 +1,7 @@
+# Pin the compiler so every desktop + CI build on one toolchain that satisfies
+# the sqlx 0.9 MSRV (1.94). rustup auto-installs this channel on the first cargo
+# invocation, so a teammate on an older `stable` can't silently fail to compile
+# sqlx 0.9. Bump deliberately as a team (keep >= the workspace's sqlx MSRV).
+[toolchain]
+channel = "1.95.0"
+components = ["rustfmt", "clippy"]
