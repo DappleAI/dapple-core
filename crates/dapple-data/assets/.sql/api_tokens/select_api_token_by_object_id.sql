@@ -1,0 +1,16 @@
+SELECT
+    t.id,
+    ud.object_id AS user_id,
+    t.name,
+    t.token_hash,
+    t.token_prefix,
+    t.expires_at,
+    t.created_at,
+        (
+        SELECT MIN(r.revoked_at)
+        FROM web.api_token_revocations r
+        WHERE r.api_token_id = t.id
+    ) AS revoked_at
+FROM web.api_tokens t
+JOIN rev.user_details ud ON ud.user_id = t.user_id
+WHERE t.id = $1;

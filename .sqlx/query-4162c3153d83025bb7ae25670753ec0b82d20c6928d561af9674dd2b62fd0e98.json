@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH latest AS (\n    SELECT DISTINCT ON (ev.attempt_id)\n        ev.attempt_id,\n        ev.phase_code,\n        ev.context_metadata->>'executor' AS executor\n    FROM rev.dispatch_task_attempt_events ev\n    ORDER BY ev.attempt_id, ev.id DESC\n)\nSELECT l.attempt_id\nFROM latest l\nJOIN rev.dispatch_phases dp ON dp.code = l.phase_code\nWHERE NOT dp.terminal\n  AND (l.executor = $1::TEXT OR l.executor IS NULL);\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "attempt_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_task_attempt_events",
+            "name": "attempt_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "4162c3153d83025bb7ae25670753ec0b82d20c6928d561af9674dd2b62fd0e98"
+}

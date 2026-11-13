@@ -1,0 +1,4 @@
+# Select tasks by object IDs using unified versioning
+#
+# LIMIT/OFFSET apply to distinct tasks (not flat rows) via a page CTE.
+:compose(tasks/select_tasks_body.sqlc, @page = tasks/pages/by_object_ids.sqlc)

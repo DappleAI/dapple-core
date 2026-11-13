@@ -1,0 +1,33 @@
+# Look up an external service token by its service_id, joined with the
+# owning company, its principal, and the most-recent revocation timestamp
+# (if any).
+#
+# Used by the external auth flow during JWT exchange:
+#   1. Verify Ed25519 signature against public_key_pem.
+#   2. Reject if company_revoked_at IS NOT NULL.
+#   3. Reject if token_revoked_at IS NOT NULL.
+#   4. Mint JWT carrying company_id (sub), company_slug, service_id, and
+#      principal_id (the external_service_principal auto-created by the
+#      Migration 37 trigger on rev.external_service_tokens insert).
+SELECT
+    est.id AS "id!",
+    est.service_id,
+    est.public_key_pem,
+    est.key_algorithm,
+    est.company_id,
+    c.slug AS "company_slug!",
+    c.revoked_at AS company_revoked_at,
+    (
+        SELECT MIN(r.revoked_at)
+        FROM rev.external_service_token_revocations r
+        WHERE r.external_service_token_id = est.id
+    ) AS token_revoked_at,
+    # The external_service_principal row was auto-created by the Mig 37
+    # trigger on rev.external_service_tokens insert. Returned as the actor
+    # identity stamped into the JWT and threaded through every external
+    # handler.
+    esp.principal_id AS "principal_id!"
+FROM rev.external_service_tokens est
+JOIN rev.companies c ON c.id = est.company_id
+JOIN rev.external_service_principals esp ON esp.external_service_token_id = est.id
+WHERE est.service_id = :bind(service_id)::TEXT;

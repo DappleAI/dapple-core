@@ -1,0 +1,16 @@
+# List companies for the admin view.
+#
+# `include_revoked` controls whether revoked rows appear. When false, only
+# live rows (revoked_at IS NULL) are returned. Results are ordered by id
+# (UUIDv7 timestamp embedded) so newest-first is `ORDER BY id DESC`.
+SELECT
+    id,
+    slug,
+    name,
+    created_at,
+    revoked_at
+FROM rev.companies
+WHERE
+    :bind(include_revoked)::BOOL
+    OR revoked_at IS NULL
+ORDER BY id DESC;

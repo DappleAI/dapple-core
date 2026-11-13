@@ -1,0 +1,17 @@
+# True iff `guide_id` (a rev.guides version) exists, belongs to the caller's
+# company namespace, and is at scope='external'. Mirrors guide_path_in_namespace
+# but keyed by the guide VERSION id a journey pins, so the external journey
+# handler can namespace-gate a caller-supplied guide_id. A foreign, unknown, or
+# mis-scoped id returns false → the same 404 body (no existence leak).
+#
+# Parameters (alphabetical bind order → $1=caller_company_id, $2=guide_id):
+#   caller_company_id (UUID), guide_id (UUID)
+SELECT EXISTS (
+    SELECT 1
+    FROM rev.guides g
+    JOIN rev.versioned_objects vo ON vo.id = g.versioned_object_id
+    JOIN rev.object_paths op ON op.id = vo.path_id
+    WHERE g.id = :bind(guide_id)::UUID
+      AND op.namespace_company_id = :bind(caller_company_id)::UUID
+      AND op.scope = 'external'
+) AS "in_namespace!";

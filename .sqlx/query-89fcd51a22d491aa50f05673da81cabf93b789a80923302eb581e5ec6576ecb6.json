@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST($1::UUID[]) WITH ORDINALITY AS o(id, ord)\n)\nSELECT\n    op.id,\n    op.entity_type_id,\n    et.key AS entity_type_key,\n    op.created_at\nFROM args\nJOIN rev.object_paths op ON op.id = args.id\nJOIN rev.entity_types et ON et.id = op.entity_type_id\nORDER BY op.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.object_paths",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "entity_type_id",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "rev.object_paths",
+            "name": "entity_type_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "entity_type_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.entity_types",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.object_paths",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "89fcd51a22d491aa50f05673da81cabf93b789a80923302eb581e5ec6576ecb6"
+}

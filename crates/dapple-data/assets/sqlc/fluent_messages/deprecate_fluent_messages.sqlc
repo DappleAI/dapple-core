@@ -1,0 +1,21 @@
+# Deprecate fluent messages by path IDs
+# This creates deprecation events for the latest version of each fluent message path
+# Returns path IDs so the caller can re-fetch full messages with bodies
+WITH args AS (
+    SELECT *
+    FROM UNNEST(
+        :bind(path_ids)::UUID[],
+        :bind(reasons)::TEXT[]
+    ) WITH ORDINALITY AS o(
+        path_id,
+        reason,
+        ord
+    )
+),
+:compose(shared/deprecate_latest_versions.sqlc)
+:compose(shared/deprecate_events.sqlc)
+# Return the path IDs so the caller can re-fetch full messages with bodies
+SELECT
+    resolved.path_id
+FROM resolved
+ORDER BY resolved.path_id;

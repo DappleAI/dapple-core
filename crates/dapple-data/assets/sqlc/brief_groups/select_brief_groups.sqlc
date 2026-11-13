@@ -1,0 +1,6 @@
+# Select all brief groups using unified versioning
+#
+# LIMIT/OFFSET apply to distinct brief groups (not flat rows) via a page CTE.
+# The flat join (brief_group x brief_group_briefs x briefs) produces many rows
+# per brief group, so limiting flat rows would silently truncate results.
+:compose(brief_groups/select_brief_groups_body.sqlc, @page = brief_groups/pages/all.sqlc)

@@ -1,0 +1,30 @@
+# The journey's PINNED brief_pack versions, one per pack path. Requires a
+# preceding `journey_scope(journey_id)` CTE naming the journey to read (bound
+# directly from a journey_id bind, or resolved from a dispatch).
+#
+# DOCTRINE — a pinned read NEVER consults deprecation. A journey pins its pack
+# versions at create time precisely so multiple guide versions run actively
+# side by side; a later re-ingest deprecating a pack version MUST NOT change
+# what this journey resolves. Deprecation events gate browse/catalog and
+# new-journey attachment ONLY. The 2026-06-01 filter here (`ld.to_level_id IS
+# NULL`, commit 5eb5649f) silently nulled out every pre-re-ingest journey's
+# pack: the computed-output producer, the /stages + /steps DONE rollups, the
+# dispatch-ready gates and the journey brief reads all went empty the moment a
+# sync deprecated the pinned version. Do not reintroduce it.
+#
+# DISTINCT ON (path): dedup of the historical stacked-pin corruption (old
+# backfills inserted multiple versions of one pack path onto a journey —
+# Issue #505's legitimate half). Newest pinned row wins, deterministically
+# (UUIDv7 id breaks created_at ties). This dedups among the journey's OWN
+# pinned rows; it never resolves "latest by path" across the catalog.
+#
+# No trailing comma — callers appending further CTEs add a leading comma
+# after the compose call (same convention as shared/journey_chain.sqlc).
+journey_packs AS (
+    SELECT DISTINCT ON (bpvo.path_id) bpack.id AS brief_pack_id
+    FROM journey_scope js
+    JOIN rev.journey_brief_packs jbp ON jbp.journey_id = js.journey_id
+    JOIN rev.brief_packs bpack ON bpack.id = jbp.brief_pack_id
+    JOIN rev.versioned_objects bpvo ON bpvo.id = bpack.versioned_object_id
+    ORDER BY bpvo.path_id, bpvo.created_at DESC, bpvo.id DESC
+)

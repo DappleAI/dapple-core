@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT op.namespace_company_id, op.scope\n           FROM rev.guides g\n           JOIN rev.versioned_objects vo ON vo.id = g.versioned_object_id\n           JOIN rev.object_paths op ON op.id = vo.path_id\n           WHERE g.id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "namespace_company_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.object_paths",
+            "name": "namespace_company_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "scope",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.object_paths",
+            "name": "scope"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "e55e92c7701e0a743b0757550293498e8989344b3e1adcfea8ee4da10cf39637"
+}

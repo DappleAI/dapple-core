@@ -1,0 +1,23 @@
+# Stage-level fork filter (Migration 74). Bare predicate — compose it into a
+# WHERE clause (or after AND) at any site that joins
+# `journey_chain jc` -> `rev.dispatches d` -> `rev.dispatch_intent_bindings`.
+# Aliases `jc` and `d` are required at the compose site.
+#
+# Semantics: when a chain edge carries a fork point (`jc.fork_cutoff_ord`
+# NOT NULL on the predecessor's row), only admit that journey's bindings
+# whose producing dispatch belongs to a stage strictly BEFORE the fork stage
+# ("fork AT stage N" = redo N; inherit ord < N). A dispatch's producing stage
+# ord is the MAX over its dispatch_stages (a dispatch batching several stages
+# is attributed to its latest pane — conservative across a fork boundary).
+# A dispatch with no dispatch_stages rows (shouldn't occur) is conservatively
+# excluded across a forked edge via the sentinel COALESCE. Plain chain edges
+# (fork_cutoff_ord NULL) admit everything — pre-fork behavior exactly.
+(
+    jc.fork_cutoff_ord IS NULL
+    OR COALESCE((
+        SELECT MAX(fps.ord)
+        FROM rev.dispatch_stages fds
+        JOIN rev.playbook_stages fps ON fps.id = fds.playbook_stage_id
+        WHERE fds.dispatch_id = d.id
+    ), 2147483647) < jc.fork_cutoff_ord
+)

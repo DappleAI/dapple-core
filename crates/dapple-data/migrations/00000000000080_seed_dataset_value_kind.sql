@@ -1,0 +1,11 @@
+-- Migration 80: seed the 7th value_kind — `dataset` (spreadsheet / tabular).
+--
+-- rev.value_kinds is an append-only lookup table (SMALLINT IDENTITY PK); this
+-- is a pure seed INSERT, no DDL. Ordering is load-bearing: insert_value_slots
+-- INNER JOINs rev.value_kinds on `key`, so an unknown kind silently drops the
+-- value_slot row from the insert. This seed MUST precede any guide ingest that
+-- uses `kind: "dataset"`. A fresh-DB assertion in
+-- crates/dapple-prompt-api/tests/migration_seed_test.rs guards it.
+--
+-- See docs/plans/spreadsheet-dataset-ingest.md (Section 4.1).
+INSERT INTO rev.value_kinds (key) VALUES ('dataset');

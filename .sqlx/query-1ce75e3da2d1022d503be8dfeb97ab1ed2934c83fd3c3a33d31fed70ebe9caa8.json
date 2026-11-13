@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO rev.guide_brief_packs (guide_id, brief_pack_id)\nSELECT $2::UUID, unnest($1::UUID[])\nON CONFLICT (guide_id, brief_pack_id) DO NOTHING;\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1ce75e3da2d1022d503be8dfeb97ab1ed2934c83fd3c3a33d31fed70ebe9caa8"
+}

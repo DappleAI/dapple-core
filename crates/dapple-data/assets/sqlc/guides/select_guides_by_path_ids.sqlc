@@ -1,0 +1,3 @@
+# Select guides by path IDs using unified versioning
+# Returns ALL versions for each path (not just the latest)
+:compose(guides/select_guides_body.sqlc, @page = guides/pages/by_path_ids.sqlc)

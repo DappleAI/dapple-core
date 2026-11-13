@@ -1,0 +1,77 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::TEXT[],           $2::TEXT[]        ) WITH ORDINALITY AS o(\n        asset_kind_key,\n        mime_type,\n        ord\n    )\n),\nkinds AS (\n    SELECT\n        ak.id as kind_id,\n        ak.key as kind_key,\n        args.mime_type,\n        args.ord\n    FROM args\n    JOIN rev.asset_kinds ak ON ak.key = args.asset_kind_key\n),\nnew_drafts AS (\n    INSERT INTO rev.drafts (asset_kind_id, mime_type)\n    SELECT\n        kinds.kind_id,\n        kinds.mime_type\n    FROM kinds\n    ORDER BY kinds.ord\n    RETURNING id, asset_kind_id, mime_type, created_at\n),\nnumbered_drafts AS (\n    SELECT nd.*, row_number() OVER (ORDER BY nd.id) as ord\n    FROM new_drafts nd\n)\nSELECT\n    nd.id,\n    nd.asset_kind_id,\n    ak.key as asset_kind_key,\n    nd.mime_type,\n    nd.created_at\nFROM numbered_drafts nd\nJOIN rev.asset_kinds ak ON ak.id = nd.asset_kind_id\nORDER BY nd.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.drafts",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "asset_kind_id",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "rev.drafts",
+            "name": "asset_kind_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "asset_kind_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.asset_kinds",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "mime_type",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.drafts",
+            "name": "mime_type"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.drafts",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "ddddd4c742d61948239f5e0454fe617cc359db4c4c674581ad5d998832aecb53"
+}

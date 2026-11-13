@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO rev.security_cusip (cik, cusip)\nVALUES ($1, $2)\nON CONFLICT (cik) DO UPDATE SET cusip = EXCLUDED.cusip, resolved_at = now();\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b8add08ffd8583256804999a26a493d8a300131298bbf564c6a89bb0881cd90a"
+}

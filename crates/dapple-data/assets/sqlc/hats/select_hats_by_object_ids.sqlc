@@ -1,0 +1,2 @@
+# Select hats by object IDs using unified versioning
+:compose(hats/select_hats_body.sqlc, @page = hats/pages/by_object_ids.sqlc)

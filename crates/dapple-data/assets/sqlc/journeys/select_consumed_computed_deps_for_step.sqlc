@@ -1,0 +1,154 @@
+# Computed value-slot dependencies a STEP CONSUMES (does not produce).
+#
+# A computed `:::brief-output` (source_kind = 'computed') is PRODUCED by the
+# step that runs its task and EXPOSES the slot. When a LATER step also exposes
+# that same computed slot, the later step is a CONSUMER — it reads the value via
+# `$in.bindings.<slot>` and must not start before the producer has published.
+#
+# The START gate (`is_step_fully_bound`) intentionally EXCLUDES computed outputs
+# so a PRODUCER can spawn on its operator inputs alone. This query adds back only
+# the computed outputs a step CONSUMES, so `dispatch_ready` can refuse to spawn a
+# dispatch whose step would otherwise run on a missing input (and spend tokens)
+# before the value exists. That was the wimmelbook render-before-shotlist race.
+#
+# Producer vs consumer is decided by playbook order: among all steps that expose
+# a given computed slot, the EARLIEST (by playbook_stages.ord, stage_steps.ord)
+# is the producer; any LATER exposer consumes it. We only emit a dependency when
+# the producer is in an EARLIER STAGE (strictly lower stage ord) than this step —
+# a same-stage producer feeds its consumer through in-dispatch accumulated data,
+# not a cross-dispatch binding, so gating on it would risk deadlocking a
+# single-dispatch stage. `dispatch_ready` additionally skips any dep whose
+# producer step is part of the SAME dispatch (belt-and-suspenders against
+# deadlock).
+#
+# Returns one row per consumed computed slot: its value-slot PATH, the producing
+# step's (playbook_stage_id, stage_step_id), and whether the slot is already
+# bound anywhere in the journey chain.
+#
+# Limitation: a dependency is visible only when the consumer EXPOSES the slot
+# (the authoring convention). A task that reads `$in.bindings.<slot>` WITHOUT
+# exposing it is invisible here — the guide-side fail-loud guardrail backstops
+# that case.
+#
+# Parameters (alphabetical bind order):
+#   playbook_stage_id, stage_step_id, starting_journey_id
+
+WITH RECURSIVE
+:compose(shared/journey_chain.sqlc)
+,
+journey_scope AS (
+    SELECT :bind(starting_journey_id)::UUID AS journey_id
+),
+# The journey's PINNED brief_packs (shared/select/journey_pinned_packs.sqlc):
+# matches is_step_fully_bound / the binding-status rollups so producer and
+# consumer agree with /brief-form and /steps. Pinned reads never consult
+# deprecation — see the fragment's doctrine comment.
+:compose(shared/select/journey_pinned_packs.sqlc)
+,
+computed_output_paths AS (
+    # Value-slot PATHs that are computed outputs in the journey's pinned packs.
+    SELECT DISTINCT vo.path_id AS value_slot_path_id
+    FROM journey_packs jp
+    JOIN rev.brief_pack_groups bpg ON bpg.brief_pack_id = jp.brief_pack_id
+    JOIN rev.brief_groups bg ON bg.id = bpg.brief_group_id
+    JOIN rev.brief_group_briefs bgb ON bgb.brief_group_id = bg.id
+    JOIN rev.briefs b ON b.id = bgb.brief_id
+    JOIN rev.brief_outputs bo ON bo.brief_id = b.id
+    JOIN rev.brief_output_source_kinds bosk
+        ON bosk.id = bo.source_kind_id AND bosk.key = 'computed'
+    JOIN rev.value_slots vs ON vs.id = bo.value_slot_id
+    JOIN rev.versioned_objects vo ON vo.id = vs.versioned_object_id
+),
+playbook_context AS (
+    # The playbook this step belongs to (playbook_stage_id is unique per
+    # playbook+stage, so this scopes producer search to the right playbook).
+    SELECT ps.playbook_id
+    FROM rev.playbook_stages ps
+    JOIN rev.stage_steps ss
+        ON ss.id = :bind(stage_step_id)::UUID AND ss.stage_id = ps.stage_id
+    WHERE ps.id = :bind(playbook_stage_id)::UUID
+),
+playbook_step_tasks AS (
+    # Every step_task in THIS playbook, with its global (stage, step) ordinal.
+    SELECT
+        stk.id AS step_task_id,
+        ss.id AS stage_step_id,
+        ps.id AS playbook_stage_id,
+        ps.ord AS stage_ord,
+        ss.ord AS step_ord
+    FROM playbook_context pc
+    JOIN rev.playbook_stages ps ON ps.playbook_id = pc.playbook_id
+    JOIN rev.stage_steps ss ON ss.stage_id = ps.stage_id
+    JOIN rev.step_tasks stk ON stk.step_id = ss.step_id
+),
+playbook_overlays AS (
+    SELECT pst.step_task_id, pst.stage_step_id, pst.playbook_stage_id,
+           pst.stage_ord, pst.step_ord, o.value_slot_path_id, o.visibility, 1 AS priority
+    FROM rev.playbook_stage_overlays o
+    JOIN playbook_step_tasks pst ON pst.playbook_stage_id = o.playbook_stage_id
+    UNION ALL
+    SELECT pst.step_task_id, pst.stage_step_id, pst.playbook_stage_id,
+           pst.stage_ord, pst.step_ord, o.value_slot_path_id, o.visibility, 2 AS priority
+    FROM rev.stage_step_overlays o
+    JOIN playbook_step_tasks pst ON pst.stage_step_id = o.stage_step_id
+    UNION ALL
+    SELECT pst.step_task_id, pst.stage_step_id, pst.playbook_stage_id,
+           pst.stage_ord, pst.step_ord, o.value_slot_path_id, o.visibility, 3 AS priority
+    FROM rev.step_task_overlays o
+    JOIN playbook_step_tasks pst ON pst.step_task_id = o.step_task_id
+),
+playbook_ranked AS (
+    # Cascade: task (3) > step (2) > stage (1), highest priority wins per
+    # (step_task, path). Mirrors is_step_fully_bound's `ranked`.
+    SELECT DISTINCT ON (step_task_id, value_slot_path_id)
+        stage_step_id, playbook_stage_id, stage_ord, step_ord, value_slot_path_id, visibility
+    FROM playbook_overlays
+    ORDER BY step_task_id, value_slot_path_id, priority DESC
+),
+playbook_exposed_computed AS (
+    # Per (step, computed-slot path) where the resolved overlay is 'expose'.
+    SELECT DISTINCT
+        pr.stage_step_id, pr.playbook_stage_id, pr.stage_ord, pr.step_ord, pr.value_slot_path_id
+    FROM playbook_ranked pr
+    JOIN computed_output_paths cop ON cop.value_slot_path_id = pr.value_slot_path_id
+    WHERE pr.visibility = 'expose'
+),
+target_deps AS (
+    # Computed slots THIS step exposes that an EARLIER-STAGE step also exposes.
+    SELECT t.value_slot_path_id
+    FROM playbook_exposed_computed t
+    WHERE t.stage_step_id = :bind(stage_step_id)::UUID
+      AND t.playbook_stage_id = :bind(playbook_stage_id)::UUID
+      AND EXISTS (
+          SELECT 1
+          FROM playbook_exposed_computed e
+          WHERE e.value_slot_path_id = t.value_slot_path_id
+            AND e.stage_ord < t.stage_ord
+      )
+),
+producers AS (
+    # The earliest exposer per dep path = the producing step.
+    SELECT DISTINCT ON (e.value_slot_path_id)
+        e.value_slot_path_id,
+        e.playbook_stage_id AS producer_playbook_stage_id,
+        e.stage_step_id AS producer_stage_step_id
+    FROM playbook_exposed_computed e
+    JOIN target_deps td ON td.value_slot_path_id = e.value_slot_path_id
+    ORDER BY e.value_slot_path_id, e.stage_ord, e.step_ord
+)
+SELECT
+    td.value_slot_path_id AS "value_slot_path_id!",
+    p.producer_playbook_stage_id AS "producer_playbook_stage_id!",
+    p.producer_stage_step_id AS "producer_stage_step_id!",
+    EXISTS (
+        SELECT 1
+        FROM rev.value_slots vs
+        JOIN rev.versioned_objects vo ON vo.id = vs.versioned_object_id
+        JOIN rev.dispatch_intent_bindings dib ON dib.value_slot_id = vs.id
+        JOIN rev.dispatches d ON d.id = dib.dispatch_id
+        JOIN journey_chain jc ON jc.journey_id = d.journey_id
+        WHERE vo.path_id = td.value_slot_path_id
+          AND :compose(shared/fork_cutoff_filter.sqlc)
+    ) AS "bound!"
+FROM target_deps td
+JOIN producers p ON p.value_slot_path_id = td.value_slot_path_id;

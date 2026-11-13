@@ -1,0 +1,2 @@
+# Select all directives using unified versioning
+:compose(directives/select_directives_body.sqlc, @page = directives/pages/all.sqlc)

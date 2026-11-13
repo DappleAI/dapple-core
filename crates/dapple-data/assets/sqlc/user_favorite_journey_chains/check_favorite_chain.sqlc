@@ -1,0 +1,28 @@
+# Check whether the chain containing :bind(starting_journey_id) is favorited
+# by :bind(user_object_id). Returns one row with `is_favorited` and the
+# resolved `chain_root_journey_id` (so callers can surface what they actually
+# favorited / would favorite).
+#
+# Binds (alphabetical → $N):
+#   $1 starting_journey_id : any journey in the chain
+#   $2 user_object_id      : rev.user_details.object_id (UUID)
+WITH RECURSIVE
+:compose(shared/journey_chain.sqlc),
+chain_root AS (
+    SELECT journey_id AS root_id
+    FROM journey_chain
+    ORDER BY depth DESC
+    LIMIT 1
+)
+SELECT
+    (SELECT root_id FROM chain_root) AS "chain_root_journey_id?",
+    EXISTS (
+        SELECT 1
+        FROM web.user_favorite_journey_chains f
+        JOIN rev.user_details ud ON ud.user_id = f.user_id
+        LEFT JOIN web.user_favorite_journey_chains_removed r
+            ON r.user_favorite_journey_chains_id = f.id
+        WHERE ud.object_id = :bind(user_object_id)::UUID
+          AND f.chain_root_journey_id = (SELECT root_id FROM chain_root)
+          AND r.user_favorite_journey_chains_id IS NULL
+    )::bool AS "is_favorited!";

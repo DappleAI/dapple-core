@@ -1,0 +1,114 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT cusip, quarter_end, manager_cik, manager_name, shares, value_usd, accession, filed_date\nFROM rev.institutional_holdings\nWHERE cusip = $1 AND quarter_end >= $2 AND quarter_end <= $3\nORDER BY quarter_end, value_usd DESC;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "cusip",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.institutional_holdings",
+            "name": "cusip"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "quarter_end",
+        "type_info": "Date",
+        "origin": {
+          "Table": {
+            "table": "rev.institutional_holdings",
+            "name": "quarter_end"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "manager_cik",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "rev.institutional_holdings",
+            "name": "manager_cik"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "manager_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.institutional_holdings",
+            "name": "manager_name"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "shares",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "rev.institutional_holdings",
+            "name": "shares"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "value_usd",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "rev.institutional_holdings",
+            "name": "value_usd"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "accession",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.institutional_holdings",
+            "name": "accession"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "filed_date",
+        "type_info": "Date",
+        "origin": {
+          "Table": {
+            "table": "rev.institutional_holdings",
+            "name": "filed_date"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Date",
+        "Date"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "02da9ab2997243254886303b194c5c78ff9f7debd656ba2d101db9179632211c"
+}

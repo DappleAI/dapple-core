@@ -1,0 +1,112 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nSELECT\n    mr.id,\n    mr.lineage_id,\n    l.key AS lineage_key,\n    mr.provider_id,\n    p.key AS provider_key,\n    mr.tier,\n    mr.release,\n    mr.created_at\nFROM rev.model_releases mr\nJOIN rev.lineages l ON l.id = mr.lineage_id\nJOIN rev.providers p ON p.id = mr.provider_id\nWHERE l.key = $1\nORDER BY mr.tier, mr.release NULLS FIRST;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.model_releases",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "lineage_id",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "rev.model_releases",
+            "name": "lineage_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "lineage_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.lineages",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "provider_id",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "rev.model_releases",
+            "name": "provider_id"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "provider_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.providers",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "tier",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.model_releases",
+            "name": "tier"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "release",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.model_releases",
+            "name": "release"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.model_releases",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "6f1ad32ae156c996c4ab7d841d0c9f51485b61d64d61dc8e78beb44531eceb81"
+}

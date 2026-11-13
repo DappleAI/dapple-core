@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT DISTINCT bpg.brief_pack_id AS \"id!\"\n                   FROM rev.brief_pack_groups bpg\n                   WHERE bpg.brief_pack_id = ANY($1)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_pack_groups",
+            "name": "brief_pack_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "ca8c1d3c28f19924791dc5833a3f0bca3fa7b2947f190261913219fe93e1d8d5"
+}

@@ -1,0 +1,144 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH RECURSIVE\njourney_chain(journey_id, depth, fork_cutoff_ord) AS (\n    SELECT $1::UUID, 0, NULL::INTEGER\n    UNION ALL\n    SELECT j.predecessor_journey_id, jc.depth + 1, ps.ord\n    FROM journey_chain jc\n    JOIN rev.journeys j ON j.id = jc.journey_id\n    LEFT JOIN rev.playbook_stages ps ON ps.id = j.fork_stage_id\n    WHERE j.predecessor_journey_id IS NOT NULL\n      AND jc.depth < 50\n)\n\n,\nviewer_prefs AS (\n    SELECT DISTINCT ON (pjp.journey_id)\n        pjp.journey_id,\n        pjp.hidden_at\n    FROM rev.principal_journey_preferences pjp\n    WHERE pjp.principal_id = $2::UUID\n    ORDER BY pjp.journey_id, pjp.id DESC\n)\nSELECT\n    j.id           AS \"id!\",\n    j.playbook_id  AS \"playbook_id!\",\n    j.name         AS \"name!\",\n    j.created_at   AS \"created_at!\",\n    j.principal_id AS \"principal_id!\",\n    j.owner_company_id        AS \"owner_company_id!\",\n    j.predecessor_journey_id  AS \"predecessor_journey_id?\",\n    j.guide_id     AS \"guide_id?\",\n    j.fork_stage_id AS \"fork_stage_id?\",\n    jc.depth       AS \"depth!\",\n    vp.hidden_at   AS \"hidden_at?\"\nFROM journey_chain jc\nJOIN rev.journeys j ON j.id = jc.journey_id\nLEFT JOIN viewer_prefs vp ON vp.journey_id = j.id\nORDER BY jc.depth DESC;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.journeys",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "playbook_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.journeys",
+            "name": "playbook_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "name!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.journeys",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "created_at!",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.journeys",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "principal_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.journeys",
+            "name": "principal_id"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "owner_company_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.journeys",
+            "name": "owner_company_id"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "predecessor_journey_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.journeys",
+            "name": "predecessor_journey_id"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "guide_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.journeys",
+            "name": "guide_id"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "fork_stage_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.journeys",
+            "name": "fork_stage_id"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "depth!",
+        "type_info": "Int4",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 10,
+        "name": "hidden_at?",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.principal_journey_preferences",
+            "name": "hidden_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      null,
+      true
+    ]
+  },
+  "hash": "6b9688071fb3223083cde2f2bf23bd681cd1d051fd57719df0baa4de6dfa0fce"
+}

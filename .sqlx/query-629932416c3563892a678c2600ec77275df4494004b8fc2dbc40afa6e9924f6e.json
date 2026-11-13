@@ -1,0 +1,65 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::UUID[],             $2::TEXT[]           ) WITH ORDINALITY AS o(\n        path_id,\n        content_hash,\n        ord\n    )\n),\nobjs AS (\n    INSERT INTO rev.versioned_objects (\n        path_id,\n        content_hash\n    )\n    SELECT\n        args.path_id,\n        args.content_hash\n    FROM args\n    ORDER BY args.ord\n    RETURNING *\n),\nnumbered_objs AS (\n    SELECT o.*, row_number() OVER (ORDER BY o.id) AS ord\n    FROM objs o\n)\nSELECT\n    no.id,\n    no.path_id,\n    no.content_hash,\n    no.created_at\nFROM numbered_objs no\nJOIN rev.object_paths op ON op.id = no.path_id\nORDER BY no.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "path_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "path_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "content_hash",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "content_hash"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "629932416c3563892a678c2600ec77275df4494004b8fc2dbc40afa6e9924f6e"
+}

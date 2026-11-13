@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::UUID[],            $2::UUID[]         ) WITH ORDINALITY AS o(\n        block_id,\n        fluent_message_id,\n        ord\n    )\n)\nUPDATE rev.guide_blocks gb\nSET fluent_message_id = args.fluent_message_id\nFROM args\nWHERE gb.id = args.block_id\n  AND gb.fluent_message_id IS NULL;\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "UuidArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e3a960fd2ea82c9d853d51952c275d356c84e20dbfc1785e6ce1b05980d3ca40"
+}

@@ -1,0 +1,156 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH RECURSIVE\ntarget_journey AS (\n    SELECT journey_id FROM rev.dispatches WHERE id = $1::UUID\n),\njourney_chain(journey_id, depth, fork_cutoff_ord) AS (\n    SELECT (SELECT journey_id FROM target_journey), 0, NULL::INTEGER\n    UNION ALL\n    SELECT j.predecessor_journey_id, jc.depth + 1, ps.ord\n    FROM journey_chain jc\n    JOIN rev.journeys j ON j.id = jc.journey_id\n    LEFT JOIN rev.playbook_stages ps ON ps.id = j.fork_stage_id\n    WHERE j.predecessor_journey_id IS NOT NULL\n      AND jc.depth < 50\n),\nchain_bindings AS (\n    SELECT\n        dib.id AS binding_id,\n        dib.value_slot_id,\n        dib.created_at AS bound_at,\n        jc.depth\n    FROM journey_chain jc\n    JOIN rev.dispatches d ON d.journey_id = jc.journey_id\n    JOIN rev.dispatch_intent_bindings dib ON dib.dispatch_id = d.id\n    WHERE (\n    jc.fork_cutoff_ord IS NULL\n    OR COALESCE((\n        SELECT MAX(fps.ord)\n        FROM rev.dispatch_stages fds\n        JOIN rev.playbook_stages fps ON fps.id = fds.playbook_stage_id\n        WHERE fds.dispatch_id = d.id\n    ), 2147483647) < jc.fork_cutoff_ord\n)\n\n),\njourney_bindings AS (\n    SELECT DISTINCT ON (cb.value_slot_id)\n        cb.binding_id,\n        cb.value_slot_id\n    FROM chain_bindings cb\n    ORDER BY cb.value_slot_id, cb.depth ASC, cb.bound_at DESC, cb.binding_id DESC\n)\nSELECT\n    jb.value_slot_id,\n            jb.binding_id AS \"binding_id!\",\n                vo.path_id AS \"value_slot_path_id!\",\n    vspd.name AS value_slot_name,\n    vk.key AS value_kind,\n    vs.cardinality AS \"cardinality!\",\n    (SELECT ti.value FROM rev.dispatch_intent_binding_text_items ti\n        WHERE ti.dispatch_intent_binding_id = jb.binding_id\n        ORDER BY ti.id LIMIT 1) AS text_value,\n    (SELECT ii.value FROM rev.dispatch_intent_binding_int_items ii\n        WHERE ii.dispatch_intent_binding_id = jb.binding_id\n        ORDER BY ii.id LIMIT 1) AS int_value,\n    (SELECT ni.value FROM rev.dispatch_intent_binding_number_items ni\n        WHERE ni.dispatch_intent_binding_id = jb.binding_id\n        ORDER BY ni.id LIMIT 1) AS number_value,\n    (SELECT bi.value FROM rev.dispatch_intent_binding_bool_items bi\n        WHERE bi.dispatch_intent_binding_id = jb.binding_id\n        ORDER BY bi.id LIMIT 1) AS bool_value,\n                    (CASE WHEN vs.constraints ->> 'delivery' = 'envelope' THEN NULL\n     ELSE (SELECT ji.value FROM rev.dispatch_intent_binding_json_items ji\n        WHERE ji.dispatch_intent_binding_id = jb.binding_id\n        ORDER BY ji.id LIMIT 1)\n    END) AS json_value,\n    (SELECT ai.asset_id FROM rev.dispatch_intent_binding_asset_items ai\n        WHERE ai.dispatch_intent_binding_id = jb.binding_id\n        ORDER BY ai.id LIMIT 1) AS asset_id,\n            (SELECT ade.envelope FROM rev.dispatch_intent_binding_dataset_items dsi\n        JOIN rev.asset_dataset_extractions ade ON ade.id = dsi.asset_dataset_extraction_id\n        WHERE dsi.dispatch_intent_binding_id = jb.binding_id\n        ORDER BY dsi.id LIMIT 1) AS envelope,\n                vs.constraints AS \"value_slot_constraints!\",\n                                    (CASE WHEN vs.cardinality != 'multi'\n            OR vs.constraints ->> 'delivery' = 'envelope' THEN '[]'::jsonb\n     ELSE CASE vk.key\n        WHEN 'text' THEN COALESCE((SELECT jsonb_agg(x.value ORDER BY x.id)\n            FROM rev.dispatch_intent_binding_text_items x\n            WHERE x.dispatch_intent_binding_id = jb.binding_id), '[]'::jsonb)\n        WHEN 'int' THEN COALESCE((SELECT jsonb_agg(x.value ORDER BY x.id)\n            FROM rev.dispatch_intent_binding_int_items x\n            WHERE x.dispatch_intent_binding_id = jb.binding_id), '[]'::jsonb)\n        WHEN 'number' THEN COALESCE((SELECT jsonb_agg(x.value ORDER BY x.id)\n            FROM rev.dispatch_intent_binding_number_items x\n            WHERE x.dispatch_intent_binding_id = jb.binding_id), '[]'::jsonb)\n        WHEN 'bool' THEN COALESCE((SELECT jsonb_agg(x.value ORDER BY x.id)\n            FROM rev.dispatch_intent_binding_bool_items x\n            WHERE x.dispatch_intent_binding_id = jb.binding_id), '[]'::jsonb)\n        WHEN 'json' THEN COALESCE((SELECT jsonb_agg(x.value ORDER BY x.id)\n            FROM rev.dispatch_intent_binding_json_items x\n            WHERE x.dispatch_intent_binding_id = jb.binding_id), '[]'::jsonb)\n        WHEN 'asset' THEN COALESCE((SELECT jsonb_agg(jsonb_build_object('asset_id', x.asset_id) ORDER BY x.id)\n            FROM rev.dispatch_intent_binding_asset_items x\n            WHERE x.dispatch_intent_binding_id = jb.binding_id), '[]'::jsonb)\n        WHEN 'dataset' THEN COALESCE((SELECT jsonb_agg(ade.envelope ORDER BY x.id)\n            FROM rev.dispatch_intent_binding_dataset_items x\n            JOIN rev.asset_dataset_extractions ade ON ade.id = x.asset_dataset_extraction_id\n            WHERE x.dispatch_intent_binding_id = jb.binding_id), '[]'::jsonb)\n        ELSE '[]'::jsonb\n     END\n    END) AS \"item_values!\"\nFROM journey_bindings jb\nJOIN rev.value_slots vs ON vs.id = jb.value_slot_id\nJOIN rev.versioned_objects vo ON vo.id = vs.versioned_object_id\nJOIN rev.value_slot_path_details vspd ON vspd.path_id = vo.path_id\nJOIN rev.value_kinds vk ON vk.id = vs.value_kind_id\nORDER BY jb.value_slot_id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "value_slot_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_intent_bindings",
+            "name": "value_slot_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "binding_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_intent_bindings",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "value_slot_path_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "path_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "value_slot_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slot_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "value_kind",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.value_kinds",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "cardinality!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slots",
+            "name": "cardinality"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "text_value",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 7,
+        "name": "int_value",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 8,
+        "name": "number_value",
+        "type_info": "Numeric",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 9,
+        "name": "bool_value",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 10,
+        "name": "json_value",
+        "type_info": "Jsonb",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 11,
+        "name": "asset_id",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 12,
+        "name": "envelope",
+        "type_info": "Jsonb",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 13,
+        "name": "value_slot_constraints!",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slots",
+            "name": "constraints"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "item_values!",
+        "type_info": "Jsonb",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      false,
+      null
+    ]
+  },
+  "hash": "fb2898ae391b80fa0f80a9549673dd3d589a06a7becd9a6faeac25086a1e0f17"
+}

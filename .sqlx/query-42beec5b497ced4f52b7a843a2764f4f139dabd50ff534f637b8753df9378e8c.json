@@ -1,0 +1,65 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nWITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::UUID[],\n        $2::TEXT[]\n    ) WITH ORDINALITY AS o(binding_id, value, ord)\n)\nINSERT INTO rev.dispatch_intent_binding_text_items (dispatch_intent_binding_id, value)\nSELECT args.binding_id, args.value\nFROM args\nORDER BY args.ord\nRETURNING id, dispatch_intent_binding_id, value, created_at;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_intent_binding_text_items",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "dispatch_intent_binding_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_intent_binding_text_items",
+            "name": "dispatch_intent_binding_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "value",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_intent_binding_text_items",
+            "name": "value"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_intent_binding_text_items",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "42beec5b497ced4f52b7a843a2764f4f139dabd50ff534f637b8753df9378e8c"
+}

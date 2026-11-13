@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT vo.path_id FROM rev.guides g JOIN rev.versioned_objects vo ON vo.id = g.versioned_object_id JOIN rev.object_paths op ON op.id = vo.path_id WHERE op.namespace_company_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "path_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "path_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "73864669f71c1b63bb278e39c53010a9445ab1ad17173456f12016fce80a67f4"
+}

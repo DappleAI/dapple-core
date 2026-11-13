@@ -1,0 +1,2 @@
+# Select assets by IDs using unified versioning (chunked storage model)
+:compose(assets/select_assets_body.sqlc, @page = assets/pages/by_object_ids.sqlc)

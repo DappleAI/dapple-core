@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO rev.institutional_holdings_ingest (cusip, quarter_end)\nVALUES ($1, $2)\nON CONFLICT (cusip, quarter_end) DO UPDATE SET ingested_at = now();\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Date"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "7c11e7b24e5ac4c5746dea07a71506870d3e34825ae22c18d8ad9e9c16067c63"
+}

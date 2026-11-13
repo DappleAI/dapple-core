@@ -1,0 +1,2 @@
+# Select assets by path IDs using unified versioning (returns all versions for each path)
+:compose(assets/select_assets_body.sqlc, @page = assets/pages/by_path_ids.sqlc)

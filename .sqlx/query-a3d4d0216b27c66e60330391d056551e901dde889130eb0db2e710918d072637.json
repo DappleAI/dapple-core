@@ -1,0 +1,45 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH by_object_id AS (\n    SELECT\n        ud.user_id,\n        ud.object_id,\n        ud.created_at,\n        u.email\n    FROM rev.user_details ud\n    JOIN auth.users u ON ud.user_id = u.id\n    WHERE ud.object_id = $2 AND $2 IS NOT NULL\n),\nby_auth_id AS (\n    SELECT\n        ud.user_id,\n        ud.object_id,\n        ud.created_at,\n        u.email\n    FROM rev.user_details ud\n    JOIN auth.users u ON ud.user_id = u.id\n    WHERE ud.user_id = $1 AND $1 IS NOT NULL\n),\nauth_user AS (\n    SELECT id, email FROM auth.users WHERE id = $1 AND $1 IS NOT NULL\n),\ninserted AS (\n        INSERT INTO rev.user_details (user_id)\n    SELECT $1\n    FROM auth_user\n    WHERE $1 IS NOT NULL\n      AND NOT EXISTS (SELECT 1 FROM by_auth_id)\n    ON CONFLICT (user_id) DO NOTHING\n    RETURNING user_id, object_id, created_at\n)\nSELECT\n    COALESCE(by_object_id.user_id, by_auth_id.user_id, inserted.user_id) AS user_id,\n    COALESCE(by_object_id.object_id, by_auth_id.object_id, inserted.object_id) AS id,\n    COALESCE(by_object_id.email, by_auth_id.email, auth_user.email)::TEXT AS email,\n    COALESCE(by_object_id.created_at, by_auth_id.created_at, inserted.created_at) AS created_at\nFROM (SELECT 1) AS dummy\nLEFT JOIN by_object_id ON true\nLEFT JOIN by_auth_id ON true\nLEFT JOIN auth_user ON true\nLEFT JOIN inserted ON true\nWHERE by_object_id.user_id IS NOT NULL\n   OR by_auth_id.user_id IS NOT NULL\n   OR inserted.user_id IS NOT NULL;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "email",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "a3d4d0216b27c66e60330391d056551e901dde889130eb0db2e710918d072637"
+}

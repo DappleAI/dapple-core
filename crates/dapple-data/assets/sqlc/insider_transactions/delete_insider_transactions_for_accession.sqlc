@@ -1,0 +1,9 @@
+# Drop one filing's cached transactions. The ingest replaces a filing wholesale —
+# DELETE then INSERT — so a re-ingest is idempotent and the insert needs no upsert
+# conflict handling. Scoped by issuer as well as accession so a shared accession
+# string can never reach across issuers.
+# Parameters:
+#   $1: issuer_cik (BIGINT)
+#   $2: accession (TEXT)
+DELETE FROM rev.insider_transactions
+WHERE issuer_cik = $1 AND accession = $2;

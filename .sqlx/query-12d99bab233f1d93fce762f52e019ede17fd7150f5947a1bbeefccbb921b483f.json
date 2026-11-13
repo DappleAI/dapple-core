@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT DISTINCT step_id\nFROM rev.step_tasks\nWHERE step_id = ANY($1::UUID[]);\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "step_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.step_tasks",
+            "name": "step_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "12d99bab233f1d93fce762f52e019ede17fd7150f5947a1bbeefccbb921b483f"
+}

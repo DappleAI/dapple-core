@@ -1,0 +1,3 @@
+# Select hats by path IDs using unified versioning
+# Returns the latest version for each path
+:compose(hats/select_hats_body.sqlc, @page = hats/pages/by_path_ids.sqlc)

@@ -1,0 +1,13 @@
+
+WITH args AS (
+    SELECT *
+    FROM UNNEST(
+        $1::UUID[],
+        $2::UUID[]
+    ) WITH ORDINALITY AS o(brief_group_id, brief_id, ord)
+)
+INSERT INTO rev.brief_group_briefs (brief_group_id, brief_id, created_at)
+SELECT args.brief_group_id, args.brief_id, now()
+FROM args
+ORDER BY args.ord
+RETURNING id, brief_group_id, brief_id, created_at;

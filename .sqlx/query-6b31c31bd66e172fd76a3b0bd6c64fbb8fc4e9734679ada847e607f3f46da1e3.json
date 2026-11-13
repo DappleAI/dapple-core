@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO rev.guide_playbooks (guide_id, playbook_id, chapter_index) VALUES ($1, $2, 0) ON CONFLICT DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6b31c31bd66e172fd76a3b0bd6c64fbb8fc4e9734679ada847e607f3f46da1e3"
+}

@@ -1,0 +1,62 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH missing AS (\n    SELECT c.id as chunk_id, sha256(c.data) as checksum\n    FROM rev.chunks c\n    LEFT JOIN rev.chunk_checksums cc ON cc.chunk_id = c.id\n    WHERE cc.id IS NULL\n)\nINSERT INTO rev.chunk_checksums (checksum, chunk_id)\nSELECT checksum, chunk_id FROM missing\nRETURNING id, checksum, chunk_id, created_at;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.chunk_checksums",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "checksum",
+        "type_info": "Bytea",
+        "origin": {
+          "Table": {
+            "table": "rev.chunk_checksums",
+            "name": "checksum"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "chunk_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.chunk_checksums",
+            "name": "chunk_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.chunk_checksums",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "06071b1bb79befab06fd2255ae10c7653216c0314cdac90e4f6e4db6e94433e7"
+}

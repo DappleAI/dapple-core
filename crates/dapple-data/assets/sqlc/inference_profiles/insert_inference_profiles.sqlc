@@ -1,0 +1,66 @@
+# Insert inference profiles using the unified versioning infrastructure
+# Creates: object_path -> inference_profile_path_details -> versioned_object -> inference_profile
+WITH args AS (
+    SELECT *
+    FROM UNNEST(
+        :bind(content_hashes)::TEXT[],
+        :bind(descriptions)::TEXT[],
+        :bind(names)::TEXT[]
+    ) WITH ORDINALITY AS o(
+        content_hash,
+        description,
+        name,
+        ord
+    )
+),
+# Get the entity type ID for inference profiles
+entity_type AS (
+    SELECT id FROM rev.entity_types WHERE key = 'inference_profile'
+),
+:compose(shared/insert_object_paths.sqlc)
+# Create path details (name, namespace_company_id) — see migration 41.
+# inference_profile_path_details has no UNIQUE on name (different from
+# siblings), but namespace_company_id is still required for SELECT-side
+# namespace filtering to work.
+path_details AS (
+    INSERT INTO rev.inference_profile_path_details (path_id, name, namespace_company_id)
+    SELECT
+        np.id,
+        args.name,
+        np.namespace_company_id
+    FROM args
+    JOIN numbered_paths np ON np.ord = args.ord
+    RETURNING path_id, name, namespace_company_id
+),
+:compose(shared/numbered_path_details.sqlc)
+:compose(shared/insert_versioned_objects.sqlc)
+# Create inference profiles
+new_profiles AS (
+    INSERT INTO rev.inference_profiles (versioned_object_id, name, description)
+    SELECT
+        nuv.id,
+        args.name,
+        args.description
+    FROM args
+    JOIN numbered_versions nuv ON nuv.ord = args.ord
+    ORDER BY args.ord
+    RETURNING id, versioned_object_id, name, description, created_at
+),
+# Number profiles to preserve ordinality
+numbered_profiles AS (
+    SELECT np.*, row_number() OVER (ORDER BY np.id) AS ord
+    FROM new_profiles np
+)
+SELECT
+    nup.id AS "id!",
+    nup.versioned_object_id AS "versioned_object_id!",
+    nuv.path_id AS "path_id!",
+    npd.name AS "name!",
+    nuv.content_hash AS "content_hash!",
+    nup.description,
+    nup.created_at AS "created_at!"
+FROM numbered_profiles nup
+JOIN numbered_versions nuv ON nuv.ord = nup.ord
+JOIN numbered_paths nupa ON nupa.ord = nup.ord
+JOIN numbered_path_details npd ON npd.ord = nup.ord
+ORDER BY nup.id;

@@ -1,0 +1,20 @@
+# Deprecate steps by path IDs
+# This creates deprecation events for the latest version of each step path
+WITH args AS (
+    SELECT *
+    FROM UNNEST(
+        :bind(path_ids)::UUID[],
+        :bind(reasons)::TEXT[]
+    ) WITH ORDINALITY AS o(
+        path_id,
+        reason,
+        ord
+    )
+),
+:compose(shared/deprecate_latest_versions.sqlc)
+:compose(shared/deprecate_events.sqlc)
+# Return the path IDs to fetch full steps
+SELECT
+    resolved.path_id
+FROM resolved
+ORDER BY resolved.path_id;

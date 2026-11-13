@@ -1,0 +1,182 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT\n        $3::UUID AS owner_company_id,\n        $4::UUID AS viewer_principal_id\n),\nviewer_prefs AS (\n    SELECT DISTINCT ON (pjp.journey_id)\n        pjp.journey_id,\n        pjp.name AS name_override,\n        pjp.hidden_at\n    FROM rev.principal_journey_preferences pjp, args\n    WHERE pjp.principal_id = args.viewer_principal_id\n    ORDER BY pjp.journey_id, pjp.id DESC\n),\nlimited AS (\n    SELECT objs.*\n    FROM rev.journeys objs\n    JOIN args ON args.owner_company_id = objs.owner_company_id\n    LEFT JOIN viewer_prefs vp ON vp.journey_id = objs.id\n    WHERE vp.hidden_at IS NULL\n    ORDER BY objs.id DESC\n    LIMIT $1 OFFSET $2\n)\nSELECT\n    limited.id,\n    limited.playbook_id,\n    limited.principal_id,\n    u.object_id AS \"user_id?\",\n    COALESCE(vp.name_override, limited.name) AS \"name!\",\n    limited.created_at,\n    vp.hidden_at AS \"hidden_at?\",\n        jbp.id AS \"journey_brief_pack_id?\",\n    bp.id AS \"brief_pack_id?\",\n        jip.id AS \"journey_inference_profile_id?\",\n    ip.id AS \"inference_profile_id?\",\n    limited.guide_id AS \"guide_id?\",\n    limited.predecessor_journey_id AS \"predecessor_journey_id?\",\n    limited.fork_stage_id AS \"fork_stage_id?\"\nFROM limited\nJOIN rev.playbooks p ON limited.playbook_id = p.id\nLEFT JOIN viewer_prefs vp ON vp.journey_id = limited.id\nLEFT JOIN rev.user_details u ON u.user_id = limited.user_id\nLEFT JOIN rev.journey_brief_packs jbp ON jbp.journey_id = limited.id\nLEFT JOIN rev.brief_packs bp ON bp.id = jbp.brief_pack_id\nLEFT JOIN rev.journey_inference_profiles jip ON jip.journey_id = limited.id\nLEFT JOIN rev.inference_profiles ip ON ip.id = jip.inference_profile_id\nORDER by limited.id DESC, jbp.id, jip.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.journeys",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "playbook_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.journeys",
+            "name": "playbook_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "principal_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.journeys",
+            "name": "principal_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "user_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.user_details",
+            "name": "object_id"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "name!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.journeys",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "hidden_at?",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.principal_journey_preferences",
+            "name": "hidden_at"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "journey_brief_pack_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.journey_brief_packs",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "brief_pack_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_packs",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "journey_inference_profile_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.journey_inference_profiles",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "inference_profile_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.inference_profiles",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "guide_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.journeys",
+            "name": "guide_id"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "predecessor_journey_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.journeys",
+            "name": "predecessor_journey_id"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "fork_stage_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.journeys",
+            "name": "fork_stage_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      null,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "3b45c1a08be41a53e914dc0f7f272bd9e33efb99fe2be64d986244f2e86348cd"
+}

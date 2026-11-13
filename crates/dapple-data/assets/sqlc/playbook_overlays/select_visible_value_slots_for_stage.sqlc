@@ -1,0 +1,89 @@
+# Select visible value slot paths for an entire playbook stage.
+# Union of the per-task cascade resolution (stage -> step -> task, with
+# mask overriding expose by priority) across every step_task in the stage.
+# A slot is "needed" by the stage iff it is exposed (post-cascade) for at
+# least one task in the stage.
+# Strict default: a stage with no overlays (or no tasks) yields no slots.
+# Parameters:
+#   $1: playbook_stage_id (UUID)
+
+WITH stage_tasks AS (
+    SELECT
+        stk.id AS step_task_id,
+        ss.id AS stage_step_id,
+        pstage.id AS playbook_stage_id
+    FROM rev.playbook_stages pstage
+    JOIN rev.stage_steps ss ON ss.stage_id = pstage.stage_id
+    JOIN rev.step_tasks stk ON stk.step_id = ss.step_id
+    WHERE pstage.id = $1
+),
+all_overlays AS (
+    # Stage level overlays (lowest priority = 1)
+    SELECT
+        st.step_task_id,
+        op.id,
+        vspd.name,
+        vk.id AS value_kind_id,
+        vk.key AS value_kind_key,
+        o.visibility,
+        1 AS priority
+    FROM rev.playbook_stage_overlays o
+    JOIN stage_tasks st ON st.playbook_stage_id = o.playbook_stage_id
+    JOIN rev.object_paths op ON op.id = o.value_slot_path_id
+    JOIN rev.value_slot_path_details vspd ON vspd.path_id = op.id
+    JOIN rev.value_kinds vk ON vk.id = vspd.value_kind_id
+
+    UNION ALL
+
+    # Step level overlays (medium priority = 2)
+    SELECT
+        st.step_task_id,
+        op.id,
+        vspd.name,
+        vk.id AS value_kind_id,
+        vk.key AS value_kind_key,
+        o.visibility,
+        2 AS priority
+    FROM rev.stage_step_overlays o
+    JOIN stage_tasks st ON st.stage_step_id = o.stage_step_id
+    JOIN rev.object_paths op ON op.id = o.value_slot_path_id
+    JOIN rev.value_slot_path_details vspd ON vspd.path_id = op.id
+    JOIN rev.value_kinds vk ON vk.id = vspd.value_kind_id
+
+    UNION ALL
+
+    # Task level overlays (highest priority = 3)
+    SELECT
+        st.step_task_id,
+        op.id,
+        vspd.name,
+        vk.id AS value_kind_id,
+        vk.key AS value_kind_key,
+        o.visibility,
+        3 AS priority
+    FROM rev.step_task_overlays o
+    JOIN stage_tasks st ON st.step_task_id = o.step_task_id
+    JOIN rev.object_paths op ON op.id = o.value_slot_path_id
+    JOIN rev.value_slot_path_details vspd ON vspd.path_id = op.id
+    JOIN rev.value_kinds vk ON vk.id = vspd.value_kind_id
+),
+ranked AS (
+    # Resolve the cascade per task: highest-priority overlay wins per slot
+    SELECT DISTINCT ON (step_task_id, id)
+        step_task_id,
+        id,
+        name,
+        value_kind_id,
+        value_kind_key,
+        visibility
+    FROM all_overlays
+    ORDER BY step_task_id, id, priority DESC
+)
+SELECT DISTINCT
+    id,
+    name,
+    value_kind_id,
+    value_kind_key
+FROM ranked
+WHERE visibility = 'expose'
+ORDER BY name;

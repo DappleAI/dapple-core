@@ -1,0 +1,2 @@
+# Select all value slots using unified versioning
+:compose(value_slots/select_value_slots_body.sqlc, @page = value_slots/pages/all.sqlc)

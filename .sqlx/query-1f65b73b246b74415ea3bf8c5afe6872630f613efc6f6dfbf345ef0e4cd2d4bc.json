@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT esp.principal_id FROM rev.external_service_principals esp JOIN rev.external_service_tokens est ON est.id = esp.external_service_token_id WHERE est.service_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "principal_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.external_service_principals",
+            "name": "principal_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "1f65b73b246b74415ea3bf8c5afe6872630f613efc6f6dfbf345ef0e4cd2d4bc"
+}

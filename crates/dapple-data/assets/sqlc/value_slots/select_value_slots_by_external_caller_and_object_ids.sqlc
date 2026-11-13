@@ -1,0 +1,5 @@
+# External-API value_slot lookup by IDs: returns value_slots whose path lives
+# in the caller's company namespace. Used by GET /api/value-slots?query=by_ids
+# on external-api.dapple.x — third-party form renderers fetch slot metadata
+# using the value_slot_ids surfaced in brief-form responses.
+:compose(value_slots/select_value_slots_body.sqlc, @page = value_slots/pages/by_external_caller_and_object_ids.sqlc)

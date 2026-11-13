@@ -1,0 +1,14 @@
+# Insert rev.guide_brief_packs associations.
+#
+# Idempotent: ON CONFLICT (guide_id, brief_pack_id) DO NOTHING so re-ingest
+# and PATCH refresh paths reuse existing rows without error. Called at the
+# end of `materialize_brief_system` so every brief_pack derived from a guide
+# is FK-linked back to the guide for downstream auto-derive on journey
+# creation.
+#
+# Parameters (alphabetical by :bind name):
+#   $1 brief_pack_ids :: UUID[]  flat list, all attached to the same guide
+#   $2 guide_id       :: UUID    single guide id
+INSERT INTO rev.guide_brief_packs (guide_id, brief_pack_id)
+SELECT :bind(guide_id)::UUID, unnest(:bind(brief_pack_ids)::UUID[])
+ON CONFLICT (guide_id, brief_pack_id) DO NOTHING;

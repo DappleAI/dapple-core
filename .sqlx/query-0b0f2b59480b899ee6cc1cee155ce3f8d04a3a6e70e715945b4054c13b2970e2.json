@@ -1,0 +1,92 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n\ta.id,\n\ta.dispatch_step_id,\n\ta.task_id,\n\tCOALESCE(e.phase_code, 'queued') AS status,\n\tCOALESCE(e.context_data, a.context_data) AS context_data,\n\tCOALESCE(e.context_metadata, a.context_metadata) AS context_metadata,\n\tCASE\n\t\tWHEN e.phase_code IN ('failed', 'incomplete')\n\t\tTHEN e.context_data->>'error'\n\t\tELSE NULL\n\tEND AS error_detail,\n\ta.created_at\nFROM rev.dispatch_task_attempts a\nLEFT JOIN LATERAL (\n\tSELECT phase_code, context_data, context_metadata, created_at\n\tFROM rev.dispatch_task_attempt_events ev\n\tWHERE ev.attempt_id = a.id\n\tORDER BY ev.created_at DESC, ev.id DESC\n\tLIMIT 1\n) e ON true\nWHERE a.id = $1::uuid;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_task_attempts",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "dispatch_step_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_task_attempts",
+            "name": "dispatch_step_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "task_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_task_attempts",
+            "name": "task_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "status",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 4,
+        "name": "context_data",
+        "type_info": "Jsonb",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 5,
+        "name": "context_metadata",
+        "type_info": "Jsonb",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 6,
+        "name": "error_detail",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_task_attempts",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      null,
+      null,
+      null,
+      null,
+      false
+    ]
+  },
+  "hash": "0b0f2b59480b899ee6cc1cee155ce3f8d04a3a6e70e715945b4054c13b2970e2"
+}

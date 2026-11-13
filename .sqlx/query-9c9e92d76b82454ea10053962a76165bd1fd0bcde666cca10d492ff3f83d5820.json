@@ -1,0 +1,155 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::TEXT[],               $2::TEXT[],               $3::TEXT[],               $4::TEXT[],               $5::TEXT[],               $6::TEXT[],               $7::UUID[],               $8::TIMESTAMPTZ[]     ) WITH ORDINALITY AS o(\n        scope, environment, bucket, object_type, ref_key,\n        content_hash,\n        versioned_object_id, resolved_at, ord\n    )\n),\ncurrent_pins AS (\n    SELECT crp.id, crp.scope, crp.environment, crp.bucket, crp.object_type, crp.ref_key\n    FROM rev.canonical_variant_pins crp\n    LEFT JOIN rev.canonical_variant_pins newer ON newer.supersedes_id = crp.id\n    WHERE newer.id IS NULL\n),\nmatched AS (\n    SELECT args.*, cp.id AS old_pin_id\n    FROM args\n    LEFT JOIN current_pins cp\n        ON cp.scope = args.scope AND cp.environment = args.environment\n       AND cp.bucket = args.bucket\n       AND cp.object_type = args.object_type AND cp.ref_key = args.ref_key\n),\ninserted AS (\n    INSERT INTO rev.canonical_variant_pins (\n        scope, environment, bucket, object_type, ref_key,\n        content_hash,\n        versioned_object_id, resolved_at, supersedes_id\n    )\n    SELECT\n        m.scope, m.environment, m.bucket, m.object_type, m.ref_key,\n        m.content_hash,\n        m.versioned_object_id, m.resolved_at, m.old_pin_id\n    FROM matched m\n    ORDER BY m.ord\n    RETURNING id, scope, environment, bucket, object_type, ref_key,\n              content_hash,\n              versioned_object_id, resolved_at, supersedes_id, created_at\n)\nSELECT * FROM inserted ORDER BY id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.canonical_variant_pins",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "scope",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.canonical_variant_pins",
+            "name": "scope"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "environment",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.canonical_variant_pins",
+            "name": "environment"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "bucket",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.canonical_variant_pins",
+            "name": "bucket"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "object_type",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.canonical_variant_pins",
+            "name": "object_type"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "ref_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.canonical_variant_pins",
+            "name": "ref_key"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "content_hash",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.canonical_variant_pins",
+            "name": "content_hash"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "versioned_object_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.canonical_variant_pins",
+            "name": "versioned_object_id"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "resolved_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.canonical_variant_pins",
+            "name": "resolved_at"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "supersedes_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.canonical_variant_pins",
+            "name": "supersedes_id"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.canonical_variant_pins",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "TextArray",
+        "TextArray",
+        "TextArray",
+        "TextArray",
+        "TextArray",
+        "UuidArray",
+        "TimestamptzArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "9c9e92d76b82454ea10053962a76165bd1fd0bcde666cca10d492ff3f83d5820"
+}

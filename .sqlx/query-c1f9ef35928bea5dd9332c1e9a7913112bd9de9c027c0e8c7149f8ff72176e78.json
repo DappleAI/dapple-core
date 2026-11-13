@@ -1,0 +1,214 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST($2::UUID[]) WITH ORDINALITY AS o(id, ord)\n),\ninference_profile_page AS (\n    SELECT ip.id, args.ord\n    FROM args\n    JOIN rev.inference_profiles ip ON ip.id = args.id\n    ORDER BY args.ord\n    LIMIT $1::BIGINT OFFSET $3::BIGINT\n)\n\nSELECT\n    ip.id AS \"id!\",\n    ip.versioned_object_id AS \"versioned_object_id!\",\n    vo.path_id AS \"path_id!\",\n    ipd.name AS \"name!\",\n    vo.content_hash AS \"content_hash!\",\n    dl.key AS \"deprecation_level_key?\",\n    ip.description,\n    ip.created_at AS \"created_at!\",\n        ipc.id AS \"config_id?\",\n    ipc.prompt_path_object_id AS \"config_prompt_path_id?\",\n    ipc.model_release_id AS \"config_model_release_id?\",\n    ipc.model_variant_id AS \"config_model_variant_id?\",\n    ipc.priority AS \"config_priority?\",\n        COALESCE(l.key, lv.key) AS \"config_lineage_key?\",\n    COALESCE(p.key, pv.key) AS \"config_provider_key?\",\n    COALESCE(mr.tier, mrv.tier) AS \"config_tier?\",\n    COALESCE(mr.release, mrv.release) AS \"config_release?\",\n    mv.key AS \"config_variant_key?\"\nFROM inference_profile_page ipp\nJOIN rev.inference_profiles ip ON ip.id = ipp.id\nJOIN rev.versioned_objects vo ON vo.id = ip.versioned_object_id\nJOIN rev.object_paths op ON op.id = vo.path_id\nJOIN rev.inference_profile_path_details ipd ON ipd.path_id = op.id\nLEFT JOIN LATERAL (\n    SELECT de.to_level_id\nFROM rev.deprecation_events de\nWHERE de.versioned_object_id = vo.id\nORDER BY de.created_at DESC\nLIMIT 1\n\n) ld ON TRUE\nLEFT JOIN rev.deprecation_levels dl ON dl.id = ld.to_level_id\nLEFT JOIN rev.inference_profile_configs ipc ON ipc.inference_profile_id = ip.id\nLEFT JOIN rev.model_releases mr ON mr.id = ipc.model_release_id\nLEFT JOIN rev.lineages l ON l.id = mr.lineage_id\nLEFT JOIN rev.providers p ON p.id = mr.provider_id\nLEFT JOIN rev.model_variants mv ON mv.id = ipc.model_variant_id\nLEFT JOIN rev.model_releases mrv ON mrv.id = mv.base_release_id\nLEFT JOIN rev.lineages lv ON lv.id = mrv.lineage_id\nLEFT JOIN rev.providers pv ON pv.id = mrv.provider_id\nORDER BY ip.id, ipc.priority;\n\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.inference_profiles",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "versioned_object_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.inference_profiles",
+            "name": "versioned_object_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "path_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "path_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "name!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.inference_profile_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "content_hash!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "content_hash"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "deprecation_level_key?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.deprecation_levels",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "description",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.inference_profiles",
+            "name": "description"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at!",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.inference_profiles",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "config_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.inference_profile_configs",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "config_prompt_path_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.inference_profile_configs",
+            "name": "prompt_path_object_id"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "config_model_release_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.inference_profile_configs",
+            "name": "model_release_id"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "config_model_variant_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.inference_profile_configs",
+            "name": "model_variant_id"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "config_priority?",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "rev.inference_profile_configs",
+            "name": "priority"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "config_lineage_key?",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 14,
+        "name": "config_provider_key?",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 15,
+        "name": "config_tier?",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 16,
+        "name": "config_release?",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 17,
+        "name": "config_variant_key?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.model_variants",
+            "name": "key"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "UuidArray",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      null,
+      null,
+      null,
+      null,
+      false
+    ]
+  },
+  "hash": "c1f9ef35928bea5dd9332c1e9a7913112bd9de9c027c0e8c7149f8ff72176e78"
+}

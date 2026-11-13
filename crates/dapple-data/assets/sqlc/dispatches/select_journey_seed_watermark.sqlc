@@ -1,0 +1,34 @@
+# Cheap staleness probe for the dispatch runner's per-drain journey-context
+# seed cache. The seed itself (chain-wide bindings with full payloads + all
+# completed task contexts) is the expensive part of a dispatch run; this query
+# answers "could that seed have changed?" with two append-only counters:
+#
+#   binding_count  -- dispatch_intent_bindings across the journey CHAIN (the
+#                     binding seed is chain-wide). Bindings are append-only
+#                     (write-once per dispatch, latest-wins across dispatches),
+#                     so any new operator POST or computed production -- from
+#                     ANY process, api or flow pod -- strictly increases it.
+#   ok_event_count -- 'ok' task-attempt events for THIS journey (the completed-
+#                     context seed is journey-scoped). Events are append-only.
+#
+# Counts strictly increase because nothing deletes either table, so
+# (equal counts) => (identical seed). No payloads are touched.
+#
+# Parameters: starting_journey_id
+WITH RECURSIVE
+:compose(shared/journey_chain.sqlc)
+SELECT
+    (SELECT count(*)
+     FROM rev.dispatch_intent_bindings dib
+     JOIN rev.dispatches d ON d.id = dib.dispatch_id
+     WHERE d.journey_id IN (SELECT journey_id FROM journey_chain)
+    ) AS "binding_count!",
+    (SELECT count(*)
+     FROM rev.dispatch_task_attempt_events ev
+     JOIN rev.dispatch_task_attempts a ON a.id = ev.attempt_id
+     JOIN rev.dispatch_steps ds ON ds.id = a.dispatch_step_id
+     JOIN rev.dispatch_stages dst ON dst.id = ds.dispatch_stage_id
+     JOIN rev.dispatches d ON d.id = dst.dispatch_id
+     WHERE d.journey_id = :bind(starting_journey_id)::UUID
+       AND ev.phase_code = 'ok'
+    ) AS "ok_event_count!";

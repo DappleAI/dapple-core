@@ -1,0 +1,2 @@
+# Select fluent messages by IDs using unified versioning
+:compose(fluent_messages/select_fluent_messages_body.sqlc, @page = fluent_messages/pages/by_object_ids.sqlc)

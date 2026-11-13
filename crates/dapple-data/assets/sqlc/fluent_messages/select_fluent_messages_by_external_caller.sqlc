@@ -1,0 +1,3 @@
+# External-API fluent_message listing: scoped to the caller's company namespace.
+# Used by GET /api/fluent-messages on external-api.dapple.x.
+:compose(fluent_messages/select_fluent_messages_body.sqlc, @page = fluent_messages/pages/by_external_caller.sqlc)

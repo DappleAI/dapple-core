@@ -1,0 +1,142 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::TEXT[],               $2::TEXT[],               $3::TEXT[],               $4::TEXT[],               $5::TEXT[],               $6::UUID[],               $7::TIMESTAMPTZ[]     ) WITH ORDINALITY AS o(\n        scope, environment, object_type, ref_key,\n        content_hash,\n        versioned_object_id, resolved_at, ord\n    )\n),\ncurrent_pins AS (\n    SELECT crp.id, crp.scope, crp.environment, crp.object_type, crp.ref_key\n    FROM rev.canonical_release_pins crp\n    LEFT JOIN rev.canonical_release_pins newer ON newer.supersedes_id = crp.id\n    WHERE newer.id IS NULL\n),\nmatched AS (\n    SELECT args.*, cp.id AS old_pin_id\n    FROM args\n    LEFT JOIN current_pins cp\n        ON cp.scope = args.scope AND cp.environment = args.environment\n       AND cp.object_type = args.object_type AND cp.ref_key = args.ref_key\n),\ninserted AS (\n    INSERT INTO rev.canonical_release_pins (\n        scope, environment, object_type, ref_key,\n        content_hash,\n        versioned_object_id, resolved_at, supersedes_id\n    )\n    SELECT\n        m.scope, m.environment, m.object_type, m.ref_key,\n        m.content_hash,\n        m.versioned_object_id, m.resolved_at, m.old_pin_id\n    FROM matched m\n    ORDER BY m.ord\n    RETURNING id, scope, environment, object_type, ref_key,\n              content_hash,\n              versioned_object_id, resolved_at, supersedes_id, created_at\n)\nSELECT * FROM inserted ORDER BY id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.canonical_release_pins",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "scope",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.canonical_release_pins",
+            "name": "scope"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "environment",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.canonical_release_pins",
+            "name": "environment"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "object_type",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.canonical_release_pins",
+            "name": "object_type"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "ref_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.canonical_release_pins",
+            "name": "ref_key"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "content_hash",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.canonical_release_pins",
+            "name": "content_hash"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "versioned_object_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.canonical_release_pins",
+            "name": "versioned_object_id"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "resolved_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.canonical_release_pins",
+            "name": "resolved_at"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "supersedes_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.canonical_release_pins",
+            "name": "supersedes_id"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.canonical_release_pins",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "TextArray",
+        "TextArray",
+        "TextArray",
+        "TextArray",
+        "UuidArray",
+        "TimestamptzArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "7a6955d39e7aabb92e6fa3de4b7f874e0a4ee462c42f5b1e6d84925e97135037"
+}

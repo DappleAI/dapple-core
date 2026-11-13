@@ -1,0 +1,43 @@
+# Deprecate tasks by path object IDs
+# This creates deprecation events for the latest version of each task path
+WITH args AS (
+    SELECT *
+    FROM UNNEST(
+        :bind(path_ids)::UUID[],
+        :bind(reasons)::TEXT[]
+    ) WITH ORDINALITY AS o(
+        path_id,
+        reason,
+        ord
+    )
+),
+:compose(shared/deprecate_latest_versions.sqlc)
+:compose(shared/deprecate_events.sqlc)
+# Return the updated tasks
+SELECT
+    t.id,
+    t.versioned_object_id,
+    vo.path_id,
+    tpd.name,
+    tpd.slug,
+    vo.content_hash,
+    dl.key AS "deprecation_level_key?",
+    t.description,
+    t.function,
+    t.function_input,
+    t.created_at,
+    tp.id AS "task_prompt_id?",
+    p.id AS "prompt_id?",
+    ppd.name AS "prompt_name?"
+FROM resolved
+JOIN rev.versioned_objects vo ON vo.id = resolved.versioned_object_id
+JOIN rev.tasks t ON t.versioned_object_id = vo.id
+JOIN rev.object_paths op ON op.id = vo.path_id
+JOIN rev.task_path_details tpd ON tpd.path_id = op.id
+LEFT JOIN rev.deprecation_levels dl ON dl.id = :bind(to_level_id)::SMALLINT
+LEFT JOIN rev.task_prompts tp ON tp.task_id = t.id
+LEFT JOIN rev.prompts p ON p.id = tp.prompt_id
+LEFT JOIN rev.versioned_objects vo_p ON vo_p.id = p.versioned_object_id
+LEFT JOIN rev.object_paths op_p ON op_p.id = vo_p.path_id
+LEFT JOIN rev.prompt_path_details ppd ON ppd.path_id = op_p.id
+ORDER BY t.id, tp.id;

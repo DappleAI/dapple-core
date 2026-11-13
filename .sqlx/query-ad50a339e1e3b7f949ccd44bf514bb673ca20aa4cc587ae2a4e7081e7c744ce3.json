@@ -1,0 +1,137 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH asset_page AS (\n    SELECT a.id\n    FROM rev.assets a\n    JOIN rev.versioned_objects vo ON vo.id = a.versioned_object_id\n    JOIN rev.object_paths op ON op.id = vo.path_id\n    JOIN rev.asset_path_details apd ON apd.path_id = op.id\n    ORDER BY a.id\n    LIMIT $1::BIGINT OFFSET $2::BIGINT\n)\n\nSELECT\n    a.id,\n    a.versioned_object_id,\n    vo.path_id,\n    ak.key as asset_kind_key,\n    vo.content_hash,\n    dl.key AS \"deprecation_level_key?\",\n    a.draft_id,\n    a.content_length,\n    a.mime_type,\n    a.created_at\nFROM asset_page akp\nJOIN rev.assets a ON a.id = akp.id\nJOIN rev.versioned_objects vo ON vo.id = a.versioned_object_id\nJOIN rev.object_paths op ON op.id = vo.path_id\nJOIN rev.asset_path_details apd ON apd.path_id = op.id\nJOIN rev.asset_kinds ak ON ak.id = apd.asset_kind_id\nLEFT JOIN LATERAL (\n    SELECT de.to_level_id\nFROM rev.deprecation_events de\nWHERE de.versioned_object_id = vo.id\nORDER BY de.created_at DESC\nLIMIT 1\n\n) ld ON TRUE\nLEFT JOIN rev.deprecation_levels dl ON dl.id = ld.to_level_id\nLEFT JOIN rev.drafts d ON d.id = a.draft_id\nORDER BY a.id;\n\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.assets",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "versioned_object_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.assets",
+            "name": "versioned_object_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "path_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "path_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "asset_kind_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.asset_kinds",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "content_hash",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "content_hash"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "deprecation_level_key?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.deprecation_levels",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "draft_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.assets",
+            "name": "draft_id"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "content_length",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "rev.assets",
+            "name": "content_length"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "mime_type",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.assets",
+            "name": "mime_type"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.assets",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "ad50a339e1e3b7f949ccd44bf514bb673ca20aa4cc587ae2a4e7081e7c744ce3"
+}

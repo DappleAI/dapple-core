@@ -1,0 +1,77 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nWITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::UUID[],\n        $2::UUID[]\n    ) WITH ORDINALITY AS o(binding_id, asset_dataset_extraction_id, ord)\n),\ninserted AS (\n    INSERT INTO rev.dispatch_intent_binding_dataset_items\n        (dispatch_intent_binding_id, asset_dataset_extraction_id)\n    SELECT args.binding_id, args.asset_dataset_extraction_id\n    FROM args\n    ORDER BY args.ord\n    RETURNING id, dispatch_intent_binding_id, asset_dataset_extraction_id, created_at\n)\nSELECT\n    i.id,\n    i.dispatch_intent_binding_id,\n    i.asset_dataset_extraction_id,\n    ade.envelope,\n    i.created_at\nFROM inserted i\nJOIN rev.asset_dataset_extractions ade ON ade.id = i.asset_dataset_extraction_id\nORDER BY i.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_intent_binding_dataset_items",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "dispatch_intent_binding_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_intent_binding_dataset_items",
+            "name": "dispatch_intent_binding_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "asset_dataset_extraction_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_intent_binding_dataset_items",
+            "name": "asset_dataset_extraction_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "envelope",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "rev.asset_dataset_extractions",
+            "name": "envelope"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_intent_binding_dataset_items",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "fffb85d5e1825205956b7b28de606aa8a7f53ad0382f4ebdafe34e68524e1897"
+}

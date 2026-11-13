@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO rev.brief_unit_markdown (brief_unit_id, markdown_text) VALUES ($1, $2)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6a957c78bb4546c97d7191329009120aa4b5e689cc1020b87e92eb67da9ba3fe"
+}

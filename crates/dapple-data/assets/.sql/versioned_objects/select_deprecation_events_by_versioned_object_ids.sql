@@ -1,0 +1,20 @@
+WITH args AS (
+    SELECT *
+    FROM UNNEST($1::UUID[]) WITH ORDINALITY AS o(versioned_object_id, ord)
+)
+SELECT
+    de.id,
+    de.versioned_object_id,
+    de.from_level_id,
+    fl.key AS from_level_key,
+    de.to_level_id,
+    tl.key AS to_level_key,
+    de.reason,
+    de.deprecated_by_user_id,
+    de.created_at
+FROM args
+JOIN rev.deprecation_events de ON de.versioned_object_id = args.versioned_object_id
+JOIN rev.versioned_objects vo ON vo.id = de.versioned_object_id
+LEFT JOIN rev.deprecation_levels fl ON fl.id = de.from_level_id
+JOIN rev.deprecation_levels tl ON tl.id = de.to_level_id
+ORDER BY vo.id, de.created_at DESC;

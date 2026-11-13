@@ -1,0 +1,27 @@
+# Shared body template for asset SELECT queries.
+# Callers provide a @page slot defining one or more CTEs
+# that produce an `asset_page` CTE with at minimum `asset_page.id`.
+WITH :compose(@page)
+SELECT
+    a.id,
+    a.versioned_object_id,
+    vo.path_id,
+    ak.key as asset_kind_key,
+    vo.content_hash,
+    dl.key AS "deprecation_level_key?",
+    a.draft_id,
+    a.content_length,
+    a.mime_type,
+    a.created_at
+FROM asset_page akp
+JOIN rev.assets a ON a.id = akp.id
+JOIN rev.versioned_objects vo ON vo.id = a.versioned_object_id
+JOIN rev.object_paths op ON op.id = vo.path_id
+JOIN rev.asset_path_details apd ON apd.path_id = op.id
+JOIN rev.asset_kinds ak ON ak.id = apd.asset_kind_id
+LEFT JOIN LATERAL (
+    :compose(shared/select/latest_deprecation_probe.sqlc)
+) ld ON TRUE
+LEFT JOIN rev.deprecation_levels dl ON dl.id = ld.to_level_id
+LEFT JOIN rev.drafts d ON d.id = a.draft_id
+ORDER BY a.id;

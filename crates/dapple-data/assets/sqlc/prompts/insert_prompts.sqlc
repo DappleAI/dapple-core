@@ -1,0 +1,63 @@
+# Insert prompts using the unified versioning infrastructure
+# Creates: object_path → prompt_path_details → versioned_object → prompt
+WITH args AS (
+    SELECT *
+    FROM UNNEST(
+        :bind(content_hashes)::TEXT[],
+        :bind(descriptions)::TEXT[],
+        :bind(names)::TEXT[]
+    ) WITH ORDINALITY AS o(
+        content_hash,
+        description,
+        name,
+        ord
+    )
+),
+# Get the entity type ID for prompts
+entity_type AS (
+    SELECT id FROM rev.entity_types WHERE key = 'prompt'
+),
+:compose(shared/insert_object_paths.sqlc)
+# Create path details (name, namespace_company_id) — no slug for prompts.
+# See migration 41 for the namespace-scoped UNIQUE rationale.
+path_details AS (
+    INSERT INTO rev.prompt_path_details (path_id, name, namespace_company_id)
+    SELECT
+        np.id,
+        args.name,
+        np.namespace_company_id
+    FROM args
+    JOIN numbered_paths np ON np.ord = args.ord
+    RETURNING path_id, name, namespace_company_id
+),
+:compose(shared/numbered_path_details.sqlc)
+:compose(shared/insert_versioned_objects.sqlc)
+# Create prompts
+new_prompts AS (
+    INSERT INTO rev.prompts (versioned_object_id, description)
+    SELECT
+        nuv.id,
+        args.description
+    FROM args
+    JOIN numbered_versions nuv ON nuv.ord = args.ord
+    ORDER BY args.ord
+    RETURNING id, versioned_object_id, description, created_at
+),
+# Number prompts to preserve ordinality
+numbered_prompts AS (
+    SELECT np.*, row_number() OVER (ORDER BY np.id) AS ord
+    FROM new_prompts np
+)
+SELECT
+    nup.id,
+    nup.versioned_object_id,
+    nupp.id AS path_id,
+    npd.name,
+    nuv.content_hash,
+    nup.description,
+    nup.created_at
+FROM numbered_prompts nup
+JOIN numbered_versions nuv ON nuv.ord = nup.ord
+JOIN numbered_paths nupp ON nupp.ord = nup.ord
+JOIN numbered_path_details npd ON npd.ord = nup.ord
+ORDER BY nup.id;

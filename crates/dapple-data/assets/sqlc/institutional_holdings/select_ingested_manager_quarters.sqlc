@@ -1,0 +1,9 @@
+# The quarters already stored for one manager, so a re-persist writes only the
+# gap. The manager-first mirror of select_ingested_quarters.
+# Parameters:
+#   $1: manager_cik (BIGINT)
+SELECT quarter_end
+FROM rev.institutional_holdings_manager_ingest
+WHERE manager_cik = $1
+  AND status = 'ok'
+ORDER BY quarter_end;

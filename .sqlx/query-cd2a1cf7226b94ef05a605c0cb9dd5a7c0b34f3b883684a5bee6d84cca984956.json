@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO rev.external_service_token_revocations (external_service_token_id, reason) VALUES ($1, 'lifecycle test')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "cd2a1cf7226b94ef05a605c0cb9dd5a7c0b34f3b883684a5bee6d84cca984956"
+}

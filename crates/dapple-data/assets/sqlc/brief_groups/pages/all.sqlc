@@ -1,0 +1,9 @@
+brief_group_page AS (
+    SELECT bg.id
+    FROM rev.brief_groups bg
+    JOIN rev.versioned_objects vo ON vo.id = bg.versioned_object_id
+    JOIN rev.object_paths op ON op.id = vo.path_id
+    JOIN rev.brief_group_path_details bgpd ON bgpd.path_id = op.id
+    ORDER BY bg.id
+    LIMIT :bind(limit)::BIGINT OFFSET :bind(offset)::BIGINT
+)

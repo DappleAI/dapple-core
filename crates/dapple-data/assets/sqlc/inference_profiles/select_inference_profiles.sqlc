@@ -1,0 +1,8 @@
+# Select all inference profiles using unified versioning
+# Returns FlatModel rows: one row per profile-config combination
+# Resolves model release/variant references for each config
+#
+# LIMIT/OFFSET apply to distinct inference profiles (not flat rows) via a page CTE.
+# The flat join (profile x configs x model_releases/variants) produces many rows
+# per profile, so limiting flat rows would silently truncate results.
+:compose(inference_profiles/select_inference_profiles_body.sqlc, @page = inference_profiles/pages/all.sqlc)

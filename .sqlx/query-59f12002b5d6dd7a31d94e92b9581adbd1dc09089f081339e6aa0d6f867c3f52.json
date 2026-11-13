@@ -1,0 +1,33 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nINSERT INTO rev.brief_unit_notice (\n    brief_unit_id,\n    level,\n    title_text,\n    title_fluent_message_id,\n    detail_text,\n    detail_fluent_message_id\n)\nVALUES (\n    $1::UUID,\n    $2::TEXT,\n    $3::TEXT,\n    $4::UUID,\n    $5::TEXT,\n    $6::UUID\n)\nRETURNING brief_unit_id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "brief_unit_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_notice",
+            "name": "brief_unit_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Uuid",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "59f12002b5d6dd7a31d94e92b9581adbd1dc09089f081339e6aa0d6f867c3f52"
+}

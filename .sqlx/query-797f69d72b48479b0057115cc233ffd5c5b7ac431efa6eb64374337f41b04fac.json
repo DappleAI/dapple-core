@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT owner_company_id FROM rev.journeys WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "owner_company_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.journeys",
+            "name": "owner_company_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "797f69d72b48479b0057115cc233ffd5c5b7ac431efa6eb64374337f41b04fac"
+}

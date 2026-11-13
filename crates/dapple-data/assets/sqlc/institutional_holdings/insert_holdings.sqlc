@@ -1,0 +1,21 @@
+# Batch insert of 13F holding rows for one (cusip, quarter) slice via UNNEST.
+# The caller clears the slice first (delete_holdings_for_quarter), so there is no
+# conflict handling here. Row order carries no meaning for this cache — it is
+# read back ordered by (quarter_end, value_usd DESC) — so no WITH ORDINALITY.
+# Parameters:
+#   $1: cusips (TEXT[])            $5: shares (DOUBLE PRECISION[])
+#   $2: quarter_ends (DATE[])      $6: values_usd (DOUBLE PRECISION[])
+#   $3: manager_ciks (BIGINT[])    $7: accessions (TEXT[])
+#   $4: manager_names (TEXT[])     $8: filed_dates (DATE[])
+INSERT INTO rev.institutional_holdings
+    (cusip, quarter_end, manager_cik, manager_name, shares, value_usd, accession, filed_date)
+SELECT * FROM UNNEST(
+    $1::TEXT[],
+    $2::DATE[],
+    $3::BIGINT[],
+    $4::TEXT[],
+    $5::DOUBLE PRECISION[],
+    $6::DOUBLE PRECISION[],
+    $7::TEXT[],
+    $8::DATE[]
+);

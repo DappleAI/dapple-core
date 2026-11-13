@@ -1,0 +1,13 @@
+events AS (
+    INSERT INTO rev.deprecation_events (
+        versioned_object_id, from_level_id, to_level_id, reason, deprecated_by_user_id
+    )
+    SELECT
+        resolved.versioned_object_id,
+        resolved.from_level_id,
+        :bind(to_level_id)::SMALLINT,
+        resolved.reason,
+        :bind(deprecated_by_user_id)::UUID
+    FROM resolved
+    RETURNING *
+)

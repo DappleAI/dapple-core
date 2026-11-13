@@ -1,0 +1,17 @@
+SELECT
+    bo.brief_id,
+    bo.id AS unit_id,
+    bo.unit_key,
+    bosk.key AS source_kind_key,
+    vs.id AS slot_id,
+    vspd.name AS slot_name,
+    vs.title AS slot_title,
+    vk.key AS slot_value_kind
+FROM rev.brief_outputs bo
+JOIN rev.brief_output_source_kinds bosk ON bosk.id = bo.source_kind_id
+JOIN rev.value_slots vs ON vs.id = bo.value_slot_id
+JOIN rev.versioned_objects vo ON vo.id = vs.versioned_object_id
+JOIN rev.value_slot_path_details vspd ON vspd.path_id = vo.path_id
+JOIN rev.value_kinds vk ON vk.id = vs.value_kind_id
+WHERE bo.brief_id = ANY($1::UUID[])
+ORDER BY bo.brief_id, bo.id;

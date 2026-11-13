@@ -1,0 +1,67 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nWITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::TEXT[],\n        $2::TEXT[],\n        $3::TEXT[]\n    ) WITH ORDINALITY AS o(content_hash, description, name, ord)\n),\nentity_type AS (\n    SELECT id FROM rev.entity_types WHERE key = 'fluent_message'\n),\nexisting_details AS (\n    SELECT fmpd.path_id, op.id AS path_id_val, fmpd.name\n    FROM rev.fluent_message_path_details fmpd\n    JOIN rev.object_paths op ON op.id = fmpd.path_id\n    WHERE fmpd.name = ANY($3::TEXT[])\n      AND fmpd.namespace_company_id = COALESCE(\n          NULLIF(current_setting('dapple.namespace_company_id', true), ''),\n          '019e132e-2610-7a4a-b64a-77a49e286ac0'\n      )::UUID\n),\nnew_name_args AS (\n    SELECT args.*\n    FROM args\n    LEFT JOIN existing_details ed ON ed.name = args.name\n    WHERE ed.name IS NULL\n),\nnew_paths AS (\n    INSERT INTO rev.object_paths (entity_type_id, namespace_company_id, scope)\n    SELECT\n        (SELECT id FROM entity_type),\n        COALESCE(\n            NULLIF(current_setting('dapple.namespace_company_id', true), ''),\n            '019e132e-2610-7a4a-b64a-77a49e286ac0'\n        )::UUID,\n        COALESCE(\n            NULLIF(current_setting('dapple.scope', true), ''),\n            'public'\n        )::TEXT\n    FROM new_name_args\n    ORDER BY new_name_args.ord\n        RETURNING id, namespace_company_id\n),\nnumbered_new_paths AS (\n    SELECT np.*, row_number() OVER (ORDER BY np.id) AS rn\n    FROM new_paths np\n),\nnumbered_new_name_args AS (\n    SELECT nna.*, row_number() OVER (ORDER BY nna.ord) AS rn\n    FROM new_name_args nna\n),\nnew_path_details AS (\n    INSERT INTO rev.fluent_message_path_details (path_id, name, description, namespace_company_id)\n    SELECT nnp.id, nna.name, nna.description, nnp.namespace_company_id\n    FROM numbered_new_paths nnp\n    JOIN numbered_new_name_args nna ON nna.rn = nnp.rn\n    RETURNING path_id, name, description, namespace_company_id\n),\nall_paths AS (\n    SELECT ed.path_id, args.name, args.description, args.content_hash, args.ord\n    FROM args\n    JOIN existing_details ed ON ed.name = args.name\n    UNION ALL\n    SELECT nnp.id, nna.name, nna.description, nna.content_hash, nna.ord\n    FROM numbered_new_paths nnp\n    JOIN numbered_new_name_args nna ON nna.rn = nnp.rn\n),\nnew_versions_inserted AS (\n    INSERT INTO rev.versioned_objects (path_id, content_hash)\n    SELECT ap.path_id, ap.content_hash\n    FROM all_paths ap\n    ORDER BY ap.ord\n    ON CONFLICT (path_id, content_hash) DO NOTHING\n    RETURNING id, path_id, content_hash, created_at\n),\nall_versions AS (\n    SELECT nvi.id, nvi.path_id, nvi.content_hash, nvi.created_at\n    FROM new_versions_inserted nvi\n    UNION ALL\n    SELECT vo.id, vo.path_id, vo.content_hash, vo.created_at\n    FROM all_paths ap\n    JOIN rev.versioned_objects vo ON vo.path_id = ap.path_id AND vo.content_hash = ap.content_hash\n    WHERE NOT EXISTS (\n        SELECT 1 FROM new_versions_inserted nvi\n        WHERE nvi.path_id = ap.path_id AND nvi.content_hash = ap.content_hash\n    )\n),\nnew_messages AS (\n    INSERT INTO rev.fluent_messages (versioned_object_id)\n    SELECT av.id\n    FROM all_versions av\n    WHERE NOT EXISTS (SELECT 1 FROM rev.fluent_messages fm WHERE fm.versioned_object_id = av.id)\n    ORDER BY av.id\n    RETURNING id, versioned_object_id, created_at\n),\nall_messages AS (\n    SELECT nm.id, nm.versioned_object_id, nm.created_at\n    FROM new_messages nm\n    UNION ALL\n    SELECT fm.id, fm.versioned_object_id, fm.created_at\n    FROM rev.fluent_messages fm\n    JOIN all_versions av ON fm.versioned_object_id = av.id\n    WHERE NOT EXISTS (SELECT 1 FROM new_messages nm WHERE nm.versioned_object_id = av.id)\n)\nSELECT\n    am.id AS \"id!\",\n    av.id AS \"versioned_object_id!\",\n    ap.path_id AS \"path_id!\",\n    ap.name AS \"name!\",\n    ap.description,\n    av.content_hash AS \"content_hash!\",\n    am.created_at AS \"created_at!\"\nFROM all_paths ap\nJOIN all_versions av ON av.path_id = ap.path_id AND av.content_hash = ap.content_hash\nJOIN all_messages am ON am.versioned_object_id = av.id\nORDER BY ap.ord;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "versioned_object_id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "path_id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "name!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 4,
+        "name": "description",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 5,
+        "name": "content_hash!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at!",
+        "type_info": "Timestamptz",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "TextArray",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "af89622eab6219c83be033d97d6538b99d8134435ce6f9033804ec83e7df7826"
+}

@@ -1,0 +1,103 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::UUID[],             $2::SMALLINT[],          $3::TEXT[],              $4::UUID[]           ) WITH ORDINALITY AS o(\n        versioned_object_id,\n        to_level_id,\n        reason,\n        deprecated_by_user_id,\n        ord\n    )\n),\ncurrent_levels AS (\n    SELECT DISTINCT ON (args.versioned_object_id)\n        args.versioned_object_id,\n        de.to_level_id AS from_level_id\n    FROM args\n    LEFT JOIN rev.deprecation_events de ON de.versioned_object_id = args.versioned_object_id\n    ORDER BY args.versioned_object_id, de.created_at DESC\n),\nobjs AS (\n    INSERT INTO rev.deprecation_events (\n        versioned_object_id,\n        from_level_id,\n        to_level_id,\n        reason,\n        deprecated_by_user_id\n    )\n    SELECT\n        args.versioned_object_id,\n        cl.from_level_id,\n        args.to_level_id,\n        args.reason,\n        args.deprecated_by_user_id\n    FROM args\n    LEFT JOIN current_levels cl ON cl.versioned_object_id = args.versioned_object_id\n    RETURNING *\n)\nSELECT\n    objs.id,\n    objs.versioned_object_id,\n    objs.from_level_id,\n    objs.to_level_id,\n    objs.reason,\n    objs.deprecated_by_user_id,\n    objs.created_at\nFROM objs\nORDER BY objs.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.deprecation_events",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "versioned_object_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.deprecation_events",
+            "name": "versioned_object_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "from_level_id",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "rev.deprecation_events",
+            "name": "from_level_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "to_level_id",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "rev.deprecation_events",
+            "name": "to_level_id"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "reason",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.deprecation_events",
+            "name": "reason"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "deprecated_by_user_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.deprecation_events",
+            "name": "deprecated_by_user_id"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.deprecation_events",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "Int2Array",
+        "TextArray",
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "6d475c991b868396461a5b628cc388047c8d457ff0dde90526f5de4fc780952e"
+}

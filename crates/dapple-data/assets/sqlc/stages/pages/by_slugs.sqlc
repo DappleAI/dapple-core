@@ -1,0 +1,14 @@
+args AS (
+    SELECT *
+    FROM UNNEST(:bind(slugs)::TEXT[]) WITH ORDINALITY AS o(slug, ord)
+),
+stage_page AS (
+    SELECT st.id, args.ord
+    FROM args
+    JOIN rev.stage_path_details spd ON spd.slug = args.slug
+    JOIN rev.object_paths op ON op.id = spd.path_id
+    JOIN rev.versioned_objects vo ON vo.path_id = op.id
+    JOIN rev.stages st ON st.versioned_object_id = vo.id
+    ORDER BY args.ord
+    LIMIT :bind(limit)::BIGINT OFFSET :bind(offset)::BIGINT
+)

@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT EXISTS (\n    SELECT 1\n    FROM rev.playbook_stages ps\n    WHERE ps.id = $2::UUID\n      AND ps.playbook_id = $1::UUID\n) AS \"belongs!\";\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "belongs!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "159f993bd95e1bd5aa810ef3b2edf11592de3ceef537bddc2c0d8b7070056d77"
+}

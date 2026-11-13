@@ -1,0 +1,105 @@
+# Chain-aware effective bindings for a journey (Migration 44). Walks the
+# `predecessor_journey_id` chain back from :bind(starting_journey_id) and
+# returns one row per (value_slot_id) using the journey-local-first
+# walk-back rule: depth 0 (this journey) wins over depth 1+ (upstream
+# chapters); within a single journey, the latest binding by `created_at`
+# wins.
+#
+# Powers `GET /api/journeys/{id}/bindings` (both surfaces) so brief-form
+# pre-fill on chapter 2+ sees chapter 1's values. Legacy journeys with
+# NULL predecessor have a one-element chain — the query collapses to the
+# pre-Migration-44 "latest-per-slot for this journey" behavior.
+WITH RECURSIVE
+:compose(shared/journey_chain.sqlc),
+chain_bindings AS (
+    SELECT
+        dib.id AS binding_id,
+        dib.value_slot_id,
+        dib.created_at AS bound_at,
+        jc.depth
+    FROM journey_chain jc
+    JOIN rev.dispatches d ON d.journey_id = jc.journey_id
+    JOIN rev.dispatch_intent_bindings dib ON dib.dispatch_id = d.id
+    WHERE :compose(shared/fork_cutoff_filter.sqlc)
+),
+journey_bindings AS (
+    SELECT DISTINCT ON (cb.value_slot_id)
+        cb.binding_id,
+        cb.value_slot_id,
+        cb.bound_at
+    FROM chain_bindings cb
+    ORDER BY cb.value_slot_id, cb.depth ASC, cb.bound_at DESC, cb.binding_id DESC
+)
+# Scalar subqueries (first item, ORDER BY item id) instead of item LEFT JOINs:
+# a multi-item (keep-N) binding stays ONE row per slot rather than fanning out
+# into N. The scalars (text_value/json_value/...) are the FIRST item, a
+# representative preview; `item_values` (below) carries the FULL ordered array of
+# every item, typed by value_kind, so a consumer that needs the whole list (e.g.
+# dapple-ui resolving an `options_slot` select dropdown from a bound cast) gets it
+# without walking a dispatch. Mirrors select_bindings_by_journey_of_dispatch.
+SELECT
+    jb.value_slot_id,
+    jb.bound_at,
+    vspd.name AS value_slot_name,
+    vk.key AS value_kind,
+    (SELECT ti.value FROM rev.dispatch_intent_binding_text_items ti
+        WHERE ti.dispatch_intent_binding_id = jb.binding_id
+        ORDER BY ti.id LIMIT 1) AS text_value,
+    (SELECT ii.value FROM rev.dispatch_intent_binding_int_items ii
+        WHERE ii.dispatch_intent_binding_id = jb.binding_id
+        ORDER BY ii.id LIMIT 1) AS int_value,
+    (SELECT ni.value FROM rev.dispatch_intent_binding_number_items ni
+        WHERE ni.dispatch_intent_binding_id = jb.binding_id
+        ORDER BY ni.id LIMIT 1) AS number_value,
+    (SELECT bi.value FROM rev.dispatch_intent_binding_bool_items bi
+        WHERE bi.dispatch_intent_binding_id = jb.binding_id
+        ORDER BY bi.id LIMIT 1) AS bool_value,
+    (SELECT ji.value FROM rev.dispatch_intent_binding_json_items ji
+        WHERE ji.dispatch_intent_binding_id = jb.binding_id
+        ORDER BY ji.id LIMIT 1) AS json_value,
+    (SELECT ai.asset_id FROM rev.dispatch_intent_binding_asset_items ai
+        WHERE ai.dispatch_intent_binding_id = jb.binding_id
+        ORDER BY ai.id LIMIT 1) AS asset_id,
+    # Dataset: the pinned extraction's schema envelope (two-hop item -> extraction).
+    # NULL for every non-dataset slot; the reader routes on vk.key.
+    (SELECT ade.envelope FROM rev.dispatch_intent_binding_dataset_items dsi
+        JOIN rev.asset_dataset_extractions ade ON ade.id = dsi.asset_dataset_extraction_id
+        WHERE dsi.dispatch_intent_binding_id = jb.binding_id
+        ORDER BY dsi.id LIMIT 1) AS envelope,
+    # The journey-pinned value_slot's constraints (NOT NULL JSONB). For a dataset
+    # slot the query layer merges these over the shared envelope at read time
+    # (per-slot `columns` type overrides + `sample: false`); ignored for other kinds.
+    vs.constraints AS "value_slot_constraints!",
+    # Full ordered array of ALL the slot's items (typed by value_kind); '[]' when
+    # unbound. The scalar columns above are only the first item.
+    (CASE vk.key
+        WHEN 'text' THEN COALESCE((SELECT jsonb_agg(x.value ORDER BY x.id)
+            FROM rev.dispatch_intent_binding_text_items x
+            WHERE x.dispatch_intent_binding_id = jb.binding_id), '[]'::jsonb)
+        WHEN 'int' THEN COALESCE((SELECT jsonb_agg(x.value ORDER BY x.id)
+            FROM rev.dispatch_intent_binding_int_items x
+            WHERE x.dispatch_intent_binding_id = jb.binding_id), '[]'::jsonb)
+        WHEN 'number' THEN COALESCE((SELECT jsonb_agg(x.value ORDER BY x.id)
+            FROM rev.dispatch_intent_binding_number_items x
+            WHERE x.dispatch_intent_binding_id = jb.binding_id), '[]'::jsonb)
+        WHEN 'bool' THEN COALESCE((SELECT jsonb_agg(x.value ORDER BY x.id)
+            FROM rev.dispatch_intent_binding_bool_items x
+            WHERE x.dispatch_intent_binding_id = jb.binding_id), '[]'::jsonb)
+        WHEN 'json' THEN COALESCE((SELECT jsonb_agg(x.value ORDER BY x.id)
+            FROM rev.dispatch_intent_binding_json_items x
+            WHERE x.dispatch_intent_binding_id = jb.binding_id), '[]'::jsonb)
+        WHEN 'asset' THEN COALESCE((SELECT jsonb_agg(jsonb_build_object('asset_id', x.asset_id) ORDER BY x.id)
+            FROM rev.dispatch_intent_binding_asset_items x
+            WHERE x.dispatch_intent_binding_id = jb.binding_id), '[]'::jsonb)
+        WHEN 'dataset' THEN COALESCE((SELECT jsonb_agg(ade.envelope ORDER BY x.id)
+            FROM rev.dispatch_intent_binding_dataset_items x
+            JOIN rev.asset_dataset_extractions ade ON ade.id = x.asset_dataset_extraction_id
+            WHERE x.dispatch_intent_binding_id = jb.binding_id), '[]'::jsonb)
+        ELSE '[]'::jsonb
+    END) AS "item_values!"
+FROM journey_bindings jb
+JOIN rev.value_slots vs ON vs.id = jb.value_slot_id
+JOIN rev.versioned_objects vo ON vo.id = vs.versioned_object_id
+JOIN rev.value_slot_path_details vspd ON vspd.path_id = vo.path_id
+JOIN rev.value_kinds vk ON vk.id = vs.value_kind_id
+ORDER BY jb.value_slot_id;

@@ -1,0 +1,65 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::UUID[],               $2::SMALLINT[]        ) WITH ORDINALITY AS o(embedding_id, locale_id, ord)\n),\nnew_locales AS (\n    INSERT INTO rev.guide_embedding_locales (id, embedding_id, locale_id)\n    SELECT uuidv7(), args.embedding_id, args.locale_id\n    FROM args\n    ORDER BY args.ord\n    ON CONFLICT (embedding_id, locale_id) DO NOTHING\n    RETURNING id, embedding_id, locale_id, created_at\n)\nSELECT\n    nl.id,\n    nl.embedding_id,\n    nl.locale_id,\n    nl.created_at\nFROM new_locales nl\nORDER BY nl.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_embedding_locales",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "embedding_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_embedding_locales",
+            "name": "embedding_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "locale_id",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_embedding_locales",
+            "name": "locale_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_embedding_locales",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "Int2Array"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "37202d7004f876ff4deb321b40348aa38d28adbe5730969b6a3f77880fa21d4f"
+}

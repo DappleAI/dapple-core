@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT mr.id AS \"id!\" FROM rev.model_releases mr JOIN rev.lineages l ON l.id = mr.lineage_id WHERE l.key = $1 AND mr.tier = $2 AND (mr.release = $3 OR ($3 IS NULL AND mr.release IS NULL)) LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.model_releases",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "a4a12393e5361526e6085c7707bb25a89f7d647dca1706880489ce607e3ab6a2"
+}

@@ -1,0 +1,130 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::TEXT[],\n        $2::JSONB[],\n        $3::TEXT[],\n        $4::TEXT[],\n        $5::UUID[],\n        $6::INT[],\n        $7::INT[],\n        $8::TEXT[],\n        $9::TEXT[]\n    ) WITH ORDINALITY AS o(\n        cardinality,\n        constraints,\n        content_hash,\n        description,\n        id,\n        max_selections,\n        min_selections,\n        title,\n        value_kind_key,\n        ord\n    )\n),\nexisting_slots AS (\n    SELECT\n        vo.path_id,\n        args.id as old_id,\n        args.title,\n        args.description,\n        args.constraints,\n        args.cardinality,\n        args.min_selections,\n        args.max_selections,\n        args.content_hash,\n        vk_in.id AS value_kind_id,\n        args.ord\n    FROM args\n    JOIN rev.value_slots vs ON vs.id = args.id\n    JOIN rev.versioned_objects vo ON vo.id = vs.versioned_object_id\n    JOIN rev.value_kinds vk_in ON vk_in.key = args.value_kind_key\n),\nnew_versions_inserted AS (\n    INSERT INTO rev.versioned_objects (path_id, content_hash)\n    SELECT\n        es.path_id,\n        es.content_hash\n    FROM existing_slots es\n    ON CONFLICT (path_id, content_hash) DO NOTHING\n    RETURNING id, path_id, content_hash, created_at\n),\nall_versions AS (\n    SELECT nvi.id, nvi.path_id, nvi.content_hash, nvi.created_at\n    FROM new_versions_inserted nvi\n    UNION ALL\n    SELECT vo.id, vo.path_id, vo.content_hash, vo.created_at\n    FROM existing_slots es\n    JOIN rev.versioned_objects vo ON vo.path_id = es.path_id AND vo.content_hash = es.content_hash\n    WHERE NOT EXISTS (\n        SELECT 1 FROM new_versions_inserted nvi\n        WHERE nvi.path_id = es.path_id AND nvi.content_hash = es.content_hash\n    )\n),\nnew_slots AS (\n    INSERT INTO rev.value_slots (\n        versioned_object_id, title, description, constraints,\n        cardinality, min_selections, max_selections, value_kind_id\n    )\n    SELECT\n        av.id,\n        es.title,\n        es.description,\n        COALESCE(es.constraints, '{}'::jsonb),\n        COALESCE(es.cardinality, 'single'),\n        es.min_selections,\n        es.max_selections,\n        es.value_kind_id\n    FROM existing_slots es\n    JOIN all_versions av ON av.path_id = es.path_id\n    WHERE NOT EXISTS (SELECT 1 FROM rev.value_slots vs WHERE vs.versioned_object_id = av.id)\n    RETURNING\n        id, versioned_object_id, title, description, constraints,\n        cardinality, min_selections, max_selections, value_kind_id, created_at\n),\nall_slots AS (\n    SELECT\n        ns.id, ns.versioned_object_id, ns.title, ns.description, ns.constraints,\n        ns.cardinality, ns.min_selections, ns.max_selections, ns.value_kind_id, ns.created_at\n    FROM new_slots ns\n    UNION ALL\n    SELECT\n        vs.id, vs.versioned_object_id, vs.title, vs.description, vs.constraints,\n        vs.cardinality, vs.min_selections, vs.max_selections, vs.value_kind_id, vs.created_at\n    FROM rev.value_slots vs\n    JOIN all_versions av ON vs.versioned_object_id = av.id\n    WHERE NOT EXISTS (SELECT 1 FROM new_slots ns WHERE ns.versioned_object_id = av.id)\n)\nSELECT\n    als.id AS \"id!\",\n    als.versioned_object_id AS \"versioned_object_id!\",\n    op.id AS \"path_id!\",\n    vspd.name AS \"name!\",\n    vk.key AS \"value_kind_key!\",\n    av.content_hash AS \"content_hash!\",\n    als.title AS \"title!\",\n    als.description,\n    als.constraints AS \"constraints!\",\n    als.cardinality AS \"cardinality!\",\n    als.min_selections,\n    als.max_selections,\n    als.created_at AS \"created_at!\"\nFROM all_slots als\nJOIN all_versions av ON av.id = als.versioned_object_id\nJOIN rev.object_paths op ON op.id = av.path_id\nJOIN rev.value_slot_path_details vspd ON vspd.path_id = op.id\nJOIN rev.value_kinds vk ON vk.id = als.value_kind_id\nJOIN existing_slots es ON es.path_id = av.path_id\nORDER BY als.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "versioned_object_id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "path_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.object_paths",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "name!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slot_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "value_kind_key!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.value_kinds",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "content_hash!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 6,
+        "name": "title!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 7,
+        "name": "description",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 8,
+        "name": "constraints!",
+        "type_info": "Jsonb",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 9,
+        "name": "cardinality!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 10,
+        "name": "min_selections",
+        "type_info": "Int4",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 11,
+        "name": "max_selections",
+        "type_info": "Int4",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 12,
+        "name": "created_at!",
+        "type_info": "Timestamptz",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "JsonbArray",
+        "TextArray",
+        "TextArray",
+        "UuidArray",
+        "Int4Array",
+        "Int4Array",
+        "TextArray",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      false,
+      false,
+      false,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "0d6abd8c1a551833f62bc4ee5304a8eab9694c227c0fc454941c567d1e290b7f"
+}

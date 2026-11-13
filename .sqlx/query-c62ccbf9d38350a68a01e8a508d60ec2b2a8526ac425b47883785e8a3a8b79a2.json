@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT e.context_data\n           FROM rev.dispatch_task_attempt_events e\n           JOIN rev.dispatch_task_attempts a ON a.id = e.attempt_id\n           JOIN rev.dispatch_steps ds ON ds.id = a.dispatch_step_id\n           JOIN rev.dispatch_stages dst ON dst.id = ds.dispatch_stage_id\n           WHERE dst.dispatch_id = $1\n             AND e.phase_code = 'ok'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "context_data",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_task_attempt_events",
+            "name": "context_data"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "c62ccbf9d38350a68a01e8a508d60ec2b2a8526ac425b47883785e8a3a8b79a2"
+}

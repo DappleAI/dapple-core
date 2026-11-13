@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM rev.insider_transactions\nWHERE issuer_cik = $1 AND accession = $2;\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "698006cf070e5e0ecb99b2015625faa5d641504f071160f5b3bff081e5b8d7f9"
+}

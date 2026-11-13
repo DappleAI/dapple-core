@@ -1,0 +1,53 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nWITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::UUID[],\n        $2::UUID[],\n        $3::TEXT[]\n    ) WITH ORDINALITY AS o(prompt_id, fluent_message_id, role, ord)\n),\n_inserted AS (\n    INSERT INTO rev.prompt_fluent_messages (prompt_id, fluent_message_id, role, created_at)\n    SELECT args.prompt_id, args.fluent_message_id, args.role, now()\n    FROM args\n    ORDER BY ord\n    ON CONFLICT (prompt_id, fluent_message_id) DO NOTHING\n    RETURNING id, prompt_id, fluent_message_id, role, created_at\n),\nall_links AS (\n    SELECT id, prompt_id, fluent_message_id, role, created_at FROM _inserted\n    UNION ALL\n    SELECT pfm.id, pfm.prompt_id, pfm.fluent_message_id, pfm.role, pfm.created_at\n    FROM args\n    JOIN rev.prompt_fluent_messages pfm\n        ON pfm.prompt_id = args.prompt_id\n        AND pfm.fluent_message_id = args.fluent_message_id\n    WHERE NOT EXISTS (\n        SELECT 1 FROM _inserted i\n        WHERE i.prompt_id = args.prompt_id AND i.fluent_message_id = args.fluent_message_id\n    )\n)\nSELECT\n    al.id AS \"id!\",\n    al.prompt_id AS \"prompt_id!\",\n    al.fluent_message_id AS \"fluent_message_id!\",\n    al.role,\n    al.created_at AS \"created_at!\"\nFROM all_links al\nORDER BY al.prompt_id, al.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "prompt_id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "fluent_message_id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "role",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at!",
+        "type_info": "Timestamptz",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "UuidArray",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "a54f2c8cd7cd665b5d3a49fc60e73ed22f23c5ee613260ce467fa6fc7652381a"
+}

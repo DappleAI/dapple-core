@@ -1,0 +1,209 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::UUID[],              $2::UUID[],              $3::UUID[],              $4::TEXT[],               $5::TEXT[],               $6::TEXT[],               $7::JSONB[],              $8::TEXT[],               $9::INTEGER[],            $10::INTEGER[],           $11::INTEGER[],           $12::TEXT[],              $13::TIMESTAMPTZ[],         $14::TIMESTAMPTZ[]      ) WITH ORDINALITY AS o(\n        attempt_id, prompt_id, step_task_id, maker_key, engine_key, engine_version,\n        request_messages, response_content, input_tokens, output_tokens, latency_ms,\n        finish_reason, started_at, completed_at, ord\n    )\n),\nobjs AS (\n    INSERT INTO rev.prompt_responses (\n        attempt_id, prompt_id, step_task_id,\n        maker_key, engine_key, engine_version,\n        request_messages, response_content,\n        input_tokens, output_tokens, latency_ms,\n        finish_reason, started_at, completed_at\n    )\n    SELECT\n        args.attempt_id,\n        args.prompt_id,\n        args.step_task_id,\n        args.maker_key,\n        args.engine_key,\n        args.engine_version,\n        args.request_messages,\n        args.response_content,\n        args.input_tokens,\n        args.output_tokens,\n        args.latency_ms,\n        args.finish_reason,\n        args.started_at,\n        args.completed_at\n    FROM args\n    RETURNING id, attempt_id, prompt_id, step_task_id,\n              maker_key, engine_key, engine_version, request_messages,\n              response_content, input_tokens, output_tokens, latency_ms,\n              finish_reason, started_at, completed_at\n)\nSELECT * FROM objs ORDER BY id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.prompt_responses",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "attempt_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.prompt_responses",
+            "name": "attempt_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "prompt_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.prompt_responses",
+            "name": "prompt_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "step_task_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.prompt_responses",
+            "name": "step_task_id"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "maker_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.prompt_responses",
+            "name": "maker_key"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "engine_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.prompt_responses",
+            "name": "engine_key"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "engine_version",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.prompt_responses",
+            "name": "engine_version"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "request_messages",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "rev.prompt_responses",
+            "name": "request_messages"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "response_content",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.prompt_responses",
+            "name": "response_content"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "input_tokens",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "rev.prompt_responses",
+            "name": "input_tokens"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "output_tokens",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "rev.prompt_responses",
+            "name": "output_tokens"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "latency_ms",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "rev.prompt_responses",
+            "name": "latency_ms"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "finish_reason",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.prompt_responses",
+            "name": "finish_reason"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "started_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.prompt_responses",
+            "name": "started_at"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "completed_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.prompt_responses",
+            "name": "completed_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "UuidArray",
+        "UuidArray",
+        "TextArray",
+        "TextArray",
+        "TextArray",
+        "JsonbArray",
+        "TextArray",
+        "Int4Array",
+        "Int4Array",
+        "Int4Array",
+        "TextArray",
+        "TimestamptzArray",
+        "TimestamptzArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "3fa1fe56a6ec62eeb2cd14bb1e45a58643b22a92f337e440a84a5f78c8900489"
+}

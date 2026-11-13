@@ -1,0 +1,15 @@
+# Every cached insider transaction for an issuer across an inclusive transaction
+# date window, oldest first so a per-owner running position reads down the page.
+# A row with a null trans_date (a holdings-only Form 4 line) is excluded here:
+# it carries no event to place on a timeline.
+# Parameters:
+#   $1: issuer_cik (BIGINT)
+#   $2: from_date (DATE, inclusive)
+#   $3: to_date (DATE, inclusive)
+SELECT issuer_cik, accession, filed_date, trans_date, owner_cik, owner_name,
+       is_director, is_officer, is_ten_pct, officer_title, security_title,
+       trans_code, acquired_disposed, shares, price_per_share, shares_owned_after,
+       is_derivative, is_10b5_1
+FROM rev.insider_transactions
+WHERE issuer_cik = $1 AND trans_date >= $2 AND trans_date <= $3
+ORDER BY trans_date, owner_name, accession;

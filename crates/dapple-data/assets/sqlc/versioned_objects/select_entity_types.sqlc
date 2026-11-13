@@ -1,0 +1,8 @@
+# Select all entity types from the lookup table
+SELECT
+    id,
+    key,
+    description,
+    created_at
+FROM rev.entity_types
+ORDER BY id;

@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n    fmb.fluent_message_id,\n    fml.tag AS locale_tag,\n    fmb.body\nFROM rev.fluent_message_bodies fmb\nJOIN rev.fluent_message_locales fml ON fml.id = fmb.locale_id\nWHERE fmb.fluent_message_id = ANY($1::UUID[])\nORDER BY fmb.fluent_message_id, fml.tag;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "fluent_message_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.fluent_message_bodies",
+            "name": "fluent_message_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "locale_tag",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.fluent_message_locales",
+            "name": "tag"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "body",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.fluent_message_bodies",
+            "name": "body"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "90929f51d87cbdfef7e7a72322622e682528ede8532baba510595d37803e3110"
+}

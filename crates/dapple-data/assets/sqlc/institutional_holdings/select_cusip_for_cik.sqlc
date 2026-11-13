@@ -1,0 +1,6 @@
+# The cached common-stock CUSIP resolved for a company CIK, if one is cached.
+# Parameters:
+#   $1: cik (BIGINT)
+SELECT cusip
+FROM rev.security_cusip
+WHERE cik = $1;

@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT EXISTS (\n    SELECT 1\n    FROM rev.fluent_messages fm\n    JOIN rev.versioned_objects vo ON vo.id = fm.versioned_object_id\n    JOIN rev.object_paths op ON op.id = vo.path_id\n    WHERE fm.id = $2::UUID\n      AND op.namespace_company_id = $1::UUID\n) AS in_namespace;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "in_namespace",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "1466209434c94db4139a533621bf279d17af07c91a1af8b141cd025d57f4443f"
+}

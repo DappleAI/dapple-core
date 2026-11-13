@@ -1,0 +1,2 @@
+# Select all stages using unified versioning
+:compose(stages/select_stages_body.sqlc, @page = stages/pages/all.sqlc)

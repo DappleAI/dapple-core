@@ -1,0 +1,71 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n    st.id,\n    st.service_id,\n    st.public_key_pem,\n    st.key_algorithm,\n        (\n        SELECT MIN(r.revoked_at)\n        FROM web.service_token_revocations r\n        WHERE r.service_token_id = st.id\n    ) AS revoked_at\nFROM web.service_tokens st\nWHERE st.service_id = $1;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "web.service_tokens",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "service_id",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "web.service_tokens",
+            "name": "service_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "public_key_pem",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "web.service_tokens",
+            "name": "public_key_pem"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "key_algorithm",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "web.service_tokens",
+            "name": "key_algorithm"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "revoked_at",
+        "type_info": "Timestamptz",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "90b4cbea173c41a70945c2aab7bf0bf82074340a1233f066ff7e6ddc18433db6"
+}

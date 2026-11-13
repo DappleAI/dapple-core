@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT COUNT(*)::BIGINT AS \"count!\"\n           FROM rev.object_paths op\n           WHERE op.namespace_company_id = $1::UUID\n             AND op.created_at >= (\n                 SELECT MIN(op2.created_at) FROM rev.object_paths op2\n                 JOIN rev.versioned_objects vo ON vo.path_id = op2.id\n                 WHERE vo.path_id = $2\n             )",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "9214f89fced0d388a1741f4c180f08362bfcc27a2b99c48d1279b803c8099110"
+}

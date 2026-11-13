@@ -1,0 +1,316 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH RECURSIVE\njourney_chain(journey_id, depth, fork_cutoff_ord) AS (\n    SELECT $1::UUID, 0, NULL::INTEGER\n    UNION ALL\n    SELECT j.predecessor_journey_id, jc.depth + 1, ps.ord\n    FROM journey_chain jc\n    JOIN rev.journeys j ON j.id = jc.journey_id\n    LEFT JOIN rev.playbook_stages ps ON ps.id = j.fork_stage_id\n    WHERE j.predecessor_journey_id IS NOT NULL\n      AND jc.depth < 50\n)\n,\nchain_bindings AS (\n    SELECT\n        dib.id,\n        dib.dispatch_id,\n        dib.value_slot_id,\n        dib.created_at,\n        jc.depth\n    FROM journey_chain jc\n    JOIN rev.dispatches d ON d.journey_id = jc.journey_id\n    JOIN rev.dispatch_intent_bindings dib ON dib.dispatch_id = d.id\n    WHERE (\n    jc.fork_cutoff_ord IS NULL\n    OR COALESCE((\n        SELECT MAX(fps.ord)\n        FROM rev.dispatch_stages fds\n        JOIN rev.playbook_stages fps ON fps.id = fds.playbook_stage_id\n        WHERE fds.dispatch_id = d.id\n    ), 2147483647) < jc.fork_cutoff_ord\n)\n\n),\nranked AS (\n    SELECT\n        cb.*,\n        ROW_NUMBER() OVER (\n            PARTITION BY cb.value_slot_id\n            ORDER BY cb.depth ASC, cb.created_at DESC, cb.id DESC\n        ) AS rnk\n    FROM chain_bindings cb\n)\nSELECT\n    r.id,\n    r.dispatch_id,\n    r.value_slot_id,\n    vspd.name as value_slot_name,\n    vk.key as value_slot_value_kind,\n    r.created_at,\n        ti.id as \"text_id?\",\n    ti.value as \"text_value?\",\n        ii.id as \"int_id?\",\n    ii.value as \"int_value?\",\n        ni.id as \"number_id?\",\n    ni.value as \"number_value?\",\n        bi.id as \"bool_id?\",\n    bi.value as \"bool_value?\",\n        ji.id as \"json_id?\",\n    ji.value as \"json_value?\",\n        ai.id as \"asset_item_id?\",\n    ai.asset_id as \"asset_id?\",\n        vm.id as \"value_meta_id?\",\n    vm.ui_spec as \"value_meta_ui_spec?\",\n    vm.producer as \"value_meta_producer?\",\n                    dsi.id as \"dataset_item_id?\",\n    dsi.asset_dataset_extraction_id as \"dataset_extraction_id?\",\n    ade.envelope as \"dataset_envelope?\",\n    vs.constraints as \"value_slot_constraints!\"\nFROM ranked r\nJOIN rev.value_slots vs ON vs.id = r.value_slot_id\nJOIN rev.versioned_objects vo ON vo.id = vs.versioned_object_id\nJOIN rev.object_paths op ON op.id = vo.path_id\nJOIN rev.value_slot_path_details vspd ON vspd.path_id = op.id\nJOIN rev.value_kinds vk ON vk.id = vs.value_kind_id\nLEFT JOIN rev.dispatch_intent_binding_text_items ti ON ti.dispatch_intent_binding_id = r.id\nLEFT JOIN rev.dispatch_intent_binding_int_items ii ON ii.dispatch_intent_binding_id = r.id\nLEFT JOIN rev.dispatch_intent_binding_number_items ni ON ni.dispatch_intent_binding_id = r.id\nLEFT JOIN rev.dispatch_intent_binding_bool_items bi ON bi.dispatch_intent_binding_id = r.id\nLEFT JOIN rev.dispatch_intent_binding_json_items ji ON ji.dispatch_intent_binding_id = r.id\nLEFT JOIN rev.dispatch_intent_binding_asset_items ai ON ai.dispatch_intent_binding_id = r.id\nLEFT JOIN rev.dispatch_intent_binding_value_meta vm ON vm.dispatch_intent_binding_id = r.id\nLEFT JOIN rev.dispatch_intent_binding_dataset_items dsi ON dsi.dispatch_intent_binding_id = r.id\nLEFT JOIN rev.asset_dataset_extractions ade ON ade.id = dsi.asset_dataset_extraction_id\nWHERE r.rnk = 1\nORDER BY r.created_at ASC, r.id ASC,\n         ti.id, ii.id, ni.id, bi.id, ji.id, ai.id, vm.id, dsi.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_intent_bindings",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "dispatch_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_intent_bindings",
+            "name": "dispatch_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "value_slot_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_intent_bindings",
+            "name": "value_slot_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "value_slot_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slot_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "value_slot_value_kind",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.value_kinds",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_intent_bindings",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "text_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_intent_binding_text_items",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "text_value?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_intent_binding_text_items",
+            "name": "value"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "int_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_intent_binding_int_items",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "int_value?",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_intent_binding_int_items",
+            "name": "value"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "number_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_intent_binding_number_items",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "number_value?",
+        "type_info": "Numeric",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_intent_binding_number_items",
+            "name": "value"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "bool_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_intent_binding_bool_items",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "bool_value?",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_intent_binding_bool_items",
+            "name": "value"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "json_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_intent_binding_json_items",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 15,
+        "name": "json_value?",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_intent_binding_json_items",
+            "name": "value"
+          }
+        }
+      },
+      {
+        "ordinal": 16,
+        "name": "asset_item_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_intent_binding_asset_items",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 17,
+        "name": "asset_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_intent_binding_asset_items",
+            "name": "asset_id"
+          }
+        }
+      },
+      {
+        "ordinal": 18,
+        "name": "value_meta_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_intent_binding_value_meta",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 19,
+        "name": "value_meta_ui_spec?",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_intent_binding_value_meta",
+            "name": "ui_spec"
+          }
+        }
+      },
+      {
+        "ordinal": 20,
+        "name": "value_meta_producer?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_intent_binding_value_meta",
+            "name": "producer"
+          }
+        }
+      },
+      {
+        "ordinal": 21,
+        "name": "dataset_item_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_intent_binding_dataset_items",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 22,
+        "name": "dataset_extraction_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_intent_binding_dataset_items",
+            "name": "asset_dataset_extraction_id"
+          }
+        }
+      },
+      {
+        "ordinal": 23,
+        "name": "dataset_envelope?",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "rev.asset_dataset_extractions",
+            "name": "envelope"
+          }
+        }
+      },
+      {
+        "ordinal": 24,
+        "name": "value_slot_constraints!",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slots",
+            "name": "constraints"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "8df0305587432f0b96f0e0f2c8961f2e8bcde89efc93797a1076fd429a813f9d"
+}

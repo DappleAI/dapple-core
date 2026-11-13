@@ -1,0 +1,53 @@
+# Insert prompt_fluent_messages (associative table entries)
+# Note: The prompt_fluent_messages table does not have an ordinal column,
+# so ordering is implicit based on insertion order (id).
+# Uses ON CONFLICT DO NOTHING to skip duplicates when patched prompts
+# already have an existing link.
+# Parameters:
+#   $1: prompt_ids (UUID[]) - prompt IDs
+#   $2: fluent_message_ids (UUID[]) - fluent message IDs
+#   $3: roles (TEXT[] - nullable)
+
+WITH args AS (
+    SELECT *
+    FROM UNNEST(
+        $1::UUID[],
+        $2::UUID[],
+        $3::TEXT[]
+    ) WITH ORDINALITY AS o(prompt_id, fluent_message_id, role, ord)
+),
+_inserted AS (
+    INSERT INTO rev.prompt_fluent_messages (prompt_id, fluent_message_id, role, created_at)
+    SELECT args.prompt_id, args.fluent_message_id, args.role, now()
+    FROM args
+    ORDER BY ord
+    ON CONFLICT (prompt_id, fluent_message_id) DO NOTHING
+    RETURNING id, prompt_id, fluent_message_id, role, created_at
+),
+# Newly-inserted links MUST come from RETURNING: a data-modifying CTE's inserts
+# are invisible to other references to the same table in the same statement
+# (statement snapshot), so the old base-table re-SELECT silently dropped every
+# freshly-created link and returned only pre-existing ones. Pre-existing links
+# hit by ON CONFLICT DO NOTHING aren't in RETURNING, so union them from the
+# table (they ARE in the snapshot). Mirrors patch_briefs.sql.
+all_links AS (
+    SELECT id, prompt_id, fluent_message_id, role, created_at FROM _inserted
+    UNION ALL
+    SELECT pfm.id, pfm.prompt_id, pfm.fluent_message_id, pfm.role, pfm.created_at
+    FROM args
+    JOIN rev.prompt_fluent_messages pfm
+        ON pfm.prompt_id = args.prompt_id
+        AND pfm.fluent_message_id = args.fluent_message_id
+    WHERE NOT EXISTS (
+        SELECT 1 FROM _inserted i
+        WHERE i.prompt_id = args.prompt_id AND i.fluent_message_id = args.fluent_message_id
+    )
+)
+SELECT
+    al.id AS "id!",
+    al.prompt_id AS "prompt_id!",
+    al.fluent_message_id AS "fluent_message_id!",
+    al.role,
+    al.created_at AS "created_at!"
+FROM all_links al
+ORDER BY al.prompt_id, al.id;

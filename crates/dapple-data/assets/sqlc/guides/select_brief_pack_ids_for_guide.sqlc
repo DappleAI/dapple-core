@@ -1,0 +1,33 @@
+# Resolve brief_pack_ids declared by a specific guide version — exactly ONE
+# per brief_pack path (the latest non-deprecated version).
+#
+# `rev.guide_brief_packs` is keyed by (guide_id, brief_pack_id) where
+# brief_pack_id is a *version* id. A re-ingest / `?backfill=true` that PATCHes a
+# brief_pack to a new version stacks multiple versions of the SAME path onto one
+# guide (the unique constraint only blocks the same version twice). Returning all
+# of them duplicates the brief in every journey that auto-derives its packs from
+# the guide — the "repeated stage / dead Continue button" bug. Collapse to the
+# latest non-deprecated version per path via the correlated latest-deprecation
+# probe (same idiom the guide browse/list pages use).
+#
+# Parameter: $1 guide_id :: UUID
+WITH candidates AS (
+    SELECT bp.id AS brief_pack_id, vo.path_id, vo.created_at
+    FROM rev.guide_brief_packs gbp
+    JOIN rev.brief_packs bp ON bp.id = gbp.brief_pack_id
+    JOIN rev.versioned_objects vo ON vo.id = bp.versioned_object_id
+    LEFT JOIN LATERAL (
+        :compose(shared/select/latest_deprecation_probe.sqlc)
+    ) ld ON TRUE
+    WHERE gbp.guide_id = :bind(guide_id)::UUID
+      AND ld.to_level_id IS NULL
+),
+latest AS (
+    SELECT DISTINCT ON (path_id) brief_pack_id
+    FROM candidates
+    # brief_pack_id (UUIDv7) breaks created_at ties for a deterministic total order.
+    ORDER BY path_id, created_at DESC, brief_pack_id DESC
+)
+SELECT brief_pack_id AS "brief_pack_id!"
+FROM latest
+ORDER BY brief_pack_id;

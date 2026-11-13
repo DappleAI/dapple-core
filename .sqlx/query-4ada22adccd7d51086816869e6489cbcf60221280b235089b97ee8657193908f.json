@@ -1,0 +1,98 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH RECURSIVE\nroots AS (\n    SELECT j.id AS root_id, j.name AS root_name, j.created_at AS root_created_at\n    FROM rev.journeys j\n    WHERE j.predecessor_journey_id IS NULL\n      AND j.principal_id = $2::UUID\n      AND j.guide_id = $1::UUID\n),\ndescendants(journey_id, root_id, depth) AS (\n    SELECT r.root_id, r.root_id, 0 FROM roots r\n    UNION ALL\n    SELECT j.id, d.root_id, d.depth + 1\n    FROM descendants d\n    JOIN rev.journeys j ON j.predecessor_journey_id = d.journey_id\n    WHERE d.depth < 50\n),\nleaves AS (\n    SELECT d.journey_id AS leaf_id, d.root_id, d.depth\n    FROM descendants d\n    WHERE NOT EXISTS (\n        SELECT 1 FROM rev.journeys child\n        WHERE child.predecessor_journey_id = d.journey_id\n    )\n),\nviewer_prefs AS (\n    SELECT DISTINCT ON (pjp.journey_id)\n        pjp.journey_id,\n        pjp.hidden_at\n    FROM rev.principal_journey_preferences pjp\n    WHERE pjp.principal_id = $2::UUID\n    ORDER BY pjp.journey_id, pjp.id DESC\n)\nSELECT\n    l.root_id      AS \"root_id!\",\n    rj.name        AS \"root_name!\",\n    rj.created_at  AS \"root_created_at!\",\n    l.leaf_id      AS \"leaf_id!\",\n    l.depth        AS \"depth!\",\n    j.playbook_id  AS \"leaf_playbook_id!\",\n    j.name         AS \"leaf_name!\",\n    j.created_at   AS \"leaf_created_at!\"\nFROM leaves l\nJOIN rev.journeys j  ON j.id = l.leaf_id\nJOIN rev.journeys rj ON rj.id = l.root_id\nLEFT JOIN viewer_prefs root_prefs ON root_prefs.journey_id = l.root_id\nLEFT JOIN viewer_prefs leaf_prefs ON leaf_prefs.journey_id = l.leaf_id\nWHERE root_prefs.hidden_at IS NULL\n  AND leaf_prefs.hidden_at IS NULL\nORDER BY rj.created_at DESC, j.created_at DESC;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "root_id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "root_name!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.journeys",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "root_created_at!",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.journeys",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "leaf_id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 4,
+        "name": "depth!",
+        "type_info": "Int4",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 5,
+        "name": "leaf_playbook_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.journeys",
+            "name": "playbook_id"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "leaf_name!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.journeys",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "leaf_created_at!",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.journeys",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null,
+      false,
+      false,
+      null,
+      null,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "4ada22adccd7d51086816869e6489cbcf60221280b235089b97ee8657193908f"
+}

@@ -1,0 +1,12 @@
+# True iff EVERY brief_pack_id in :bind(brief_pack_ids) is in the caller's
+# namespace. Used by external POST /api/journeys to validate that any
+# brief_pack_ids attached at journey-create time belong to the customer.
+SELECT (
+    SELECT count(DISTINCT bp.id)
+    FROM UNNEST(:bind(brief_pack_ids)::UUID[]) AS requested(id)
+    JOIN rev.brief_packs bp ON bp.id = requested.id
+    JOIN rev.versioned_objects vo ON vo.id = bp.versioned_object_id
+    JOIN rev.object_paths op ON op.id = vo.path_id
+    WHERE op.namespace_company_id = :bind(caller_company_id)::UUID
+) = COALESCE(array_length(:bind(brief_pack_ids)::UUID[], 1), 0)
+AS all_in_namespace;

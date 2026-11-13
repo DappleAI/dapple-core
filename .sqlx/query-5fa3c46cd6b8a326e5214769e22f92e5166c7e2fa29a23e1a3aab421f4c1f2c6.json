@@ -1,0 +1,328 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n    bu.id, b.id AS brief_id, bu.unit_key,\n    bu.layout, bu.requires, bu.extensions, bu.created_at,\n        bum.markdown_text, bum.fluent_message_id AS \"markdown_fluent_message_id?\",\n    bum.format AS markdown_format, bum.deliverable_spec AS \"markdown_deliverable_spec?\",\n        bun.level AS \"notice_level?\",\n    bun.title_text AS notice_title_text,\n    bun.title_fluent_message_id AS \"notice_title_fluent_message_id?\",\n    bun.detail_text AS notice_detail_text,\n    bun.detail_fluent_message_id AS \"notice_detail_fluent_message_id?\",\n        bui.control_type_id AS \"input_control_type_id?\",\n    ct.key AS \"input_control_type_key?\",\n    bui.label_text AS input_label_text,\n    bui.label_fluent_message_id AS \"input_label_fluent_message_id?\",\n    bui.help_text AS input_help_text,\n    bui.help_fluent_message_id AS \"input_help_fluent_message_id?\",\n    bui.placeholder_text AS input_placeholder_text,\n    bui.placeholder_fluent_message_id AS \"input_placeholder_fluent_message_id?\",\n    bui.control_spec AS \"input_control_spec?\",\n        bumed.created_at AS \"media_created_at?\"\nFROM rev.brief_units bu\nJOIN rev.briefs b ON b.id = bu.brief_id\nLEFT JOIN rev.brief_unit_markdown bum ON bum.brief_unit_id = bu.id\nLEFT JOIN rev.brief_unit_notice bun ON bun.brief_unit_id = bu.id\nLEFT JOIN rev.brief_unit_input bui ON bui.brief_unit_id = bu.id\nLEFT JOIN rev.brief_input_control_types ct ON ct.id = bui.control_type_id\nLEFT JOIN rev.brief_unit_media bumed ON bumed.brief_unit_id = bu.id\nWHERE b.id = ANY($1::UUID[])\nORDER BY b.id, bu.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_units",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "brief_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.briefs",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "unit_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_units",
+            "name": "unit_key"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "layout",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_units",
+            "name": "layout"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "requires",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_units",
+            "name": "requires"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "extensions",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_units",
+            "name": "extensions"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_units",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "markdown_text",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_markdown",
+            "name": "markdown_text"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "markdown_fluent_message_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_markdown",
+            "name": "fluent_message_id"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "markdown_format",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_markdown",
+            "name": "format"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "markdown_deliverable_spec?",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_markdown",
+            "name": "deliverable_spec"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "notice_level?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_notice",
+            "name": "level"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "notice_title_text",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_notice",
+            "name": "title_text"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "notice_title_fluent_message_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_notice",
+            "name": "title_fluent_message_id"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "notice_detail_text",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_notice",
+            "name": "detail_text"
+          }
+        }
+      },
+      {
+        "ordinal": 15,
+        "name": "notice_detail_fluent_message_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_notice",
+            "name": "detail_fluent_message_id"
+          }
+        }
+      },
+      {
+        "ordinal": 16,
+        "name": "input_control_type_id?",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_input",
+            "name": "control_type_id"
+          }
+        }
+      },
+      {
+        "ordinal": 17,
+        "name": "input_control_type_key?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_input_control_types",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 18,
+        "name": "input_label_text",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_input",
+            "name": "label_text"
+          }
+        }
+      },
+      {
+        "ordinal": 19,
+        "name": "input_label_fluent_message_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_input",
+            "name": "label_fluent_message_id"
+          }
+        }
+      },
+      {
+        "ordinal": 20,
+        "name": "input_help_text",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_input",
+            "name": "help_text"
+          }
+        }
+      },
+      {
+        "ordinal": 21,
+        "name": "input_help_fluent_message_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_input",
+            "name": "help_fluent_message_id"
+          }
+        }
+      },
+      {
+        "ordinal": 22,
+        "name": "input_placeholder_text",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_input",
+            "name": "placeholder_text"
+          }
+        }
+      },
+      {
+        "ordinal": 23,
+        "name": "input_placeholder_fluent_message_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_input",
+            "name": "placeholder_fluent_message_id"
+          }
+        }
+      },
+      {
+        "ordinal": 24,
+        "name": "input_control_spec?",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_input",
+            "name": "control_spec"
+          }
+        }
+      },
+      {
+        "ordinal": 25,
+        "name": "media_created_at?",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_media",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "5fa3c46cd6b8a326e5214769e22f92e5166c7e2fa29a23e1a3aab421f4c1f2c6"
+}

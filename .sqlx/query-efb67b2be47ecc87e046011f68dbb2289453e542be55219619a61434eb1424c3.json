@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT COUNT(*)::BIGINT AS \"count!\"\n           FROM rev.versioned_objects vo\n           JOIN rev.object_paths op ON op.id = vo.path_id\n           JOIN rev.playbook_path_details ppd ON ppd.path_id = op.id\n           WHERE ppd.namespace_company_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "efb67b2be47ecc87e046011f68dbb2289453e542be55219619a61434eb1424c3"
+}

@@ -1,0 +1,74 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH user_lookup AS (\n    SELECT ud.user_id, ud.object_id\n    FROM rev.user_details ud\n    WHERE ud.object_id = $3::UUID\n),\nlatest AS (\n    SELECT DISTINCT ON (f.user_id, f.chain_root_journey_id)\n        f.id, f.user_id, f.chain_root_journey_id, f.created_at\n    FROM web.user_favorite_journey_chains f\n    WHERE f.user_id = (SELECT user_id FROM user_lookup)\n    ORDER BY f.user_id, f.chain_root_journey_id, f.id DESC\n),\nviewer_prefs AS (\n    SELECT DISTINCT ON (pjp.journey_id)\n        pjp.journey_id,\n        pjp.name AS name_override\n    FROM rev.principal_journey_preferences pjp\n    WHERE pjp.principal_id = $4::UUID\n    ORDER BY pjp.journey_id, pjp.id DESC\n)\nSELECT\n    l.id,\n    ul.object_id AS user_id,\n    l.chain_root_journey_id,\n    COALESCE(vp.name_override, j.name) AS \"chain_root_name!\",\n    l.created_at\nFROM latest l\nJOIN rev.journeys j ON j.id = l.chain_root_journey_id\nJOIN user_lookup ul ON ul.user_id = l.user_id\nLEFT JOIN viewer_prefs vp ON vp.journey_id = l.chain_root_journey_id\nLEFT JOIN web.user_favorite_journey_chains_removed r\n    ON r.user_favorite_journey_chains_id = l.id\nWHERE r.user_favorite_journey_chains_id IS NULL\nORDER BY l.created_at DESC\nLIMIT $1::BIGINT OFFSET $2::BIGINT;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "web.user_favorite_journey_chains",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.user_details",
+            "name": "object_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "chain_root_journey_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "web.user_favorite_journey_chains",
+            "name": "chain_root_journey_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "chain_root_name!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "web.user_favorite_journey_chains",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      null,
+      false
+    ]
+  },
+  "hash": "983639833675fd7d09b14aa39110e651afdac699355ce18d6985e5961ac7cef7"
+}

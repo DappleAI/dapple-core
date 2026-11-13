@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO rev.deprecation_events (versioned_object_id, to_level_id, reason) SELECT g.versioned_object_id, (SELECT id FROM rev.deprecation_levels WHERE key = 'deprecated'), 'test external browse exclusion' FROM rev.guides g WHERE g.id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "000ef82de2478075280cc2fcab158f33b02383a19c6b4101b9f6b7c57684ab30"
+}

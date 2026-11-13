@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT g.conduits_md\nFROM rev.dispatches d\nJOIN rev.journeys j ON j.id = d.journey_id\nJOIN rev.guides g ON g.id = j.guide_id\nWHERE d.id = $1::UUID;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "conduits_md",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.guides",
+            "name": "conduits_md"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "b3c23c9957d3f2e3002246cf5ef8ce9b1e2fb52b9b59f38746f6ab0f4d36b26e"
+}

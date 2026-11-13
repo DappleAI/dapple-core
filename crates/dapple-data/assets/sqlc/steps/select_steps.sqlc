@@ -1,0 +1,6 @@
+# Select all steps using unified versioning
+#
+# LIMIT/OFFSET apply to distinct steps (not flat rows) via a page CTE.
+# The flat join (step x step_tasks x tasks) produces many rows per step,
+# so limiting flat rows would silently truncate results.
+:compose(steps/select_steps_body.sqlc, @page = steps/pages/all.sqlc)

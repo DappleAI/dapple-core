@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO rev.journey_brief_packs (journey_id, brief_pack_id) VALUES ($1, $2)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "64d91a3ccd92936cb903f8ae6541b42927f4fb9e4e380efaaa96395c1a40317e"
+}

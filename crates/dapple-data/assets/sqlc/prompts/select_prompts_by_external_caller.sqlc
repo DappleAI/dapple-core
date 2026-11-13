@@ -1,0 +1,3 @@
+# External-API prompt listing: scoped to the caller's company namespace.
+# Used by GET /api/prompts on external-api.dapple.x.
+:compose(prompts/select_prompts_body.sqlc, @page = prompts/pages/by_external_caller.sqlc)

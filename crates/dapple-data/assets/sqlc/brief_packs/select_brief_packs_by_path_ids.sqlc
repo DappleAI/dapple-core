@@ -1,0 +1,2 @@
+# Select brief packs by path IDs using unified versioning (returns all versions)
+:compose(brief_packs/select_brief_packs_body.sqlc, @page = brief_packs/pages/by_path_ids.sqlc)

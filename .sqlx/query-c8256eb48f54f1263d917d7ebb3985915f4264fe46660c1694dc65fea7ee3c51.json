@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO rev.stage_step_overlays (stage_step_id, value_slot_path_id, visibility) VALUES ($1, $2, 'expose')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c8256eb48f54f1263d917d7ebb3985915f4264fe46660c1694dc65fea7ee3c51"
+}

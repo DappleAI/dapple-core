@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT fmpd.name\n           FROM rev.fluent_message_path_details fmpd\n           JOIN rev.object_paths op ON op.id = fmpd.path_id\n           WHERE op.namespace_company_id = $1\n             AND op.scope = 'external'\n             AND fmpd.name IN (\n                 'esboçar-estágio',\n                 'padrão-passo',\n                 'o-tráfego-passo',\n                 'as-horas-de-operação-intro'\n             )",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.fluent_message_path_details",
+            "name": "name"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "5e56ca365ce8edc68d69f08113b0f0ad8cabb45edb9d57f8afd53d07a24ec691"
+}

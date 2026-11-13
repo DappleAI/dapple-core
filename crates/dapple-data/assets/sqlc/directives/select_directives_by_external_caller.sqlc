@@ -1,0 +1,3 @@
+# External-API directive listing: scoped to the caller's company namespace.
+# Used by GET /api/directives on external-api.dapple.x.
+:compose(directives/select_directives_body.sqlc, @page = directives/pages/by_external_caller.sqlc)

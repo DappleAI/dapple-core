@@ -1,0 +1,132 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::UUID[],\n        $2::UUID[],\n        $3::UUID[],\n        $4::TEXT[],\n        $5::UUID[],\n        $6::UUID[],\n        $7::UUID[],\n        $8::UUID[],\n        $9::UUID[]\n    ) WITH ORDINALITY AS o(\n        billable_entity_id,\n        fork_stage_id,\n        guide_id,\n        name,\n        owner_company_id,\n        playbook_id,\n        predecessor_journey_id,\n        principal_id,\n        subject_principal_id,\n        ord\n    )\n),\nresolved_args AS (\n    SELECT\n        args.ord,\n        args.name,\n        args.owner_company_id,\n        args.billable_entity_id,\n        args.guide_id,\n        args.predecessor_journey_id,\n        args.fork_stage_id,\n        args.subject_principal_id,\n        p.id AS playbook_id,\n        args.principal_id,\n        hp.user_id\n    FROM args\n    JOIN rev.playbooks p ON args.playbook_id = p.id\n    LEFT JOIN rev.human_principals hp ON hp.principal_id = args.principal_id\n),\nobjs AS (\n    INSERT INTO rev.journeys (\n        playbook_id, user_id, name, owner_company_id,\n        principal_id, subject_principal_id, billable_entity_id,\n        predecessor_journey_id, guide_id, fork_stage_id\n    )\n    SELECT\n        ra.playbook_id, ra.user_id, ra.name, ra.owner_company_id,\n        ra.principal_id, ra.subject_principal_id, ra.billable_entity_id,\n        ra.predecessor_journey_id, ra.guide_id, ra.fork_stage_id\n    FROM resolved_args ra\n    ORDER BY ra.ord\n    RETURNING id, playbook_id, name, created_at, principal_id, owner_company_id,\n              predecessor_journey_id, guide_id, fork_stage_id\n),\nnumbered_objs AS (\n    SELECT o.*, row_number() OVER (ORDER BY o.id) AS ord\n    FROM objs o\n)\nSELECT\n    no.id,\n    no.playbook_id,\n    no.principal_id,\n                ud.object_id AS \"user_id?\",\n    no.name,\n    no.created_at,\n    no.predecessor_journey_id AS \"predecessor_journey_id?\",\n    no.guide_id AS \"guide_id?\",\n    no.fork_stage_id AS \"fork_stage_id?\"\nFROM numbered_objs no\nJOIN resolved_args ra ON ra.ord = no.ord\nLEFT JOIN rev.user_details ud ON ud.user_id = ra.user_id\nORDER BY no.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.journeys",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "playbook_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.journeys",
+            "name": "playbook_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "principal_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.journeys",
+            "name": "principal_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "user_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.user_details",
+            "name": "object_id"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.journeys",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.journeys",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "predecessor_journey_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.journeys",
+            "name": "predecessor_journey_id"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "guide_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.journeys",
+            "name": "guide_id"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "fork_stage_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.journeys",
+            "name": "fork_stage_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "UuidArray",
+        "UuidArray",
+        "TextArray",
+        "UuidArray",
+        "UuidArray",
+        "UuidArray",
+        "UuidArray",
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "1984c8a6242ee8053686ca7be62188f8a6b3581cc4f2e9c555b5814ae0659428"
+}

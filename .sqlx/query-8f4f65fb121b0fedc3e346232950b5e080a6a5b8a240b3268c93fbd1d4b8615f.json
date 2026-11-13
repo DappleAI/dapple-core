@@ -1,0 +1,65 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::UUID[],               $2::SMALLINT[]        ) WITH ORDINALITY AS o(embedding_id, tag_id, ord)\n),\nnew_tags AS (\n    INSERT INTO rev.guide_embedding_tags (id, embedding_id, tag_id)\n    SELECT uuidv7(), args.embedding_id, args.tag_id\n    FROM args\n    ORDER BY args.ord\n    ON CONFLICT (embedding_id, tag_id) DO NOTHING\n    RETURNING id, embedding_id, tag_id, created_at\n)\nSELECT\n    nt.id,\n    nt.embedding_id,\n    nt.tag_id,\n    nt.created_at\nFROM new_tags nt\nORDER BY nt.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_embedding_tags",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "embedding_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_embedding_tags",
+            "name": "embedding_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "tag_id",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_embedding_tags",
+            "name": "tag_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_embedding_tags",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "Int2Array"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "8f4f65fb121b0fedc3e346232950b5e080a6a5b8a240b3268c93fbd1d4b8615f"
+}

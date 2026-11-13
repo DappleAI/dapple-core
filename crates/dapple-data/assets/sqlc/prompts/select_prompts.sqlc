@@ -1,0 +1,6 @@
+# Select all prompts using unified versioning
+#
+# LIMIT/OFFSET apply to distinct prompts (not flat rows) via a page CTE.
+# The flat join (prompt x prompt_fluent_messages x fluent_messages) produces many rows
+# per prompt, so limiting flat rows would silently truncate results.
+:compose(prompts/select_prompts_body.sqlc, @page = prompts/pages/all.sqlc)

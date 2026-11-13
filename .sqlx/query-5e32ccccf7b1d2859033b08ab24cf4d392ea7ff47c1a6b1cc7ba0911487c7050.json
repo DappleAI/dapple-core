@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM rev.brief_outputs WHERE brief_id = ANY($1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5e32ccccf7b1d2859033b08ab24cf4d392ea7ff47c1a6b1cc7ba0911487c7050"
+}

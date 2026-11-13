@@ -1,0 +1,37 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH task_context AS (\n    SELECT\n        stk.id AS step_task_id,\n        ss.id AS stage_step_id,\n        pstage.id AS playbook_stage_id\n    FROM rev.step_tasks stk\n    JOIN rev.stage_steps ss ON ss.step_id = stk.step_id\n    JOIN rev.playbook_stages pstage ON pstage.stage_id = ss.stage_id\n    WHERE stk.id = $1::UUID\n),\nall_overlays AS (\n        SELECT\n        op.id,\n        vspd.name,\n        o.visibility,\n        1 AS priority\n    FROM rev.playbook_stage_overlays o\n    JOIN task_context tc ON tc.playbook_stage_id = o.playbook_stage_id\n    JOIN rev.object_paths op ON op.id = o.value_slot_path_id\n    JOIN rev.value_slot_path_details vspd ON vspd.path_id = op.id\n\n    UNION ALL\n\n        SELECT\n        op.id,\n        vspd.name,\n        o.visibility,\n        2 AS priority\n    FROM rev.stage_step_overlays o\n    JOIN task_context tc ON tc.stage_step_id = o.stage_step_id\n    JOIN rev.object_paths op ON op.id = o.value_slot_path_id\n    JOIN rev.value_slot_path_details vspd ON vspd.path_id = op.id\n\n    UNION ALL\n\n        SELECT\n        op.id,\n        vspd.name,\n        o.visibility,\n        3 AS priority\n    FROM rev.step_task_overlays o\n    JOIN task_context tc ON tc.step_task_id = o.step_task_id\n    JOIN rev.object_paths op ON op.id = o.value_slot_path_id\n    JOIN rev.value_slot_path_details vspd ON vspd.path_id = op.id\n)\nSELECT DISTINCT ON (id)\n    id AS \"value_slot_path_id!\",\n    name AS \"value_slot_name!\",\n    visibility AS \"visibility!\"\nFROM all_overlays\nORDER BY id, priority DESC;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "value_slot_path_id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "value_slot_name!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "visibility!",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "777a68b51720d6ade78c3783300e07ee3282da9b5fc5f033b223f83dcc3f03ff"
+}

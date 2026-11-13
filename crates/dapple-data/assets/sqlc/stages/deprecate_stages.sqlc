@@ -1,0 +1,36 @@
+# Deprecate stages by path IDs
+# This creates deprecation events for the latest version of each stage path
+WITH args AS (
+    SELECT *
+    FROM UNNEST(
+        :bind(path_ids)::UUID[],
+        :bind(reasons)::TEXT[]
+    ) WITH ORDINALITY AS o(
+        path_id,
+        reason,
+        ord
+    )
+),
+:compose(shared/deprecate_latest_versions.sqlc)
+:compose(shared/deprecate_events.sqlc)
+# Return the updated stages
+SELECT
+    st.id,
+    st.versioned_object_id,
+    vo.path_id,
+    spd.name,
+    spd.slug,
+    vo.content_hash,
+    dl.key AS "deprecation_level_key?",
+    COALESCE(rev.fluent_body(st.description_fluent_message_id, 'en'), st.description, spd.name) AS "description!",
+    sk.key AS "kind?",
+    st.icons AS "icons?",
+    st.created_at
+FROM resolved
+JOIN rev.versioned_objects vo ON vo.id = resolved.versioned_object_id
+JOIN rev.stages st ON st.versioned_object_id = vo.id
+JOIN rev.object_paths op ON op.id = vo.path_id
+JOIN rev.stage_path_details spd ON spd.path_id = op.id
+LEFT JOIN rev.stage_kinds sk ON sk.id = st.kind_id
+LEFT JOIN rev.deprecation_levels dl ON dl.id = :bind(to_level_id)::SMALLINT
+ORDER BY st.id;

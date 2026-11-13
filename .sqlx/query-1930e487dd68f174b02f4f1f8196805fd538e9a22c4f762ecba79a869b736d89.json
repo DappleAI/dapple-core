@@ -1,0 +1,45 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::UUID[],\n        $2::UUID[]\n    ) WITH ORDINALITY\n    AS o(\n        step_id,\n        task_id,\n        ord\n    )\n),\nresolved AS (\n    SELECT\n        args.ord,\n        ROW_NUMBER() OVER (PARTITION BY s.id ORDER BY args.ord) AS pos,\n        s.id AS step_id,\n        t.id AS task_id\n    FROM args\n    JOIN rev.steps s ON args.step_id = s.id\n    JOIN rev.tasks t ON args.task_id = t.id\n),\ninserted AS (\n    INSERT INTO rev.step_tasks (step_id, task_id, ord)\n    SELECT r.step_id, r.task_id, r.pos\n    FROM resolved r\n    ORDER BY r.ord\n    ON CONFLICT (step_id, task_id) DO NOTHING\n    RETURNING id, step_id, task_id, ord, created_at\n),\nall_links AS (\n    SELECT id, step_id, task_id, ord, created_at\n    FROM inserted\n    UNION ALL\n    SELECT st.id, st.step_id, st.task_id, st.ord, st.created_at\n    FROM resolved r\n    JOIN rev.step_tasks st ON st.step_id = r.step_id AND st.task_id = r.task_id\n    WHERE NOT EXISTS (\n        SELECT 1 FROM inserted i\n        WHERE i.step_id = r.step_id AND i.task_id = r.task_id\n    )\n)\nSELECT\n    al.id AS \"id!\",\n    al.step_id AS \"step_id!\",\n    al.task_id AS \"task_id!\",\n    al.created_at AS \"created_at!\"\nFROM all_links al\nORDER BY al.step_id, al.ord;",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "step_id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "task_id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "created_at!",
+        "type_info": "Timestamptz",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "1930e487dd68f174b02f4f1f8196805fd538e9a22c4f762ecba79a869b736d89"
+}

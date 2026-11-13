@@ -1,0 +1,18 @@
+WITH args AS (
+    SELECT *
+    FROM UNNEST($1::UUID[]) WITH ORDINALITY AS o(id, ord)
+)
+SELECT
+    u.id,
+    u.event_id,
+    u.claim_id AS "claim_id?",
+    u.input_tokens,
+    u.output_tokens,
+    u.provider_input_tokens AS "provider_input_tokens?",
+    u.provider_output_tokens AS "provider_output_tokens?",
+    u.provider_id,
+    u.model_release_id,
+    u.created_at
+FROM args
+JOIN rev.dispatch_task_attempt_event_llm_usages u ON u.event_id = args.id
+ORDER BY u.id;

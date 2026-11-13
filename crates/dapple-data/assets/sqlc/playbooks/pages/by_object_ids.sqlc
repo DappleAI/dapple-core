@@ -1,0 +1,11 @@
+args AS (
+    SELECT *
+    FROM UNNEST(:bind(object_ids)::UUID[]) WITH ORDINALITY AS o(id, ord)
+),
+playbook_page AS (
+    SELECT p.id
+    FROM args
+    JOIN rev.playbooks p ON p.id = args.id
+    ORDER BY p.id
+    LIMIT :bind(limit)::BIGINT OFFSET :bind(offset)::BIGINT
+)

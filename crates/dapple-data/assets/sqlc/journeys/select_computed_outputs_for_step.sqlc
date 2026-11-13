@@ -1,0 +1,132 @@
+# Computed brief-outputs a single step EXPOSES, resolved to the journey's pinned
+# brief_pack versions. The runtime dispatch producer
+# (`produce_computed_output_bindings`) calls this after a task succeeds to learn
+# WHICH value_slot version to write a binding for and HOW to extract its value
+# from the task payload (source_path + value_kind).
+#
+# This is the OPPOSITE of `is_step_fully_bound`'s `required_paths`: that query
+# EXCLUDES computed outputs (no `brief_unit_input` row) so the START gate never
+# waits on a slot the task itself produces. Here we INCLUDE ONLY computed
+# outputs (`rev.brief_outputs` joined to `source_kind = 'computed'`), because
+# those are exactly the slots the just-succeeded task must now produce a binding
+# for — closing the missing-producer gap that left DONE rollups unsatisfiable.
+#
+# PRODUCING STEP (write-once per dispatch). The overlay cascade (task priority
+# 3 > step 2 > stage 1, expose/mask) is identical to `is_step_fully_bound`,
+# narrowed to one (playbook_stage, stage_step): we return every computed output
+# whose cascade winner for THIS step is `expose`. A dispatch is a batch of one
+# or more steps (you may fire a whole stage as one dispatch), so the producing
+# step is identified DOWNSTREAM, not here:
+#   * step-level `expose` scopes naturally — only the exposing step's cascade
+#     returns the output, so other steps never bind it;
+#   * a NAMED `source_path` (JSON pointer) scopes by data — even under a
+#     stage-level expose, only the step whose payload yields a value at that
+#     path actually binds it (the producer skips when extraction yields None);
+#   * `source_path: "."` (whole payload) is for a SINGLE computed output per
+#     stage; with several distinct outputs at the stage level it is ambiguous —
+#     author those with step-level `expose` or named source_paths instead.
+# Within a dispatch the first producing step wins (the producer pre-filters
+# already-bound slots; bindings are immutable within a dispatch). Across
+# dispatches the latest binding wins (`select_effective_bindings_for_journey`).
+#
+# The pinned-pack walk (`journey_packs` -> groups -> briefs -> brief_outputs)
+# mirrors `select_step_binding_status_for_journey` so the value_slot VERSION we
+# bind matches the one `/brief-form` and the DONE rollup resolve. The journey is
+# resolved from the dispatch (`rev.dispatches.journey_id`).
+#
+# Parameters (alphabetical bind order):
+#   dispatch_id, playbook_stage_id, stage_step_id
+
+WITH
+journey_scope AS (
+    # The journey is resolved from the dispatch.
+    SELECT d.journey_id
+    FROM rev.dispatches d
+    WHERE d.id = :bind(dispatch_id)::UUID
+),
+# The journey's PINNED brief_packs (shared/select/journey_pinned_packs.sqlc):
+# matches select_step_binding_status_for_journey so the value_slot versions
+# resolved below match `/brief-form` exactly. Pinned reads never consult
+# deprecation — see the fragment's doctrine comment.
+:compose(shared/select/journey_pinned_packs.sqlc)
+,
+computed_outputs AS (
+    # Journey-pinned computed brief-outputs: the value_slot VERSION to bind, the
+    # path that version lives on (for the overlay intersection), the source_path
+    # to extract from the task payload, and the value_kind to route the typed
+    # item.
+    SELECT
+        bo.value_slot_id,
+        vo.path_id AS value_slot_path_id,
+        bo.source_path,
+        vspd.name AS value_slot_name,
+        vk.key AS value_kind_key,
+        vs.cardinality
+    FROM journey_packs jp
+    JOIN rev.brief_pack_groups bpg ON bpg.brief_pack_id = jp.brief_pack_id
+    JOIN rev.brief_groups bg ON bg.id = bpg.brief_group_id
+    JOIN rev.brief_group_briefs bgb ON bgb.brief_group_id = bg.id
+    JOIN rev.briefs b ON b.id = bgb.brief_id
+    JOIN rev.brief_outputs bo ON bo.brief_id = b.id
+    JOIN rev.brief_output_source_kinds bosk
+        ON bosk.id = bo.source_kind_id AND bosk.key = 'computed'
+    JOIN rev.value_slots vs ON vs.id = bo.value_slot_id
+    JOIN rev.versioned_objects vo ON vo.id = vs.versioned_object_id
+    JOIN rev.value_slot_path_details vspd ON vspd.path_id = vo.path_id
+    JOIN rev.value_kinds vk ON vk.id = vs.value_kind_id
+),
+stage_tasks AS (
+    SELECT
+        stk.id AS step_task_id,
+        ss.id AS stage_step_id,
+        pstage.id AS playbook_stage_id
+    FROM rev.playbook_stages pstage
+    JOIN rev.stage_steps ss ON ss.stage_id = pstage.stage_id
+    JOIN rev.step_tasks stk ON stk.step_id = ss.step_id
+    WHERE pstage.id = :bind(playbook_stage_id)::UUID
+      AND ss.id = :bind(stage_step_id)::UUID
+),
+all_overlays AS (
+    SELECT st.step_task_id, o.value_slot_path_id, o.visibility, 1 AS priority
+    FROM rev.playbook_stage_overlays o
+    JOIN stage_tasks st ON st.playbook_stage_id = o.playbook_stage_id
+    UNION ALL
+    SELECT st.step_task_id, o.value_slot_path_id, o.visibility, 2 AS priority
+    FROM rev.stage_step_overlays o
+    JOIN stage_tasks st ON st.stage_step_id = o.stage_step_id
+    UNION ALL
+    SELECT st.step_task_id, o.value_slot_path_id, o.visibility, 3 AS priority
+    FROM rev.step_task_overlays o
+    JOIN stage_tasks st ON st.step_task_id = o.step_task_id
+),
+ranked AS (
+    # DISTINCT ON winner per (step_task, path): highest priority wins, so a
+    # step/task mask beats a stage expose.
+    SELECT DISTINCT ON (step_task_id, value_slot_path_id)
+        step_task_id, value_slot_path_id, visibility
+    FROM all_overlays
+    ORDER BY step_task_id, value_slot_path_id, priority DESC
+),
+exposed_paths AS (
+    SELECT DISTINCT value_slot_path_id
+    FROM ranked
+    WHERE visibility = 'expose'
+)
+# DISTINCT: two briefs may legitimately declare a computed output on the SAME
+# slot (e.g. a later stage's brief re-declares it because its step REFRESHES
+# the value, latest-wins). The pack walk returns one row per brief-output, so
+# without DISTINCT that slot appears twice and the producer's batch INSERT
+# trips UNIQUE(dispatch_id, value_slot_id) — discarding EVERY output of the
+# step, not just the duplicate (the 2026-07-16 learn-from-gaming-vod stall).
+# ORDER BY includes source_path so a same-slot-different-path duplicate (which
+# DISTINCT cannot collapse) reaches the producer in a deterministic order; the
+# producer keeps the first per slot and warns.
+SELECT DISTINCT
+    co.value_slot_id AS "value_slot_id!",
+    co.source_path AS "source_path!",
+    co.value_slot_name AS "value_slot_name!",
+    co.value_kind_key AS "value_kind_key!",
+    co.cardinality AS "cardinality!"
+FROM computed_outputs co
+JOIN exposed_paths ep ON ep.value_slot_path_id = co.value_slot_path_id
+ORDER BY co.value_slot_id, co.source_path;

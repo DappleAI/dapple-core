@@ -1,0 +1,33 @@
+# Deprecate briefs by path IDs
+# This creates deprecation events for the latest version of each brief path
+WITH args AS (
+    SELECT *
+    FROM UNNEST(
+        :bind(path_ids)::UUID[],
+        :bind(reasons)::TEXT[]
+    ) WITH ORDINALITY AS o(
+        path_id,
+        reason,
+        ord
+    )
+),
+:compose(shared/deprecate_latest_versions.sqlc)
+:compose(shared/deprecate_events.sqlc)
+# Return the updated briefs
+SELECT
+    b.id,
+    b.versioned_object_id,
+    op.id AS path_id,
+    bpd.name,
+    vo.content_hash,
+    dl.key AS "deprecation_level_key?",
+    COALESCE(rev.fluent_body(b.title_fluent_message_id, 'en'), b.title, bpd.name) AS "title!",
+    COALESCE(rev.fluent_body(b.description_fluent_message_id, 'en'), b.description) AS description,
+    b.created_at
+FROM resolved
+JOIN rev.versioned_objects vo ON vo.id = resolved.versioned_object_id
+JOIN rev.briefs b ON b.versioned_object_id = vo.id
+JOIN rev.object_paths op ON op.id = vo.path_id
+JOIN rev.brief_path_details bpd ON bpd.path_id = op.id
+LEFT JOIN rev.deprecation_levels dl ON dl.id = :bind(to_level_id)::SMALLINT
+ORDER BY b.id;

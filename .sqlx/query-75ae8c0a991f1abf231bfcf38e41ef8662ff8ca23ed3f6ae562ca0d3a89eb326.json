@@ -1,0 +1,119 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n    est.id AS \"id!\",\n    est.service_id,\n    est.public_key_pem,\n    est.key_algorithm,\n    est.company_id,\n    c.slug AS \"company_slug!\",\n    c.revoked_at AS company_revoked_at,\n    (\n        SELECT MIN(r.revoked_at)\n        FROM rev.external_service_token_revocations r\n        WHERE r.external_service_token_id = est.id\n    ) AS token_revoked_at,\n                    esp.principal_id AS \"principal_id!\"\nFROM rev.external_service_tokens est\nJOIN rev.companies c ON c.id = est.company_id\nJOIN rev.external_service_principals esp ON esp.external_service_token_id = est.id\nWHERE est.service_id = $1::TEXT;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.external_service_tokens",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "service_id",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.external_service_tokens",
+            "name": "service_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "public_key_pem",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.external_service_tokens",
+            "name": "public_key_pem"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "key_algorithm",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.external_service_tokens",
+            "name": "key_algorithm"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "company_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.external_service_tokens",
+            "name": "company_id"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "company_slug!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.companies",
+            "name": "slug"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "company_revoked_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.companies",
+            "name": "revoked_at"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "token_revoked_at",
+        "type_info": "Timestamptz",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 8,
+        "name": "principal_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.external_service_principals",
+            "name": "principal_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      null,
+      false
+    ]
+  },
+  "hash": "75ae8c0a991f1abf231bfcf38e41ef8662ff8ca23ed3f6ae562ca0d3a89eb326"
+}

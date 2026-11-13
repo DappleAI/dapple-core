@@ -1,0 +1,2 @@
+# Select guides by slugs using path_details lookup
+:compose(guides/select_guides_body.sqlc, @page = guides/pages/by_slugs.sqlc)

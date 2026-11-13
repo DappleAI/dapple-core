@@ -1,0 +1,208 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n    bumi.id, bumi.brief_unit_id,\n    bmk.key AS media_kind_key,\n    bmst.key AS source_type_key,\n        bumias.asset_id AS \"asset_id?\",\n    bumius.url AS \"url?\",\n    bumivss.value_slot_id AS \"value_slot_id?\",\n        bumip.id AS \"poster_id?\",\n    bmst_p.key AS \"poster_source_type_key?\",\n        bumipas.asset_id AS \"poster_asset_id?\",\n    bumipus.url AS \"poster_url?\",\n    bumipvss.value_slot_id AS \"poster_value_slot_id?\",\n        bumi_alt.fluent_message_id AS \"alt_text_fluent_message_id?\",\n    bumi_cap.fluent_message_id AS \"caption_fluent_message_id?\",\n    bumi_title.fluent_message_id AS \"title_fluent_message_id?\",\n    bumi.created_at\nFROM rev.brief_unit_media_items bumi\nJOIN rev.brief_media_kinds bmk ON bmk.id = bumi.media_kind_id\nJOIN rev.brief_media_source_types bmst ON bmst.id = bumi.source_type_id\nLEFT JOIN rev.brief_unit_media_item_asset_sources bumias ON bumias.media_item_id = bumi.id\nLEFT JOIN rev.brief_unit_media_item_url_sources bumius ON bumius.media_item_id = bumi.id\nLEFT JOIN rev.brief_unit_media_item_value_slot_sources bumivss ON bumivss.media_item_id = bumi.id\nLEFT JOIN rev.brief_unit_media_item_posters bumip ON bumip.media_item_id = bumi.id\nLEFT JOIN rev.brief_media_source_types bmst_p ON bmst_p.id = bumip.source_type_id\nLEFT JOIN rev.brief_unit_media_item_poster_asset_sources bumipas ON bumipas.poster_id = bumip.id\nLEFT JOIN rev.brief_unit_media_item_poster_url_sources bumipus ON bumipus.poster_id = bumip.id\nLEFT JOIN rev.brief_unit_media_item_poster_value_slot_sources bumipvss ON bumipvss.poster_id = bumip.id\nLEFT JOIN rev.brief_unit_media_item_alt_texts bumi_alt ON bumi_alt.media_item_id = bumi.id\nLEFT JOIN rev.brief_unit_media_item_captions bumi_cap ON bumi_cap.media_item_id = bumi.id\nLEFT JOIN rev.brief_unit_media_item_titles bumi_title ON bumi_title.media_item_id = bumi.id\nWHERE bumi.brief_unit_id = ANY($1::UUID[])\nORDER BY bumi.brief_unit_id, bumi.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_media_items",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "brief_unit_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_media_items",
+            "name": "brief_unit_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "media_kind_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_media_kinds",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "source_type_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_media_source_types",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "asset_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_media_item_asset_sources",
+            "name": "asset_id"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "url?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_media_item_url_sources",
+            "name": "url"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "value_slot_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_media_item_value_slot_sources",
+            "name": "value_slot_id"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "poster_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_media_item_posters",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "poster_source_type_key?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_media_source_types",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "poster_asset_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_media_item_poster_asset_sources",
+            "name": "asset_id"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "poster_url?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_media_item_poster_url_sources",
+            "name": "url"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "poster_value_slot_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_media_item_poster_value_slot_sources",
+            "name": "value_slot_id"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "alt_text_fluent_message_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_media_item_alt_texts",
+            "name": "fluent_message_id"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "caption_fluent_message_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_media_item_captions",
+            "name": "fluent_message_id"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "title_fluent_message_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_media_item_titles",
+            "name": "fluent_message_id"
+          }
+        }
+      },
+      {
+        "ordinal": 15,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_media_items",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "dd1c2d74ae12f9e36a11aba947fd01416e8d95c9821c32f6c5516685af7481b1"
+}

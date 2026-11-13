@@ -1,0 +1,2 @@
+# Select value slots by path IDs using unified versioning (returns all versions for each path)
+:compose(value_slots/select_value_slots_body.sqlc, @page = value_slots/pages/by_path_ids.sqlc)

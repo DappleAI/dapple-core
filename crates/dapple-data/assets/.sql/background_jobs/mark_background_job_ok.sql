@@ -1,0 +1,17 @@
+UPDATE rev.background_jobs
+SET status = 'ok',
+    completed_at = now()
+WHERE id = $1
+RETURNING
+    id,
+    job_kind,
+    target_id,
+    payload,
+    status,
+    attempts,
+    max_attempts,
+    error_message,
+    scheduled_at,
+    claimed_at,
+    completed_at,
+    created_at;

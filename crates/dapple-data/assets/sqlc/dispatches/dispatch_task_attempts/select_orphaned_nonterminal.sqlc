@@ -1,0 +1,29 @@
+# Task attempts stranded by a process restart: the LATEST event on the attempt
+# is a non-terminal phase (queued/running). Execution is in-process, so once
+# the executing process restarts these attempts can never progress - and the
+# recovery drain deliberately skips dispatches that already have attempts, so
+# the journey stalls forever. The startup sweep records a terminal `failed`
+# event for each so status is honest and the operator can re-dispatch
+# (retry = re-dispatch).
+#
+# Scoped by executor identity: the runner stamps context_metadata.executor on
+# every `running` event, and a sweeper only claims its OWN orphans, so one
+# service booting never falsifies another service's live attempt (flow, the
+# internal api, and the external api can each host execution). Rows with no
+# executor stamp (events written by pre-stamping binaries) are claimable by
+# ANY sweeper: the mixed-version window is short, and a spuriously failed
+# live attempt self-heals because its runner appends the real terminal event
+# afterwards (latest event wins).
+WITH latest AS (
+    SELECT DISTINCT ON (ev.attempt_id)
+        ev.attempt_id,
+        ev.phase_code,
+        ev.context_metadata->>'executor' AS executor
+    FROM rev.dispatch_task_attempt_events ev
+    ORDER BY ev.attempt_id, ev.id DESC
+)
+SELECT l.attempt_id
+FROM latest l
+JOIN rev.dispatch_phases dp ON dp.code = l.phase_code
+WHERE NOT dp.terminal
+  AND (l.executor = :bind(executor)::TEXT OR l.executor IS NULL);

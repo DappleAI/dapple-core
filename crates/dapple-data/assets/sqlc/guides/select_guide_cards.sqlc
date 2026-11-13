@@ -1,0 +1,2 @@
+# Select latest version's card for each guide path (card carousel)
+:compose(guides/select_guide_cards_body.sqlc, @page = guides/pages/cards_all.sqlc)

@@ -1,0 +1,60 @@
+# Insert brief units (parent only, subtypes inserted separately)
+# Parameters:
+#   $1: brief_ids (UUID[])
+#   $2: unit_keys (TEXT[])
+#   $3: layouts (JSONB[])
+#   $4: requires (JSONB[])
+#   $5: extensions (JSONB[])
+#   $6: authored_ords (INT[]) — 1-based position within the unit's OWN brief
+#
+# `authored_ord` is not the array ordinality. The caller accumulates units across
+# several briefs into one flat batch, and outputs of the same briefs go to a
+# SEPARATE batch (rev.brief_outputs), so array position encodes neither the
+# per-brief position nor the interleaving with outputs. The caller therefore
+# passes the position it read off `brief_def.unit_names` explicitly. ORDINALITY's
+# `ord` stays what it always was: the batch-local index that keeps generated
+# UUIDv7s in caller order.
+
+WITH args AS (
+    SELECT *
+    FROM UNNEST(
+        $1::UUID[],
+        $2::TEXT[],
+        $3::JSONB[],
+        $4::JSONB[],
+        $5::JSONB[],
+        $6::INT[]
+    ) WITH ORDINALITY AS o(brief_id, unit_key, layout, requires, extensions, authored_ord, ord)
+),
+objs AS (
+    INSERT INTO rev.brief_units (
+        brief_id,
+        unit_key,
+        layout,
+        requires,
+        extensions,
+        ord,
+        created_at
+    )
+    SELECT
+        args.brief_id,
+        args.unit_key,
+        COALESCE(args.layout, '{}'::jsonb),
+        COALESCE(args.requires, '{}'::jsonb),
+        COALESCE(args.extensions, '{}'::jsonb),
+        COALESCE(args.authored_ord, 0),
+        now()
+    FROM args
+    ORDER BY args.ord
+    RETURNING id, brief_id, unit_key, layout, requires, extensions, created_at
+)
+SELECT
+    objs.id,
+    objs.brief_id,
+    objs.unit_key,
+    objs.layout,
+    objs.requires,
+    objs.extensions,
+    objs.created_at
+FROM objs
+ORDER BY objs.id;

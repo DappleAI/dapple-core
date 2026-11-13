@@ -1,0 +1,275 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n    d.id,\n    d.journey_id,\n    d.intent,\n    d.created_at,\n    dst.id AS \"dispatch_stage_id?\",\n    dst.playbook_stage_id AS \"dispatch_stage_playbook_stage_id?\",\n    dst_pst.playbook_id AS \"dispatch_stage_playbook_id?\",\n    dst_pst.stage_id AS \"dispatch_stage_stage_id?\",\n    dst.params AS \"dispatch_stage_params?\",\n    dst.created_at AS \"dispatch_stage_created_at?\",\n    ds.id AS \"dispatch_step_id?\",\n    ds.stage_step_id AS \"dispatch_step_stage_step_id?\",\n    dst.playbook_stage_id AS \"dispatch_step_playbook_stage_id?\",\n    s.id AS \"dispatch_step_step_id?\",\n    dst_pst.playbook_id AS \"dispatch_step_playbook_id?\",\n    ds.params AS \"dispatch_step_params?\",\n    ds.created_at AS \"dispatch_step_created_at?\",\n    dt.id AS \"dispatch_task_id?\",\n    dt.step_task_id AS \"dispatch_task_step_task_id?\",\n    t.id AS \"dispatch_task_task_id?\",\n    dt.created_at AS \"dispatch_task_created_at?\",\n    dta.status AS \"dispatch_task_status?\"\nFROM rev.dispatches d\nJOIN rev.journeys j ON d.journey_id = j.id\nLEFT JOIN rev.dispatch_stages dst ON d.id = dst.dispatch_id\nLEFT JOIN rev.playbook_stages dst_pst ON dst.playbook_stage_id = dst_pst.id\nLEFT JOIN rev.playbooks dp ON dst_pst.playbook_id = dp.id\nLEFT JOIN rev.stages ds2 ON dst_pst.stage_id = ds2.id\nLEFT JOIN rev.dispatch_steps ds ON dst.id = ds.dispatch_stage_id\nLEFT JOIN rev.stage_steps ss ON ds.stage_step_id = ss.id\nLEFT JOIN rev.steps s ON ss.step_id = s.id\nLEFT JOIN rev.dispatch_tasks dt ON dt.dispatch_step_id = ds.id\nLEFT JOIN rev.step_tasks stk ON dt.step_task_id = stk.id\nLEFT JOIN rev.tasks t ON stk.task_id = t.id\nLEFT JOIN LATERAL (\n    SELECT COALESCE(ev.phase_code, 'queued') as status\n    FROM rev.dispatch_task_attempts a\n    LEFT JOIN LATERAL (\n        SELECT phase_code\n        FROM rev.dispatch_task_attempt_events ev2\n        WHERE ev2.attempt_id = a.id\n        ORDER BY ev2.created_at DESC, ev2.id DESC\n        LIMIT 1\n    ) ev ON true\n    WHERE a.dispatch_step_id = ds.id\n      AND a.task_id = t.id\n    ORDER BY a.created_at DESC\n    LIMIT 1\n) dta ON true\nWHERE d.id = $1\nORDER BY d.id, dst.id NULLS FIRST, ds.id NULLS FIRST, dt.id NULLS FIRST;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatches",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "journey_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatches",
+            "name": "journey_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "intent",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatches",
+            "name": "intent"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatches",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "dispatch_stage_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_stages",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "dispatch_stage_playbook_stage_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_stages",
+            "name": "playbook_stage_id"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "dispatch_stage_playbook_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.playbook_stages",
+            "name": "playbook_id"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "dispatch_stage_stage_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.playbook_stages",
+            "name": "stage_id"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "dispatch_stage_params?",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_stages",
+            "name": "params"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "dispatch_stage_created_at?",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_stages",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "dispatch_step_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_steps",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "dispatch_step_stage_step_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_steps",
+            "name": "stage_step_id"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "dispatch_step_playbook_stage_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_stages",
+            "name": "playbook_stage_id"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "dispatch_step_step_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.steps",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "dispatch_step_playbook_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.playbook_stages",
+            "name": "playbook_id"
+          }
+        }
+      },
+      {
+        "ordinal": 15,
+        "name": "dispatch_step_params?",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_steps",
+            "name": "params"
+          }
+        }
+      },
+      {
+        "ordinal": 16,
+        "name": "dispatch_step_created_at?",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_steps",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 17,
+        "name": "dispatch_task_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_tasks",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 18,
+        "name": "dispatch_task_step_task_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_tasks",
+            "name": "step_task_id"
+          }
+        }
+      },
+      {
+        "ordinal": 19,
+        "name": "dispatch_task_task_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.tasks",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 20,
+        "name": "dispatch_task_created_at?",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_tasks",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 21,
+        "name": "dispatch_task_status?",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "4101e219c40a9cc91d36ad42f0462410a8cc38e4e8bfb21280c4fdf08788d1d3"
+}

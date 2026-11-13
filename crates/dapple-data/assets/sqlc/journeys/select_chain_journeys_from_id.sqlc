@@ -1,0 +1,44 @@
+# Walk the chain BACKWARD from a starting journey id and return the
+# journeys ordered root → starting (the resolver's display order).
+# Used by dapple-ui-demo's chapter resolver to build the chapter map
+# from a leaf journey id (Phase 2).
+#
+# Composes shared/journey_chain.sqlc — that fragment yields (journey_id,
+# depth) tuples where depth=0 is the starting journey and depth grows
+# with each predecessor. Reverse via ORDER BY depth DESC to get root → leaf.
+#
+# The caller (handler layer) is responsible for ownership / namespace
+# gating; this query returns every journey in the chain regardless of
+# principal. Pair with `select_journey_chain_ancestor` for the gate.
+#
+# `viewer_principal_id` drives the `hidden_at` lookup so the caller can
+# render an "(hidden)" affordance per journey. Single-get semantics: we
+# SURFACE hidden_at but do NOT filter — the by-id contract is "you can
+# inspect a freshly hidden journey".
+WITH RECURSIVE
+:compose(shared/journey_chain.sqlc)
+,
+viewer_prefs AS (
+    SELECT DISTINCT ON (pjp.journey_id)
+        pjp.journey_id,
+        pjp.hidden_at
+    FROM rev.principal_journey_preferences pjp
+    WHERE pjp.principal_id = :bind(viewer_principal_id)::UUID
+    ORDER BY pjp.journey_id, pjp.id DESC
+)
+SELECT
+    j.id           AS "id!",
+    j.playbook_id  AS "playbook_id!",
+    j.name         AS "name!",
+    j.created_at   AS "created_at!",
+    j.principal_id AS "principal_id!",
+    j.owner_company_id        AS "owner_company_id!",
+    j.predecessor_journey_id  AS "predecessor_journey_id?",
+    j.guide_id     AS "guide_id?",
+    j.fork_stage_id AS "fork_stage_id?",
+    jc.depth       AS "depth!",
+    vp.hidden_at   AS "hidden_at?"
+FROM journey_chain jc
+JOIN rev.journeys j ON j.id = jc.journey_id
+LEFT JOIN viewer_prefs vp ON vp.journey_id = j.id
+ORDER BY jc.depth DESC;

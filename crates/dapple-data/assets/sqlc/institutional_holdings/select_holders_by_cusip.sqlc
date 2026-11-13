@@ -1,0 +1,10 @@
+# Every cached holder of a security across an inclusive quarter-end window,
+# largest position first within each quarter.
+# Parameters:
+#   $1: cusip (TEXT)
+#   $2: from_quarter (DATE, inclusive)
+#   $3: to_quarter (DATE, inclusive)
+SELECT cusip, quarter_end, manager_cik, manager_name, shares, value_usd, accession, filed_date
+FROM rev.institutional_holdings
+WHERE cusip = $1 AND quarter_end >= $2 AND quarter_end <= $3
+ORDER BY quarter_end, value_usd DESC;

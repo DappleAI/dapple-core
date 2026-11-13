@@ -1,0 +1,45 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::UUID[],\n        $2::UUID[]\n    ) WITH ORDINALITY\n    AS o(\n        stage_id,\n        step_id,\n        ord\n    )\n),\nresolved AS (\n    SELECT\n        args.ord,\n        ROW_NUMBER() OVER (PARTITION BY st.id ORDER BY args.ord) AS pos,\n        st.id AS stage_id,\n        s.id AS step_id\n    FROM args\n    JOIN rev.stages st ON args.stage_id = st.id\n    JOIN rev.steps s ON args.step_id = s.id\n),\nobjs AS (\n    INSERT INTO rev.stage_steps (stage_id, step_id, ord)\n    SELECT r.stage_id, r.step_id, r.pos\n    FROM resolved r\n    ORDER BY r.ord\n    ON CONFLICT (stage_id, step_id) DO NOTHING\n    RETURNING id, stage_id, step_id, ord, created_at\n),\nall_rows AS (\n    SELECT id, stage_id, step_id, ord, created_at\n    FROM objs\n    UNION ALL\n    SELECT ss.id, ss.stage_id, ss.step_id, ss.ord, ss.created_at\n    FROM resolved r\n    JOIN rev.stage_steps ss ON ss.stage_id = r.stage_id AND ss.step_id = r.step_id\n    WHERE NOT EXISTS (\n        SELECT 1 FROM objs o\n        WHERE o.stage_id = r.stage_id AND o.step_id = r.step_id\n    )\n)\nSELECT\n    ar.id AS \"id!\",\n    ar.stage_id AS \"stage_id!\",\n    ar.step_id AS \"step_id!\",\n    ar.created_at AS \"created_at!\"\nFROM all_rows ar\nORDER BY ar.stage_id, ar.ord;",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "stage_id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "step_id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "created_at!",
+        "type_info": "Timestamptz",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "ab67496ca2ff7c33f80db5ed74e4c6832472ff3a42af5775c12c842030ee1169"
+}

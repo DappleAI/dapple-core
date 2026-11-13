@@ -1,0 +1,95 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::TEXT[],\n        $2::UUID[],\n        $3::TEXT[],\n        $4::UUID[],\n        $5::JSONB[],\n        $6::UUID[],\n        $7::TEXT[]\n    ) WITH ORDINALITY AS o(\n        content_hash,\n        description_fluent_message_id,\n        description,\n        id,\n        pack_spec,\n        title_fluent_message_id,\n        title,\n        ord\n    )\n),\nexisting_packs AS (\n    SELECT\n        vo.path_id,\n        args.id as old_id,\n        args.title,\n        args.description,\n        args.title_fluent_message_id,\n        args.description_fluent_message_id,\n        args.pack_spec,\n        args.content_hash,\n        args.ord\n    FROM args\n    JOIN rev.brief_packs bp ON bp.id = args.id\n    JOIN rev.versioned_objects vo ON vo.id = bp.versioned_object_id\n),\nnew_versions_inserted AS (\n    INSERT INTO rev.versioned_objects (path_id, content_hash)\n    SELECT\n        ep.path_id,\n        ep.content_hash\n    FROM existing_packs ep\n    ON CONFLICT (path_id, content_hash) DO NOTHING\n    RETURNING id, path_id, content_hash, created_at\n),\nall_versions AS (\n    SELECT nvi.id, nvi.path_id, nvi.content_hash, nvi.created_at\n    FROM new_versions_inserted nvi\n    UNION ALL\n    SELECT vo.id, vo.path_id, vo.content_hash, vo.created_at\n    FROM existing_packs ep\n    JOIN rev.versioned_objects vo ON vo.path_id = ep.path_id AND vo.content_hash = ep.content_hash\n    WHERE NOT EXISTS (\n        SELECT 1 FROM new_versions_inserted nvi\n        WHERE nvi.path_id = ep.path_id AND nvi.content_hash = ep.content_hash\n    )\n),\nnew_packs AS (\n    INSERT INTO rev.brief_packs (\n        versioned_object_id,\n        title,\n        description,\n        pack_spec,\n        title_fluent_message_id,\n        description_fluent_message_id\n    )\n    SELECT\n        av.id,\n        ep.title,\n        ep.description,\n        COALESCE(ep.pack_spec, '{}'::jsonb),\n        ep.title_fluent_message_id,\n        ep.description_fluent_message_id\n    FROM existing_packs ep\n    JOIN all_versions av ON av.path_id = ep.path_id\n    WHERE NOT EXISTS (SELECT 1 FROM rev.brief_packs bp WHERE bp.versioned_object_id = av.id)\n    RETURNING\n        id,\n        versioned_object_id,\n        title,\n        description,\n        pack_spec,\n        title_fluent_message_id,\n        description_fluent_message_id,\n        created_at\n),\nall_packs AS (\n    SELECT\n        np.id,\n        np.versioned_object_id,\n        np.title,\n        np.description,\n        np.title_fluent_message_id,\n        np.description_fluent_message_id,\n        np.pack_spec,\n        np.created_at\n    FROM new_packs np\n    UNION ALL\n    SELECT\n        bp.id,\n        bp.versioned_object_id,\n        bp.title,\n        bp.description,\n        bp.title_fluent_message_id,\n        bp.description_fluent_message_id,\n        bp.pack_spec,\n        bp.created_at\n    FROM rev.brief_packs bp\n    JOIN all_versions av ON bp.versioned_object_id = av.id\n    WHERE NOT EXISTS (SELECT 1 FROM new_packs np WHERE np.versioned_object_id = av.id)\n)\nSELECT\n    ap.id AS \"id!\",\n    ap.versioned_object_id AS \"versioned_object_id!\",\n    op.id AS \"path_id!\",\n    bppd.name AS \"name!\",\n    av.content_hash AS \"content_hash!\",\n    COALESCE(rev.fluent_body(ap.title_fluent_message_id, 'en'), ap.title, bppd.name) AS \"title!\",\n    COALESCE(rev.fluent_body(ap.description_fluent_message_id, 'en'), ap.description) AS description,\n    ap.pack_spec AS \"pack_spec!\",\n    ap.created_at AS \"created_at!\"\nFROM all_packs ap\nJOIN all_versions av ON av.id = ap.versioned_object_id\nJOIN rev.object_paths op ON op.id = av.path_id\nJOIN rev.brief_pack_path_details bppd ON bppd.path_id = op.id\nJOIN existing_packs ep ON ep.path_id = av.path_id\nORDER BY ap.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "versioned_object_id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "path_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.object_paths",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "name!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_pack_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "content_hash!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 5,
+        "name": "title!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 6,
+        "name": "description",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 7,
+        "name": "pack_spec!",
+        "type_info": "Jsonb",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at!",
+        "type_info": "Timestamptz",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "UuidArray",
+        "TextArray",
+        "UuidArray",
+        "JsonbArray",
+        "UuidArray",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      false,
+      false,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "d93bf864259f88a5ba2b1ae8172feb4cfdeed0b845c8e0ae40642ede67b6840f"
+}

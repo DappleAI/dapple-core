@@ -1,0 +1,10 @@
+# True iff `prompt_id` exists AND its path lives in `caller_company_id`'s
+# namespace. Used by external-API handlers to gate `GET /api/prompts/{id}`.
+SELECT EXISTS (
+    SELECT 1
+    FROM rev.prompts p
+    JOIN rev.versioned_objects vo ON vo.id = p.versioned_object_id
+    JOIN rev.object_paths op ON op.id = vo.path_id
+    WHERE p.id = :bind(prompt_id)::UUID
+      AND op.namespace_company_id = :bind(caller_company_id)::UUID
+) AS in_namespace;

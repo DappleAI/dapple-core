@@ -1,0 +1,2 @@
+# Select hats by slugs using path_details lookup
+:compose(hats/select_hats_body.sqlc, @page = hats/pages/by_slugs.sqlc)

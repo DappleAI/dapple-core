@@ -1,0 +1,2 @@
+# Select briefs by IDs using unified versioning
+:compose(briefs/select_briefs_body.sqlc, @page = briefs/pages/by_object_ids.sqlc)

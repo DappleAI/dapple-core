@@ -1,0 +1,2 @@
+# Select guides by IDs with full chapter/block/tag hierarchy
+:compose(guides/select_guides_body.sqlc, @page = guides/pages/by_object_ids.sqlc)

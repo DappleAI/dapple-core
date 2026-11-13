@@ -1,0 +1,124 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST($1::UUID[]) WITH ORDINALITY AS o(versioned_object_id, ord)\n)\nSELECT\n    de.id,\n    de.versioned_object_id,\n    de.from_level_id,\n    fl.key AS from_level_key,\n    de.to_level_id,\n    tl.key AS to_level_key,\n    de.reason,\n    de.deprecated_by_user_id,\n    de.created_at\nFROM args\nJOIN rev.deprecation_events de ON de.versioned_object_id = args.versioned_object_id\nJOIN rev.versioned_objects vo ON vo.id = de.versioned_object_id\nLEFT JOIN rev.deprecation_levels fl ON fl.id = de.from_level_id\nJOIN rev.deprecation_levels tl ON tl.id = de.to_level_id\nORDER BY vo.id, de.created_at DESC;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.deprecation_events",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "versioned_object_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.deprecation_events",
+            "name": "versioned_object_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "from_level_id",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "rev.deprecation_events",
+            "name": "from_level_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "from_level_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.deprecation_levels",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "to_level_id",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "rev.deprecation_events",
+            "name": "to_level_id"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "to_level_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.deprecation_levels",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "reason",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.deprecation_events",
+            "name": "reason"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "deprecated_by_user_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.deprecation_events",
+            "name": "deprecated_by_user_id"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.deprecation_events",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "fe42b105022b68374028c6d9ab60624cd3a01523e7f8f75b92177c439971230f"
+}

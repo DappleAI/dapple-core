@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT count(*)\n        FROM rev.guide_content_embeddings e\n        WHERE e.guide_id = $1\n        AND e.generation_id = (\n            SELECT g.id FROM rev.guide_embedding_generations g\n            WHERE g.guide_id = $1\n            ORDER BY g.created_at DESC\n            LIMIT 1\n        )\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "cfc4c07026240b19e841b7f69059439002df7efaf4ae37ed9928a033c2812867"
+}

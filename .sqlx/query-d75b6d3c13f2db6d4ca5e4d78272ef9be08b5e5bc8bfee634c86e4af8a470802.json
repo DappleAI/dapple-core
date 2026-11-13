@@ -1,0 +1,92 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n  a.id,\n  a.dispatch_step_id,\n  a.task_id,\n  COALESCE(e.phase_code, 'queued') AS status,\n  COALESCE(e.context_data, a.context_data) AS context_data,\n  COALESCE(e.context_metadata, a.context_metadata) AS context_metadata,\n  CASE\n    WHEN e.phase_code IN ('failed', 'incomplete')\n    THEN e.context_data->>'error'\n    ELSE NULL\n  END AS error_detail,\n  a.created_at\nFROM rev.dispatch_task_attempts a\nLEFT JOIN LATERAL (\n  SELECT phase_code, context_data, context_metadata, created_at\n  FROM rev.dispatch_task_attempt_events ev\n  WHERE ev.attempt_id = a.id\n  ORDER BY ev.created_at DESC, ev.id DESC\n  LIMIT 1\n) e ON true\nWHERE a.dispatch_step_id IN (\n  SELECT s.id\n  FROM rev.dispatch_steps s\n  JOIN rev.dispatch_stages st ON s.dispatch_stage_id = st.id\n  JOIN rev.dispatches d ON st.dispatch_id = d.id\n  WHERE d.id = $1::uuid\n)\nORDER BY a.id DESC;\n\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_task_attempts",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "dispatch_step_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_task_attempts",
+            "name": "dispatch_step_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "task_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_task_attempts",
+            "name": "task_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "status",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 4,
+        "name": "context_data",
+        "type_info": "Jsonb",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 5,
+        "name": "context_metadata",
+        "type_info": "Jsonb",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 6,
+        "name": "error_detail",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_task_attempts",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      null,
+      null,
+      null,
+      null,
+      false
+    ]
+  },
+  "hash": "d75b6d3c13f2db6d4ca5e4d78272ef9be08b5e5bc8bfee634c86e4af8a470802"
+}

@@ -1,0 +1,2 @@
+# Select prompts by IDs using unified versioning
+:compose(prompts/select_prompts_body.sqlc, @page = prompts/pages/by_object_ids.sqlc)

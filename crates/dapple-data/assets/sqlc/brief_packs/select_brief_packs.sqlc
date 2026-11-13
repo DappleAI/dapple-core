@@ -1,0 +1,6 @@
+# Select all brief packs using unified versioning
+#
+# LIMIT/OFFSET apply to distinct brief packs (not flat rows) via a page CTE.
+# The flat join (brief_pack x brief_pack_groups x brief_groups) produces many rows
+# per brief pack, so limiting flat rows would silently truncate results.
+:compose(brief_packs/select_brief_packs_body.sqlc, @page = brief_packs/pages/all.sqlc)
