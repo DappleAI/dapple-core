@@ -1,0 +1,40 @@
+# Batch insert of Form 4 transaction rows for one accession via UNNEST.
+# The caller clears the accession first (delete_insider_transactions_for_accession),
+# so there is no conflict handling here. Row order carries no meaning for this
+# cache — it is read back ordered by (trans_date, owner_name) — so no
+# WITH ORDINALITY.
+# Parameters:
+#   $1:  issuer_ciks (BIGINT[])          $10: officer_titles (TEXT[])
+#   $2:  accessions (TEXT[])             $11: security_titles (TEXT[])
+#   $3:  filed_dates (DATE[])            $12: trans_codes (TEXT[])
+#   $4:  trans_dates (DATE[])            $13: acquired_disposeds (TEXT[])
+#   $5:  owner_ciks (BIGINT[])           $14: shares (DOUBLE PRECISION[])
+#   $6:  owner_names (TEXT[])            $15: prices_per_share (DOUBLE PRECISION[])
+#   $7:  is_directors (BOOLEAN[])        $16: shares_owned_after (DOUBLE PRECISION[])
+#   $8:  is_officers (BOOLEAN[])         $17: is_derivatives (BOOLEAN[])
+#   $9:  is_ten_pcts (BOOLEAN[])         $18: is_10b5_1s (BOOLEAN[])
+INSERT INTO rev.insider_transactions
+    (issuer_cik, accession, filed_date, trans_date, owner_cik, owner_name,
+     is_director, is_officer, is_ten_pct, officer_title, security_title,
+     trans_code, acquired_disposed, shares, price_per_share, shares_owned_after,
+     is_derivative, is_10b5_1)
+SELECT * FROM UNNEST(
+    $1::BIGINT[],
+    $2::TEXT[],
+    $3::DATE[],
+    $4::DATE[],
+    $5::BIGINT[],
+    $6::TEXT[],
+    $7::BOOLEAN[],
+    $8::BOOLEAN[],
+    $9::BOOLEAN[],
+    $10::TEXT[],
+    $11::TEXT[],
+    $12::TEXT[],
+    $13::TEXT[],
+    $14::DOUBLE PRECISION[],
+    $15::DOUBLE PRECISION[],
+    $16::DOUBLE PRECISION[],
+    $17::BOOLEAN[],
+    $18::BOOLEAN[]
+);

@@ -1,0 +1,160 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE rev.background_jobs\nSET status = 'ok',\n    completed_at = now()\nWHERE id = $1\nRETURNING\n    id,\n    job_kind,\n    target_id,\n    payload,\n    status,\n    attempts,\n    max_attempts,\n    error_message,\n    scheduled_at,\n    claimed_at,\n    completed_at,\n    created_at;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.background_jobs",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "job_kind",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.background_jobs",
+            "name": "job_kind"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "target_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.background_jobs",
+            "name": "target_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "payload",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "rev.background_jobs",
+            "name": "payload"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "status",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.background_jobs",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "attempts",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "rev.background_jobs",
+            "name": "attempts"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "max_attempts",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "rev.background_jobs",
+            "name": "max_attempts"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "error_message",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.background_jobs",
+            "name": "error_message"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "scheduled_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.background_jobs",
+            "name": "scheduled_at"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "claimed_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.background_jobs",
+            "name": "claimed_at"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "completed_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.background_jobs",
+            "name": "completed_at"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.background_jobs",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "93fa0f5400e035c29070116f617d022c038b0fdb91b525eb93e82676eb0be4f7"
+}

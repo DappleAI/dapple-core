@@ -1,0 +1,82 @@
+# Create new versions of existing guides (PATCH).
+# Caller supplies content_hash for idempotent upsert.
+# Fluent-native: no locale column -- guide structure is locale-independent.
+WITH args AS (
+    SELECT *
+    FROM UNNEST(
+        :bind(authors)::TEXT[],
+        :bind(classifications)::TEXT[],
+        :bind(conduits_mds)::TEXT[],
+        :bind(content_hashes)::TEXT[],
+        :bind(descriptions)::TEXT[],
+        :bind(path_ids)::UUID[],
+        :bind(source_paths)::TEXT[]
+    ) WITH ORDINALITY AS o(
+        author,
+        classification,
+        conduits_md,
+        content_hash,
+        description,
+        path_id,
+        source_path,
+        ord
+    )
+),
+paths AS (
+    SELECT
+        op.id AS path_id,
+        gpd.title,
+        gpd.slug,
+        args.ord
+    FROM args
+    JOIN rev.object_paths op ON op.id = args.path_id
+    JOIN rev.guide_path_details gpd ON gpd.path_id = op.id
+),
+:compose(shared/patch_new_versions.sqlc)
+new_guides AS (
+    INSERT INTO rev.guides (versioned_object_id, description, author, classification, source_path, conduits_md)
+    SELECT
+        nuv.id,
+        args.description,
+        args.author,
+        args.classification,
+        args.source_path,
+        # Conduit-facing guide frame — kept symmetric with insert_guides.sqlc.
+        args.conduits_md
+    FROM args
+    JOIN numbered_versions nuv ON nuv.ord = args.ord
+    WHERE NOT EXISTS (SELECT 1 FROM rev.guides g WHERE g.versioned_object_id = nuv.id)
+    ORDER BY args.ord
+    RETURNING id, versioned_object_id, description, author, classification, source_path, created_at
+),
+all_guides AS (
+    # Carry input ord via the version id (nuv.ord is the caller's ord, not an
+    # id-rank), so numbered_guides below joins by input order.
+    SELECT ng.id, ng.versioned_object_id, ng.description, ng.author, ng.classification, ng.source_path, ng.created_at, nuv.ord
+    FROM new_guides ng
+    JOIN numbered_versions nuv ON nuv.id = ng.versioned_object_id
+    UNION ALL
+    SELECT g.id, g.versioned_object_id, g.description, g.author, g.classification, g.source_path, g.created_at, nuv.ord
+    FROM rev.guides g
+    JOIN numbered_versions nuv ON g.versioned_object_id = nuv.id
+    WHERE NOT EXISTS (SELECT 1 FROM new_guides ng WHERE ng.versioned_object_id = nuv.id)
+),
+numbered_guides AS (
+    SELECT ag.* FROM all_guides ag
+)
+SELECT
+    nug.id AS "id!",
+    nug.versioned_object_id AS "versioned_object_id!",
+    nuv.path_id AS "path_id!",
+    paths.title AS "title!",
+    paths.slug AS "slug!",
+    nuv.content_hash AS "content_hash!",
+    nug.description,
+    nug.author,
+    nug.classification,
+    nug.source_path,
+    nug.created_at AS "created_at!"
+FROM numbered_guides nug
+JOIN numbered_versions nuv ON nuv.ord = nug.ord
+JOIN paths ON paths.ord = nug.ord
+ORDER BY nug.ord;

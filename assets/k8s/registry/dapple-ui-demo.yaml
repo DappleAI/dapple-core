@@ -1,0 +1,267 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dapple-sandbox
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dapple-ui-demo
+  namespace: dapple-sandbox
+  labels:
+    app: dapple-ui-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dapple-ui-demo
+  template:
+    metadata:
+      labels:
+        app: dapple-ui-demo
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+
+      volumes:
+        - name: src
+          hostPath:
+            path: "{{SOURCE_PATH}}"
+            type: Directory
+        - name: next-build
+          emptyDir: {}
+        - name: node-mods
+          emptyDir: {}
+        - name: node-mods-ui-demo
+          emptyDir: {}
+        - name: node-mods-api-auth
+          emptyDir: {}
+        - name: pnpm-store
+          emptyDir: {}
+
+      containers:
+        - name: dapple-ui-demo
+          image: "node:24.8-bookworm"
+          imagePullPolicy: IfNotPresent
+          workingDir: /app
+          env:
+            # Node.js basics
+            - name: NODE_ENV
+              value: "development"
+            - name: HOST
+              value: "0.0.0.0"
+            - name: HOSTNAME
+              value: "0.0.0.0"
+            - name: PORT
+              value: "4445"
+            # pnpm/npm cache configuration
+            - name: XDG_CACHE_HOME
+              value: /pnpm-store/.cache
+            - name: PNPM_STORE_DIR
+              value: /pnpm-store/store
+            - name: PNPM_HOME
+              value: /pnpm-store/pnpm-home
+            - name: npm_config_cache
+              value: /pnpm-store/.npm-cache
+            - name: PNPM_TMPDIR
+              value: /pnpm-store/tmp
+            - name: NPM_CONFIG_PREFIX
+              value: /pnpm-store/pnpm-home
+            - name: PATH
+              value: /pnpm-store/pnpm-home/bin:/usr/local/bin:/usr/bin:/bin
+            - name: COREPACK_HOME
+              value: /pnpm-store/corepack
+            # File watching for dev
+            - name: CHOKIDAR_USEPOLLING
+              value: "1"
+            - name: WATCHPACK_POLLING
+              value: "true"
+            - name: NEXT_TELEMETRY_DISABLED
+              value: "1"
+            # Database connection for NextAuth adapter (broken-out form
+            # consumed by packages/ui/lib/db/pool.ts).
+            - name: DATABASE_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: dapple-ui-auth
+                  key: DATABASE_HOST
+            - name: DATABASE_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: dapple-ui-auth
+                  key: DATABASE_PORT
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: dapple-ui-auth
+                  key: DATABASE_USER
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dapple-ui-auth
+                  key: DATABASE_PASSWORD
+            - name: DATABASE_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: dapple-ui-auth
+                  key: DATABASE_NAME
+            - name: DATABASE_SEARCH_PATH
+              valueFrom:
+                secretKeyRef:
+                  name: dapple-ui-auth
+                  key: DATABASE_SEARCH_PATH
+            # Auth secrets from k8s secret
+            - name: NEXTAUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: dapple-ui-auth
+                  key: NEXTAUTH_SECRET
+            - name: NEXTAUTH_URL
+              valueFrom:
+                secretKeyRef:
+                  name: dapple-ui-auth
+                  key: NEXTAUTH_URL_DAPPLE_UI_DEMO
+            # Cookie scope shared across dapple-ui and dapple-ui-demo so a
+            # session minted on one host validates on the other.
+            - name: NEXTAUTH_COOKIE_DOMAIN
+              valueFrom:
+                secretKeyRef:
+                  name: dapple-ui-auth
+                  key: NEXTAUTH_COOKIE_DOMAIN
+            # Internal API (dapple-prompt-api)
+            - name: DAPPLE_PROMPT_API_INTERNAL_URL
+              valueFrom:
+                secretKeyRef:
+                  name: dapple-ui-auth
+                  key: DAPPLE_PROMPT_API_INTERNAL_URL
+            - name: DAPPLE_UI_DEMO_SAT_SIGNING_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: dapple-ui-auth
+                  key: DAPPLE_UI_DEMO_SAT_SIGNING_KEY
+            - name: DAPPLE_UI_DEMO_SERVICE_ID
+              valueFrom:
+                secretKeyRef:
+                  name: dapple-ui-auth
+                  key: DAPPLE_UI_DEMO_SERVICE_ID
+            # PostHog analytics
+            - name: NEXT_PUBLIC_POSTHOG_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: dapple-ui-auth
+                  key: NEXT_PUBLIC_POSTHOG_KEY
+            - name: NEXT_PUBLIC_POSTHOG_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: dapple-ui-auth
+                  key: NEXT_PUBLIC_POSTHOG_HOST
+            # OAuth providers for NextAuth
+            - name: OAUTH_GOOGLE_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: dapple-ui-auth
+                  key: OAUTH_GOOGLE_CLIENT_ID
+            - name: OAUTH_GOOGLE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: dapple-ui-auth
+                  key: OAUTH_GOOGLE_CLIENT_SECRET
+          ports:
+            - containerPort: 4445
+              name: http
+          volumeMounts:
+            - name: src
+              mountPath: /app
+            - name: next-build
+              mountPath: /app/packages/ui-demo/.next
+            - name: node-mods
+              mountPath: /app/node_modules
+            - name: node-mods-ui-demo
+              mountPath: /app/packages/ui-demo/node_modules
+            - name: node-mods-api-auth
+              mountPath: /app/packages/api-auth/node_modules
+            - name: pnpm-store
+              mountPath: /pnpm-store
+          command: ["bash", "-c"]
+          args:
+            - |
+              set -euo pipefail
+              install -d -m 2775 "$COREPACK_HOME" "$PNPM_STORE_DIR" "$PNPM_HOME" "$XDG_CACHE_HOME"
+
+              echo "NPM home: $PNPM_HOME"
+              echo "PATH: $PATH"
+
+              echo "setting up prefixes"
+              npm config set prefix "$PNPM_HOME"
+              echo "setting up cache"
+              npm config set cache "$npm_config_cache"
+
+              echo "npm install pnpm"
+              npm install -g pnpm@9.12.0
+
+              echo "pnpm config"
+              pnpm config set store-dir "$PNPM_STORE_DIR"
+              pnpm config set prefix "$PNPM_HOME"
+
+              # Ensure pnpm resolves native modules for the container platform
+              # even when the lockfile was generated on a different OS/arch.
+              pnpm config set supportedArchitectures.os "current"
+              pnpm config set supportedArchitectures.cpu "current"
+              pnpm config set supportedArchitectures.libc "current"
+
+              echo "pnpm install (workspace)"
+              pnpm install --prod=false
+
+              echo "build api-auth package first"
+              pnpm --filter api-auth build
+
+              echo "kick off server"
+              exec pnpm --filter ui-demo exec next dev --webpack -p 4445 -H 0.0.0.0
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dapple-ui-demo
+  namespace: dapple-sandbox
+  labels:
+    app: dapple-ui-demo
+spec:
+  type: ClusterIP
+  selector:
+    app: dapple-ui-demo
+  ports:
+    - name: http
+      port: 4445
+      targetPort: 4445
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: dapple-ui-demo
+  namespace: dapple-sandbox
+  annotations:
+    # Operator asset uploads (e.g. multi-minute WAV "card audio") POST the file
+    # through this ingress. Without this, nginx's 1 MB client_max_body_size
+    # default returns a 413 HTML page that the UI reports as "Malformed server
+    # response". 256m gives headroom for large audio; the backend assets route
+    # matches this ceiling (DefaultBodyLimit in route/assets.rs).
+    nginx.ingress.kubernetes.io/proxy-body-size: "256m"
+spec:
+  ingressClassName: public
+  tls:
+    - hosts: ["dapple-ui-demo.kube.dappleai.dev"]
+      secretName: wildcard-kube.dappleai.dev  # managed by issuer.yaml Certificate
+  rules:
+    - host: "dapple-ui-demo.kube.dappleai.dev"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: dapple-ui-demo
+                port:
+                  number: 4445

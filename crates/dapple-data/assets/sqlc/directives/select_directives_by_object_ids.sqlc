@@ -1,0 +1,2 @@
+# Select directives by their versioned_object ids (specific versions)
+:compose(directives/select_directives_body.sqlc, @page = directives/pages/by_object_ids.sqlc)

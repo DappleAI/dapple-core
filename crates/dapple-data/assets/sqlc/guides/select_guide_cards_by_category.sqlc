@@ -1,0 +1,2 @@
+# Select latest version's card for each guide path, filtered by category
+:compose(guides/select_guide_cards_body.sqlc, @page = guides/pages/cards_by_category.sqlc)

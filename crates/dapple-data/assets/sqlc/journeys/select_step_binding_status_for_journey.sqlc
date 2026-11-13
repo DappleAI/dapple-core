@@ -1,0 +1,349 @@
+# Per-step exposed-slot binding status for a journey. One row per
+# (stage_step, overlay-exposed value-slot) plus one row per step that exposes
+# nothing (slot columns NULL). Powers the pending-step discovery endpoint
+# (`GET /api/journeys/{id}/steps`) so a client can find which step is waiting
+# on which value-slot and bind it.
+#
+# For each step of the journey's playbook we compute its overlay-exposed slot
+# set (cascade-resolved stage -> step -> task, task winning). For each such
+# slot we return the JOURNEY-PINNED value_slot version — the SAME version the
+# journey's `/brief-form` exposes and bindings are written against — resolved
+# from the journey's pinned brief_packs (`journey_slot`), NOT the global-latest
+# version at the path. (A global-latest resolution desyncs the id a client
+# binds from the version the brief form uses the moment a guide is re-ingested.)
+# The slot's display name + kind come from `value_slot_path_details` (per-path,
+# version-independent) so they are populated for EVERY exposed slot, even one
+# with no brief input (e.g. a computed/output slot). `bound?` is whether ANY
+# version at the path is already bound somewhere in the journey chain.
+#
+# A step with no exposed slots still yields a row (NULL slot columns) so the
+# caller sees every step; fold by `stage_step_id` and treat a step as "done"
+# when every exposed-slot row (value_slot_name non-NULL) is `bound` (or it has
+# no slot rows).
+#
+# Each exposed slot also reports `producer` — 'operator' (a brief input pins it;
+# the client POSTs a binding and renders the control from control_type/label/
+# help/placeholder) or 'computed' (a `:::brief-output { source = 'computed' }`
+# the runtime produces after the step's task succeeds). `value_slot_id` is the
+# journey-pinned version for BOTH producers (resolved from operator_slot, else
+# computed_slot), so clients use `producer` as the discriminator, NOT a NULL id.
+# The control_type/label/help/placeholder columns are populated only for
+# operator slots; choices are folded in the Rust layer (1:N, batch-fetched).
+#
+# Parameters:
+#   starting_journey_id (UUID)
+
+WITH RECURSIVE
+:compose(shared/journey_chain.sqlc)
+,
+journey_scope AS (
+    SELECT :bind(starting_journey_id)::UUID AS journey_id
+),
+# The journey's PINNED brief_packs (shared/select/journey_pinned_packs.sqlc):
+# matches select_briefs_by_journey_object_id so the value_slot versions
+# resolved below match `/brief-form` exactly. Pinned reads never consult
+# deprecation — see the fragment's doctrine comment.
+:compose(shared/select/journey_pinned_packs.sqlc)
+,
+operator_slot AS (
+    # Operator-bound slots: the journey-pinned value_slot VERSION per path read
+    # straight from the brief input units of the pinned packs
+    # (`control_spec.value_slot_id`) — the exact id `/brief-form` returns and
+    # bindings target — plus the input's control flavor + label/help/placeholder
+    # so `/steps` can render the control without a second join to `/brief-form`.
+    SELECT DISTINCT ON (vo.path_id)
+        vo.path_id AS value_slot_path_id,
+        vs.id AS value_slot_id,
+        bu.id AS brief_unit_id,
+        # Authored position of this input within its brief, for the pane ordering
+        # in the final ORDER BY. Shares one numbering with computed_slot.authored_ord
+        # (both come from the same `brief_def.unit_names` walk at ingest), which is
+        # what lets inputs and outputs interleave the way the author wrote them.
+        bu.ord AS authored_ord,
+        bict.key AS control_type,
+        bui.label_text,
+        bui.help_text,
+        bui.placeholder_text,
+        # Dynamic candidate source: the computed slot whose bound value (an array
+        # of {label, description, value} tiles) supplies this control's choices at
+        # runtime. NULL for static / free-input controls.
+        (bui.control_spec ->> 'candidate_source_value_slot_id')::UUID
+            AS candidate_source_value_slot_id,
+        # Author-controlled optional flag (operator inputs only; single-value
+        # inputs default required when absent -> NULL -> required).
+        (bui.control_spec ->> 'optional')::boolean AS optional,
+        # Per-item field schema for a `repeater` control: a JSON array of resolved
+        # { key, control, label?, help?, placeholder? } entries. jsonb passthrough
+        # (->), NOT ->>, so the array stays structured. NULL for non-repeaters.
+        bui.control_spec -> 'item_fields' AS item_fields,
+        # Per-item refine LOCATOR slot for a `repeater` control: stored as a UUID
+        # string by the ingest handler, so ->> + ::UUID (mirrors
+        # candidate_source_value_slot_id). NULL when no per-item refine is offered.
+        (bui.control_spec ->> 'refine_input_value_slot_id')::UUID
+            AS refine_input_value_slot_id,
+        # Axis presentation config for a `timeline` control: a JSON object
+        # ({ unit?, allowAbsolute? }). jsonb passthrough (->), NOT ->>, so it stays
+        # structured. NULL for non-timeline controls.
+        bui.control_spec -> 'axis' AS axis
+    FROM journey_packs jp
+    JOIN rev.brief_pack_groups bpg ON bpg.brief_pack_id = jp.brief_pack_id
+    JOIN rev.brief_groups bg ON bg.id = bpg.brief_group_id
+    JOIN rev.brief_group_briefs bgb ON bgb.brief_group_id = bg.id
+    JOIN rev.briefs b ON b.id = bgb.brief_id
+    JOIN rev.brief_units bu ON bu.brief_id = b.id
+    JOIN rev.brief_unit_input bui ON bui.brief_unit_id = bu.id
+    JOIN rev.brief_input_control_types bict ON bict.id = bui.control_type_id
+    JOIN rev.value_slots vs
+        ON bui.control_spec ? 'value_slot_id'
+       AND vs.id = (bui.control_spec ->> 'value_slot_id')::UUID
+    JOIN rev.versioned_objects vo ON vo.id = vs.versioned_object_id
+    ORDER BY vo.path_id, vs.id DESC
+),
+computed_slot AS (
+    # Computed brief-output slots: the journey-pinned value_slot VERSION per path
+    # for `:::brief-output { source = 'computed' }`. Mirrors the resolution in
+    # select_computed_outputs_for_step so the id matches what the runtime
+    # producer binds. These have no brief_unit_input row (the server writes
+    # them), so they never appear in operator_slot.
+    SELECT DISTINCT ON (vo.path_id)
+        vo.path_id AS value_slot_path_id,
+        vs.id AS value_slot_id,
+        # Typed display hint for this computed output (how the client renders the
+        # produced value). The output-side analog of operator_slot.control_type.
+        # NULL display_hint_id COALESCEs to 'text' in the Rust fold.
+        dh.key AS display_kind,
+        bo.reveal AS display_reveal,
+        bo.title_text AS display_title,
+        # Sibling-format grouping: outputs sharing a display_group are the SAME
+        # deliverable in different formats (source markdown + HTML + PDF), and
+        # display_format names this one. Both opaque and author-chosen; absent ⇒
+        # ungrouped, which is every pre-migration-95 output.
+        bo.display_group,
+        bo.display_format,
+        # Authored position within the brief — see operator_slot.authored_ord.
+        bo.ord AS authored_ord
+    FROM journey_packs jp
+    JOIN rev.brief_pack_groups bpg ON bpg.brief_pack_id = jp.brief_pack_id
+    JOIN rev.brief_groups bg ON bg.id = bpg.brief_group_id
+    JOIN rev.brief_group_briefs bgb ON bgb.brief_group_id = bg.id
+    JOIN rev.briefs b ON b.id = bgb.brief_id
+    JOIN rev.brief_outputs bo ON bo.brief_id = b.id
+    JOIN rev.brief_output_source_kinds bosk
+        ON bosk.id = bo.source_kind_id AND bosk.key = 'computed'
+    JOIN rev.value_slots vs ON vs.id = bo.value_slot_id
+    JOIN rev.versioned_objects vo ON vo.id = vs.versioned_object_id
+    LEFT JOIN rev.brief_output_display_hints dh ON dh.id = bo.display_hint_id
+    ORDER BY vo.path_id, vs.id DESC
+),
+journey_steps AS (
+    # Stage identity for the client: authored name (path-level, version-
+    # independent), fluent-resolved description, the authored closed-vocabulary
+    # kind (NULL when unauthored), and the authored open-vocabulary icon-name
+    # array (NULL when unauthored — the client falls back to the kind glyph).
+    # Repeated on every row of a stage's steps; the Rust fold stamps them per
+    # step and consumers fold first-seen-wins. Join shape mirrors
+    # select_task_position_for_dispatch_task.
+    SELECT ps.id AS playbook_stage_id, ss.id AS stage_step_id, ss.step_id,
+           ps.ord AS stage_ord, ss.ord AS step_ord,
+           spd.name AS stage_name,
+           COALESCE(rev.fluent_body(s.description_fluent_message_id, 'en'), s.description, spd.name) AS stage_description,
+           sk.key AS stage_kind,
+           s.icons AS stage_icon
+    FROM rev.journeys j
+    JOIN rev.playbook_stages ps ON ps.playbook_id = j.playbook_id
+    JOIN rev.stage_steps ss ON ss.stage_id = ps.stage_id
+    JOIN rev.stages s ON s.id = ps.stage_id
+    JOIN rev.versioned_objects vo_s ON vo_s.id = s.versioned_object_id
+    JOIN rev.stage_path_details spd ON spd.path_id = vo_s.path_id
+    LEFT JOIN rev.stage_kinds sk ON sk.id = s.kind_id
+    WHERE j.id = :bind(starting_journey_id)::UUID
+),
+step_tasks AS (
+    SELECT
+        jst.playbook_stage_id,
+        jst.stage_step_id,
+        stk.id AS step_task_id
+    FROM journey_steps jst
+    JOIN rev.step_tasks stk ON stk.step_id = jst.step_id
+),
+all_overlays AS (
+    SELECT st.stage_step_id, st.step_task_id, o.value_slot_path_id, o.visibility, 1 AS priority
+    FROM rev.playbook_stage_overlays o
+    JOIN step_tasks st ON st.playbook_stage_id = o.playbook_stage_id
+    UNION ALL
+    SELECT st.stage_step_id, st.step_task_id, o.value_slot_path_id, o.visibility, 2 AS priority
+    FROM rev.stage_step_overlays o
+    JOIN step_tasks st ON st.stage_step_id = o.stage_step_id
+    UNION ALL
+    SELECT st.stage_step_id, st.step_task_id, o.value_slot_path_id, o.visibility, 3 AS priority
+    FROM rev.step_task_overlays o
+    JOIN step_tasks st ON st.step_task_id = o.step_task_id
+),
+ranked AS (
+    SELECT DISTINCT ON (stage_step_id, step_task_id, value_slot_path_id)
+        stage_step_id, value_slot_path_id, visibility
+    FROM all_overlays
+    ORDER BY stage_step_id, step_task_id, value_slot_path_id, priority DESC
+),
+required AS (
+    SELECT DISTINCT stage_step_id, value_slot_path_id
+    FROM ranked
+    WHERE visibility = 'expose'
+)
+SELECT
+    js.stage_step_id AS "stage_step_id!",
+    js.playbook_stage_id AS "playbook_stage_id!",
+    js.stage_name AS "stage_name!",
+    js.stage_description AS "stage_description!",
+    js.stage_kind AS "stage_kind?",
+    js.stage_icon AS "stage_icon?",
+    COALESCE(os.value_slot_id, cs.value_slot_id) AS "value_slot_id?",
+    vspd.name AS "value_slot_name?",
+    vk.key AS "value_kind?",
+    (CASE
+        WHEN req.value_slot_path_id IS NULL THEN NULL
+        WHEN os.value_slot_path_id IS NOT NULL THEN 'operator'
+        WHEN cs.value_slot_path_id IS NOT NULL THEN 'computed'
+        # Exposed path with neither a brief input nor a computed output: a
+        # files/direct-bind edge — treat as operator-bound (the client provides
+        # it). Document this in the type doc.
+        ELSE 'operator'
+    END)::TEXT AS "producer?",
+    os.control_type AS "control_type?",
+    os.label_text AS "label_text?",
+    os.help_text AS "help_text?",
+    os.placeholder_text AS "placeholder_text?",
+    os.brief_unit_id AS "brief_unit_id?",
+    # Selection cardinality of the journey-pinned slot (NOT NULL on the row, but
+    # LEFT JOIN-nullable here for steps with no exposed slot). 'single' (default)
+    # or 'multi' (keep-N). For a multi slot the binding is array-valued and the
+    # client renders a subset selector.
+    rvs.cardinality AS "cardinality?",
+    rvs.min_selections AS "min_selections?",
+    rvs.max_selections AS "max_selections?",
+    # Dynamic candidate source for an operator multi/single pick: id + display
+    # name of the computed slot whose bound value holds the runtime tiles.
+    os.candidate_source_value_slot_id AS "candidate_source_value_slot_id?",
+    cs_vspd.name AS "candidate_source_name?",
+    # Author-controlled optional flag for operator inputs (NULL for computed
+    # slots / steps with no exposed slot -> required default in the Rust layer).
+    os.optional AS "optional?",
+    # Per-item repeater control metadata (NULL for non-repeater / computed slots).
+    os.item_fields AS "item_fields?",
+    os.refine_input_value_slot_id AS "refine_input_value_slot_id?",
+    # Axis presentation config for a `timeline` control (NULL otherwise).
+    os.axis AS "axis?",
+    # Typed display hint for computed slots (NULL for operator slots / slotless
+    # steps). The Rust fold builds ExposedSlot.display from these for computed
+    # producers only.
+    cs.display_kind AS "display_kind?",
+    cs.display_reveal AS "display_reveal?",
+    cs.display_title AS "display_title?",
+    cs.display_group AS "display_group?",
+    cs.display_format AS "display_format?",
+    (
+        req.value_slot_path_id IS NOT NULL
+        AND EXISTS (
+            SELECT 1
+            FROM rev.value_slots vs2
+            JOIN rev.versioned_objects vo2 ON vo2.id = vs2.versioned_object_id
+            JOIN rev.dispatch_intent_bindings dib ON dib.value_slot_id = vs2.id
+            JOIN rev.dispatches d ON d.id = dib.dispatch_id
+            JOIN journey_chain jc ON jc.journey_id = d.journey_id
+            WHERE vo2.path_id = req.value_slot_path_id
+              AND :compose(shared/fork_cutoff_filter.sqlc)
+        )
+    ) AS "bound?",
+    # BLOCKED: this pick can never be satisfied by ANY operator action, because
+    # the computed slot that supplies its tiles produced a value that was present
+    # and EMPTY (migration 92's `produced_empty`). That is categorically
+    # different from "not bound yet": waiting does not help and there is nothing
+    # to pick, so only re-running the producer can clear it. Without this the
+    # slot reads as merely unbound and the pane reports success forever.
+    #
+    # Only a REQUIRED pick blocks. A `min: 0` / author-optional pick is entirely
+    # happy with zero candidates, which is why the same required expression the
+    # rest of the gates use is applied here rather than a bare "has a candidate
+    # source" test.
+    #
+    # The LATEST binding for the candidate path decides, NOT `EXISTS(… empty)`:
+    # a regenerate that succeeds after an empty run has to clear the block, and
+    # an EXISTS would keep it set forever on the strength of the first attempt.
+    (
+        os.candidate_source_value_slot_id IS NOT NULL
+        AND NOT COALESCE(os.optional, false)
+        AND COALESCE(rvs.min_selections, 1) > 0
+        AND COALESCE((
+            SELECT dib.produced_empty
+            FROM rev.value_slots cvs
+            JOIN rev.versioned_objects cvo ON cvo.id = cvs.versioned_object_id
+            JOIN rev.dispatch_intent_bindings dib ON dib.value_slot_id = cvs.id
+            JOIN rev.dispatches d ON d.id = dib.dispatch_id
+            JOIN journey_chain jc ON jc.journey_id = d.journey_id
+            WHERE cvo.path_id = cs_vo.path_id
+              AND :compose(shared/fork_cutoff_filter.sqlc)
+            ORDER BY dib.id DESC
+            LIMIT 1
+        ), false)
+    ) AS "blocked?"
+FROM journey_steps js
+LEFT JOIN required req ON req.stage_step_id = js.stage_step_id
+LEFT JOIN operator_slot os ON os.value_slot_path_id = req.value_slot_path_id
+LEFT JOIN computed_slot cs ON cs.value_slot_path_id = req.value_slot_path_id
+LEFT JOIN rev.value_slot_path_details vspd ON vspd.path_id = req.value_slot_path_id
+# Cardinality + kind of the resolved (operator-or-computed) journey-pinned slot version.
+LEFT JOIN rev.value_slots rvs ON rvs.id = COALESCE(os.value_slot_id, cs.value_slot_id)
+# value_kind: prefer the journey-resolved VERSION's kind (migration 70) so /steps matches
+# /brief-form; fall back to the path birth-kind only for the version-less files/direct-bind
+# edge (no operator/computed slot resolved, hence no rvs).
+LEFT JOIN rev.value_kinds vk ON vk.id = COALESCE(rvs.value_kind_id, vspd.value_kind_id)
+# Resolve the candidate-source slot's display name (path-level).
+LEFT JOIN rev.value_slots cs_vs ON cs_vs.id = os.candidate_source_value_slot_id
+LEFT JOIN rev.versioned_objects cs_vo ON cs_vo.id = cs_vs.versioned_object_id
+LEFT JOIN rev.value_slot_path_details cs_vspd ON cs_vspd.path_id = cs_vo.path_id
+# Authored traversal order via STORED ordinals: stages by playbook_stages.ord,
+# steps by stage_steps.ord WITHIN each stage. Ordering by the stored authored
+# position (not id magnitude) is resilient to a repair-in-place that re-mints a
+# restored stage_steps link with a fresh out-of-band UUIDv7: the restored row keeps
+# its authored position (first/middle/last) within its stage instead of sorting to
+# the end. stage_ord is per-playbook (unique here -- one journey, one playbook) and
+# step_ord is per-stage, so (stage_ord, step_ord) uniquely identifies a step and the
+# Rust fold's consecutive same-stage_step_id rows stay contiguous.
+#
+# WITHIN a step, slots are ordered by the AUTHORED position of the brief unit that
+# pins them (migration 95's rev.brief_units.ord / rev.brief_outputs.ord), so the
+# pane renders the way its author wrote it. This replaces a sort by value-slot
+# NAME, which was alphabetical and therefore arbitrary -- among sibling outputs of
+# one deliverable it decided which format led the group by accident of spelling.
+#
+# Why a stored ordinal rather than id order: a brief's units are authored as ONE
+# sequence but materialize into TWO tables (rev.brief_units for inputs/notices/
+# markdown, rev.brief_outputs for outputs), each with its own UUIDv7 batch. So
+# COALESCE(bu.id, bo.id) would sort every input before every output no matter how
+# the author interleaved them. The two ordinals share one numbering (both assigned
+# from the same `brief_def.unit_names` walk at ingest), so COALESCEing them across
+# the operator/computed split is exactly the authored sequence.
+#
+# vspd.name STAYS as the tiebreaker, and it is what makes this change safe on
+# existing data: every pre-migration-95 row carries ord = 0, so a legacy step ties
+# on the ordinal and falls straight through to name ordering -- identical to the
+# behavior before this change, for single- and multi-brief steps alike. It also
+# covers the files/direct-bind edge (neither an operator nor a computed slot, so
+# the ordinal is NULL and the row sorts last within its step).
+#
+# Do NOT add brief_id (or any per-brief key) ABOVE vspd.name here. It was tried,
+# and it silently reordered every legacy multi-brief pane -- 68% of steps expose
+# slots from 2+ briefs, and a legacy step would have clustered by opaque UUID
+# instead of by name. `test_steps_legacy_zero_ord_keeps_name_ordering` fails on it
+# by design.
+#
+# Known limitation: ordinals are per-brief, so a step whose slots come from several
+# briefs interleaves them by position once those briefs ARE authored. No guide
+# authors a multi-brief pane with meaningful cross-brief order today. If one does,
+# the fix is an authored ordinal on the brief-within-group link -- not a brief_id
+# sort key, which orders by insert time and answers a different question.
+ORDER BY js.stage_ord,
+         js.step_ord,
+         COALESCE(os.authored_ord, cs.authored_ord),
+         vspd.name,
+         COALESCE(os.value_slot_id, cs.value_slot_id);

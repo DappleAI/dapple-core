@@ -1,0 +1,33 @@
+-- Lightweight version listing: returns version metadata per guide path.
+-- No chapters/blocks — just the info needed for canonical pinning.
+--
+-- $1: slug filter (nullable — NULL returns all guides)
+-- $2: source_path filter (nullable — NULL returns all guides)
+-- $3: LIMIT
+-- $4: OFFSET
+WITH latest_deprecation AS (
+    SELECT DISTINCT ON (versioned_object_id)
+        versioned_object_id,
+        to_level_id
+    FROM rev.deprecation_events
+    ORDER BY versioned_object_id, created_at DESC
+)
+SELECT
+    gpd.slug,
+    gpd.title,
+    g.source_path,
+    op.id AS path_id,
+    vo.id AS versioned_object_id,
+    vo.content_hash,
+    dl.key AS "deprecation_level_key?",
+    g.created_at
+FROM rev.guides g
+JOIN rev.versioned_objects vo ON vo.id = g.versioned_object_id
+JOIN rev.object_paths op ON op.id = vo.path_id
+JOIN rev.guide_path_details gpd ON gpd.path_id = op.id
+LEFT JOIN latest_deprecation ld ON ld.versioned_object_id = vo.id
+LEFT JOIN rev.deprecation_levels dl ON dl.id = ld.to_level_id
+WHERE ($1::TEXT IS NULL OR gpd.slug = $1)
+  AND ($2::TEXT IS NULL OR g.source_path = $2)
+ORDER BY gpd.slug, g.created_at DESC
+LIMIT $3 OFFSET $4;

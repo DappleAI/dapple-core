@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO rev.guide_playbooks (guide_id, playbook_id, chapter_index) VALUES ($1, $2, 0)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5d1349dac7d671f4b087b83709afdd3d80193b8c93006d8f13079d0b59f138d9"
+}

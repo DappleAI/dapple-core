@@ -1,0 +1,100 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $5::UUID[],\n        $2::TEXT[],\n        $4::TEXT[],\n        $3::JSONB[],\n        $1::TEXT[]\n    ) WITH ORDINALITY AS o(\n        path_id,\n        description,\n        function,\n        function_input,\n        content_hash,\n        ord\n    )\n),\npaths AS (\n    SELECT\n        op.id AS path_id,\n        tpd.name,\n        tpd.slug,\n        args.ord\n    FROM args\n    JOIN rev.object_paths op ON op.id = args.path_id\n    JOIN rev.task_path_details tpd ON tpd.path_id = op.id\n),\nnew_versions_inserted AS (\n    INSERT INTO rev.versioned_objects (path_id, content_hash)\n    SELECT paths.path_id, args.content_hash\n    FROM args\n    JOIN paths ON paths.ord = args.ord\n    ORDER BY paths.ord\n    ON CONFLICT (path_id, content_hash) DO NOTHING\n    RETURNING id, path_id, content_hash, created_at\n),\nnew_versions AS (\n            SELECT nvi.id, nvi.path_id, nvi.content_hash, nvi.created_at, p.ord\n    FROM new_versions_inserted nvi\n    JOIN paths p ON p.path_id = nvi.path_id\n    UNION ALL\n        SELECT vo.id, paths.path_id, vo.content_hash, vo.created_at, args.ord\n    FROM args\n    JOIN paths ON paths.ord = args.ord\n    JOIN rev.versioned_objects vo ON vo.path_id = paths.path_id AND vo.content_hash = args.content_hash\n    WHERE NOT EXISTS (\n        SELECT 1 FROM new_versions_inserted nvi\n        WHERE nvi.path_id = paths.path_id AND nvi.content_hash = args.content_hash\n    )\n),\nnumbered_versions AS (\n    SELECT nv.id, nv.path_id, nv.content_hash, nv.created_at, nv.ord\n    FROM new_versions nv\n),\n\nnew_tasks AS (\n    INSERT INTO rev.tasks (versioned_object_id, description, function, function_input)\n    SELECT\n        nuv.id,\n        args.description,\n        args.function,\n        args.function_input\n    FROM args\n    JOIN numbered_versions nuv ON nuv.ord = args.ord\n    WHERE NOT EXISTS (SELECT 1 FROM rev.tasks t WHERE t.versioned_object_id = nuv.id)\n    ORDER BY args.ord\n    RETURNING id, versioned_object_id, description, function, function_input, created_at\n),\nall_tasks AS (\n            SELECT nt.id, nt.versioned_object_id, nt.description, nt.function, nt.function_input, nt.created_at, nuv.ord\n    FROM new_tasks nt\n    JOIN numbered_versions nuv ON nuv.id = nt.versioned_object_id\n    UNION ALL\n    SELECT t.id, t.versioned_object_id, t.description, t.function, t.function_input, t.created_at, nuv.ord\n    FROM rev.tasks t\n    JOIN numbered_versions nuv ON t.versioned_object_id = nuv.id\n    WHERE NOT EXISTS (SELECT 1 FROM new_tasks nt WHERE nt.versioned_object_id = nuv.id)\n),\nnumbered_tasks AS (\n    SELECT at.* FROM all_tasks at\n)\nSELECT\n    nut.id AS \"id!\",\n    nut.versioned_object_id AS \"versioned_object_id!\",\n    nuv.path_id AS \"path_id!\",\n    paths.name AS \"name!\",\n    paths.slug AS \"slug!\",\n    nuv.content_hash AS \"content_hash!\",\n    nut.description AS \"description!\",\n    nut.function AS \"function!\",\n    nut.function_input AS \"function_input!\",\n    nut.created_at AS \"created_at!\"\nFROM numbered_tasks nut\nJOIN numbered_versions nuv ON nuv.ord = nut.ord\nJOIN paths ON paths.ord = nut.ord\nORDER BY nut.ord;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "versioned_object_id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "path_id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "name!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.task_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "slug!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.task_path_details",
+            "name": "slug"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "content_hash!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 6,
+        "name": "description!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 7,
+        "name": "function!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 8,
+        "name": "function_input!",
+        "type_info": "Json",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at!",
+        "type_info": "Timestamptz",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "TextArray",
+        "JsonbArray",
+        "TextArray",
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      false,
+      false,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "43f6f50561fc7fab29aef8d286d9ef705264d4a2e55802422218bc95ebe8243a"
+}

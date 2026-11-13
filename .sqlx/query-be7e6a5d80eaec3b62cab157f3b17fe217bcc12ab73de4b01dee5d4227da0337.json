@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH RECURSIVE\njourney_chain(journey_id, depth, fork_cutoff_ord) AS (\n    SELECT $1::UUID, 0, NULL::INTEGER\n    UNION ALL\n    SELECT j.predecessor_journey_id, jc.depth + 1, ps.ord\n    FROM journey_chain jc\n    JOIN rev.journeys j ON j.id = jc.journey_id\n    LEFT JOIN rev.playbook_stages ps ON ps.id = j.fork_stage_id\n    WHERE j.predecessor_journey_id IS NOT NULL\n      AND jc.depth < 50\n)\n,\nchain_root AS (\n    SELECT journey_id AS root_id\n    FROM journey_chain\n    ORDER BY depth DESC\n    LIMIT 1\n),\nuser_lookup AS (\n    SELECT ud.user_id\n    FROM rev.user_details ud\n    WHERE ud.object_id = $2::UUID\n),\nactive_favorite AS (\n    SELECT f.id\n    FROM web.user_favorite_journey_chains f\n    LEFT JOIN web.user_favorite_journey_chains_removed r\n        ON r.user_favorite_journey_chains_id = f.id\n    WHERE f.user_id = (SELECT user_id FROM user_lookup)\n      AND f.chain_root_journey_id = (SELECT root_id FROM chain_root)\n      AND r.user_favorite_journey_chains_id IS NULL\n    ORDER BY f.id DESC\n    LIMIT 1\n)\nINSERT INTO web.user_favorite_journey_chains_removed (user_favorite_journey_chains_id, removed_at)\nSELECT id, now()\nFROM active_favorite\nRETURNING user_favorite_journey_chains_id, removed_at;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_favorite_journey_chains_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "web.user_favorite_journey_chains_removed",
+            "name": "user_favorite_journey_chains_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "removed_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "web.user_favorite_journey_chains_removed",
+            "name": "removed_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "be7e6a5d80eaec3b62cab157f3b17fe217bcc12ab73de4b01dee5d4227da0337"
+}

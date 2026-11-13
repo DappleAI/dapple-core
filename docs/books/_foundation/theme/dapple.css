@@ -1,0 +1,209 @@
+/* Dapple theme for mdbook guides */
+:root {
+  --dapple-green: #49a013;
+  --dapple-green-dark: #3d8410;
+  --dapple-green-light: rgba(73, 160, 19, 0.1);
+  --dapple-green-lighter: rgba(73, 160, 19, 0.05);
+}
+
+/* Override mdbook theme variables for light theme */
+.light {
+  --bg: #ffffff;
+  --fg: #1e293b;
+  --sidebar-bg: #f8fafc;
+  --sidebar-fg: #334155;
+  --sidebar-non-existant: #94a3b8;
+  --sidebar-active: var(--dapple-green);
+  --sidebar-spacer: #e2e8f0;
+  --scrollbar: #cbd5e1;
+  --icons: #64748b;
+  --icons-hover: var(--dapple-green);
+  --links: var(--dapple-green);
+  --inline-code-color: #1e293b;
+  --code-bg: #f1f5f9;
+  --theme-popup-bg: #ffffff;
+  --theme-popup-border: #e2e8f0;
+  --theme-hover: #f1f5f9;
+  --quote-bg: var(--dapple-green-lighter);
+  --quote-border: var(--dapple-green);
+  --table-border-color: #e2e8f0;
+  --table-header-bg: #f8fafc;
+  --table-alternate-bg: #f8fafc;
+  --searchbar-border-color: #e2e8f0;
+  --searchbar-bg: #ffffff;
+  --searchbar-fg: #1e293b;
+  --searchbar-shadow-color: rgba(0, 0, 0, 0.1);
+  --searchresults-header-fg: #64748b;
+  --searchresults-border-color: #e2e8f0;
+  --searchresults-li-bg: #f8fafc;
+  --search-mark-bg: rgba(73, 160, 19, 0.3);
+}
+
+/* Dark themes - green-tinted grey backgrounds with dapple green accents */
+.navy, .coal, .ayu {
+  --bg: #f5f8f4;
+  --fg: #1e2a1e;
+  --sidebar-bg: #e8ede6;
+  --sidebar-fg: #2d3a2d;
+  --sidebar-non-existant: #6b7a6b;
+  --sidebar-active: var(--dapple-green);
+  --sidebar-spacer: #d4ddd2;
+  --scrollbar: #a8b5a6;
+  --icons: #4a5a4a;
+  --icons-hover: var(--dapple-green);
+  --links: var(--dapple-green);
+  --inline-code-color: #2d3a2d;
+  --code-bg: #e8ede6;
+  --theme-popup-bg: #f5f8f4;
+  --theme-popup-border: #d4ddd2;
+  --theme-hover: #e8ede6;
+  --quote-bg: var(--dapple-green-lighter);
+  --quote-border: var(--dapple-green);
+  --table-border-color: #d4ddd2;
+  --table-header-bg: #e8ede6;
+  --table-alternate-bg: #eef2ed;
+  --searchbar-border-color: #d4ddd2;
+  --searchbar-bg: #f9fbf8;
+  --searchbar-fg: #1e2a1e;
+  --searchbar-shadow-color: rgba(0, 0, 0, 0.1);
+  --searchresults-header-fg: #4a5a4a;
+  --searchresults-border-color: #d4ddd2;
+  --searchresults-li-bg: #e8ede6;
+  --search-mark-bg: rgba(73, 160, 19, 0.3);
+}
+
+/* Fix inline code visibility in all themes */
+.navy code, .coal code, .ayu code,
+.navy td code, .coal td code, .ayu td code {
+  color: #2d3a2d;
+  background-color: #dce4da;
+}
+
+/* Checkbox/checkmark styling */
+input[type="checkbox"] {
+  accent-color: var(--dapple-green);
+}
+
+/* Task list checkboxes */
+.content li input[type="checkbox"] {
+  appearance: auto;
+  -webkit-appearance: checkbox;
+  width: 1em;
+  height: 1em;
+  margin-right: 0.5em;
+  accent-color: var(--dapple-green);
+}
+
+/* Ensure checkmarks are visible in dark themes */
+.navy input[type="checkbox"],
+.coal input[type="checkbox"],
+.ayu input[type="checkbox"] {
+  filter: none;
+  background-color: #f5f8f4;
+}
+
+/* Sidebar styling */
+.sidebar .sidebar-scrollbox {
+  padding-top: 80px;
+}
+
+/* Logo in sidebar */
+.sidebar::before {
+  content: '';
+  display: block;
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 48px;
+  height: 48px;
+  background-image: url('/logo.svg');
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  z-index: 10;
+}
+
+/* Link styling */
+a {
+  color: var(--dapple-green);
+}
+
+a:hover {
+  color: var(--dapple-green-dark);
+}
+
+/* Active sidebar item */
+.sidebar .chapter li.chapter-item a.active {
+  color: var(--dapple-green);
+}
+
+/* Sidebar chapter styling */
+.sidebar .chapter li a:hover {
+  color: var(--dapple-green);
+}
+
+/* Code block accent */
+pre {
+  border-left: 3px solid var(--dapple-green);
+  border-radius: 0 4px 4px 0;
+}
+
+/* Header styling */
+.content h1, .content h2, .content h3, .content h4, .content h5, .content h6 {
+  color: #1e293b;
+}
+
+.light .content h1,
+.light .content h2 {
+  border-bottom-color: var(--dapple-green-light);
+}
+
+/* Menu bar styling */
+.menu-bar {
+  border-bottom: 1px solid var(--dapple-green-light);
+}
+
+/* Button hover states */
+.menu-bar i:hover,
+.nav-chapters:hover {
+  color: var(--dapple-green);
+}
+
+/* Chapter navigation arrows */
+.nav-chapters:hover {
+  color: var(--dapple-green);
+}
+
+/* Blockquotes */
+blockquote {
+  border-left-color: var(--dapple-green);
+  background: var(--dapple-green-lighter);
+}
+
+/* Tables */
+table thead {
+  background: var(--dapple-green-lighter);
+}
+
+table thead th {
+  border-bottom: 2px solid var(--dapple-green-light);
+}
+
+/* Search highlighting */
+mark {
+  background-color: rgba(73, 160, 19, 0.3);
+}
+
+/* Back to docs link in sidebar */
+.sidebar-scrollbox::before {
+  content: 'Back to Docs Home';
+  display: block;
+  padding: 8px 20px;
+  margin-bottom: 16px;
+  font-size: 0.875rem;
+  color: var(--dapple-green);
+  text-decoration: none;
+  border-bottom: 1px solid var(--dapple-green-light);
+  cursor: pointer;
+}

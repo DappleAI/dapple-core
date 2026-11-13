@@ -1,0 +1,196 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n    pr.id,\n    pr.attempt_id,\n    pr.prompt_id,\n    pr.step_task_id,\n    pr.maker_key,\n    pr.engine_key,\n    pr.engine_version,\n    pr.request_messages,\n    pr.response_content,\n    pr.input_tokens,\n    pr.output_tokens,\n    pr.latency_ms,\n    pr.finish_reason,\n    pr.started_at,\n    pr.completed_at\nFROM rev.prompt_responses pr\nWHERE pr.attempt_id IN (\n    SELECT a.id\n    FROM rev.dispatch_task_attempts a\n    WHERE a.dispatch_step_id IN (\n        SELECT s.id\n        FROM rev.dispatch_steps s\n        JOIN rev.dispatch_stages st ON s.dispatch_stage_id = st.id\n        JOIN rev.dispatches d ON st.dispatch_id = d.id\n        WHERE d.id = $1::UUID\n    )\n)\nORDER BY pr.started_at ASC, pr.id ASC;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.prompt_responses",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "attempt_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.prompt_responses",
+            "name": "attempt_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "prompt_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.prompt_responses",
+            "name": "prompt_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "step_task_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.prompt_responses",
+            "name": "step_task_id"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "maker_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.prompt_responses",
+            "name": "maker_key"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "engine_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.prompt_responses",
+            "name": "engine_key"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "engine_version",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.prompt_responses",
+            "name": "engine_version"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "request_messages",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "rev.prompt_responses",
+            "name": "request_messages"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "response_content",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.prompt_responses",
+            "name": "response_content"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "input_tokens",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "rev.prompt_responses",
+            "name": "input_tokens"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "output_tokens",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "rev.prompt_responses",
+            "name": "output_tokens"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "latency_ms",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "rev.prompt_responses",
+            "name": "latency_ms"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "finish_reason",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.prompt_responses",
+            "name": "finish_reason"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "started_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.prompt_responses",
+            "name": "started_at"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "completed_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.prompt_responses",
+            "name": "completed_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "e54c23657f9fd6667609796f44e63e5b39fa62ac911119f65ebb4f22f1121d97"
+}

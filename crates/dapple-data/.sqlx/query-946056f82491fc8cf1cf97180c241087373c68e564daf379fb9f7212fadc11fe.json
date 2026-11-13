@@ -1,0 +1,98 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO rev.dispatch_task_attempts (dispatch_step_id, task_id, context_data, context_metadata)\nVALUES ($1::uuid, $2::uuid, $3::jsonb, $4::jsonb)\nRETURNING\n\tid,\n\tdispatch_step_id,\n\ttask_id,\n\tcontext_data,\n\tcontext_metadata,\n\tcreated_at,\n\t(\n\t\tSELECT d.id FROM rev.dispatch_steps s\n\t\tJOIN rev.dispatch_stages st ON s.dispatch_stage_id = st.id\n\t\tJOIN rev.dispatches d ON st.dispatch_id = d.id\n\t\tWHERE s.id = rev.dispatch_task_attempts.dispatch_step_id\n\t) AS parent_dispatch_object_id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_task_attempts",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "dispatch_step_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_task_attempts",
+            "name": "dispatch_step_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "task_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_task_attempts",
+            "name": "task_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "context_data",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_task_attempts",
+            "name": "context_data"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "context_metadata",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_task_attempts",
+            "name": "context_metadata"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_task_attempts",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "parent_dispatch_object_id",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Jsonb",
+        "Jsonb"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "946056f82491fc8cf1cf97180c241087373c68e564daf379fb9f7212fadc11fe"
+}

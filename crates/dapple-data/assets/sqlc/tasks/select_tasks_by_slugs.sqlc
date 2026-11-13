@@ -1,0 +1,4 @@
+# Select tasks by slugs using path_details lookup
+#
+# LIMIT/OFFSET apply to distinct tasks (not flat rows) via a page CTE.
+:compose(tasks/select_tasks_body.sqlc, @page = tasks/pages/by_slugs.sqlc)

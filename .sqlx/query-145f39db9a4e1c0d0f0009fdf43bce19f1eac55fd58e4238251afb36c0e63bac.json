@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO rev.brief_unit_input (brief_unit_id, control_type_id, label_text, control_spec) VALUES ($1, (SELECT id FROM rev.brief_input_control_types WHERE key = 'select'), 'Pick one', $2)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Jsonb"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "145f39db9a4e1c0d0f0009fdf43bce19f1eac55fd58e4238251afb36c0e63bac"
+}

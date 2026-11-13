@@ -1,0 +1,58 @@
+[book]
+title = "API Consumer Guide"
+authors = ["Dapple Engineering"]
+language = "en"
+src = "."
+description = "Guide for consuming the dapple-prompt REST API"
+
+[build]
+build-dir = "book"
+create-missing = false
+
+[output.html]
+default-theme = "light"
+preferred-dark-theme = "navy"
+git-repository-url = "https://github.com/DappleAI/dapple-core"
+edit-url-template = "https://github.com/DappleAI/dapple-core/edit/main/docs/books/api-consumer-guide/{path}"
+site-url = "/guides/api-consumer/"
+additional-css = ["dapple.css"]
+additional-js = []
+
+[output.html.fold]
+enable = true
+level = 1
+
+[output.html.search]
+enable = true
+limit-results = 30
+teaser-word-count = 30
+copy-js = true
+
+[output.pandoc]
+optional = true
+
+[output.pandoc.profile.pdf]
+output-file = "api-consumer-guide.pdf"
+pdf-engine = "xelatex"
+filters = ["task-list.lua"]
+include-in-header = ["../_foundation/latex/dapple-preamble.tex", "guide-meta.tex"]
+
+[output.pandoc.profile.pdf.variables]
+documentclass = "report"
+geometry = ["margin=1in", "headheight=14pt", "top=1.25in"]
+colorlinks = true
+linkcolor = "dapplegreen"
+urlcolor = "dapplegreen"
+toccolor = "dapplegreen"
+fontsize = "11pt"
+mainfont = "DejaVu Serif"
+sansfont = "DejaVu Sans"
+monofont = "DejaVu Sans Mono"
+monofontoptions = "Scale=0.95"
+toc = true
+toc-depth = 3
+numbersections = true
+highlight-style = "tango"
+
+[preprocessor.mermaid]
+command = "mdbook-mermaid"

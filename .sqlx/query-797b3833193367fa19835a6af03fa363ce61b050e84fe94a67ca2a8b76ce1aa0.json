@@ -1,0 +1,77 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH RECURSIVE\njourney_chain(journey_id, depth, fork_cutoff_ord) AS (\n    SELECT $1::UUID, 0, NULL::INTEGER\n    UNION ALL\n    SELECT j.predecessor_journey_id, jc.depth + 1, ps.ord\n    FROM journey_chain jc\n    JOIN rev.journeys j ON j.id = jc.journey_id\n    LEFT JOIN rev.playbook_stages ps ON ps.id = j.fork_stage_id\n    WHERE j.predecessor_journey_id IS NOT NULL\n      AND jc.depth < 50\n)\n,\nchain_root AS (\n    SELECT journey_id AS root_id\n    FROM journey_chain\n    ORDER BY depth DESC\n    LIMIT 1\n),\nuser_lookup AS (\n    SELECT ud.user_id, ud.object_id\n    FROM rev.user_details ud\n    WHERE ud.object_id = $2::UUID\n),\nactive_check AS (\n    SELECT f.id\n    FROM web.user_favorite_journey_chains f\n    LEFT JOIN web.user_favorite_journey_chains_removed r\n        ON r.user_favorite_journey_chains_id = f.id\n    WHERE f.user_id = (SELECT user_id FROM user_lookup)\n      AND f.chain_root_journey_id = (SELECT root_id FROM chain_root)\n      AND r.user_favorite_journey_chains_id IS NULL\n    ORDER BY f.id DESC\n    LIMIT 1\n),\ninserted AS (\n    INSERT INTO web.user_favorite_journey_chains (user_id, chain_root_journey_id)\n    SELECT (SELECT user_id FROM user_lookup),\n           (SELECT root_id FROM chain_root)\n    WHERE NOT EXISTS (SELECT 1 FROM active_check)\n      AND EXISTS (SELECT 1 FROM chain_root)\n      AND EXISTS (SELECT 1 FROM user_lookup)\n    RETURNING id, user_id, chain_root_journey_id, created_at\n)\nSELECT\n    i.id,\n    ul.object_id AS user_id,\n    i.chain_root_journey_id,\n    j.name AS chain_root_name,\n    i.created_at\nFROM inserted i\nJOIN rev.journeys j ON j.id = i.chain_root_journey_id\nJOIN user_lookup ul ON ul.user_id = i.user_id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "web.user_favorite_journey_chains",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.user_details",
+            "name": "object_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "chain_root_journey_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "web.user_favorite_journey_chains",
+            "name": "chain_root_journey_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "chain_root_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.journeys",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "web.user_favorite_journey_chains",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "797b3833193367fa19835a6af03fa363ce61b050e84fe94a67ca2a8b76ce1aa0"
+}

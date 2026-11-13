@@ -1,0 +1,14 @@
+
+WITH args AS (
+    SELECT *
+    FROM UNNEST($1::UUID[]) WITH ORDINALITY AS o(id, ord)
+)
+SELECT
+    op.id,
+    ak.key as asset_kind_key,
+    op.created_at
+FROM args
+JOIN rev.object_paths op ON op.id = args.id
+JOIN rev.asset_path_details apd ON apd.path_id = op.id
+JOIN rev.asset_kinds ak ON ak.id = apd.asset_kind_id
+ORDER BY op.id;

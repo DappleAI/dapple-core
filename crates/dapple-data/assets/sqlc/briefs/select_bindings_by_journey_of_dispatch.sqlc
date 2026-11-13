@@ -1,0 +1,148 @@
+# Chain-aware effective bindings reachable from `dispatch_id`'s journey
+# (Migration 44). Resolves the dispatch's journey, walks its
+# `predecessor_journey_id` chain back to the root, and returns one row
+# per (value_slot_id) using the journey-local-first walk-back rule.
+#
+# Used by:
+#   - the task-context endpoint (flag slots as "already bound" / surface
+#     submitted values),
+#   - the dispatch runtime to seed `$in.bindings.*` so chapter 2's tasks
+#     see chapter 1's answers without the brief-form having to re-collect
+#     them.
+#
+# Each row carries the typed value already extracted from its item table,
+# so the caller does not need to re-join per kind. Legacy journeys with
+# NULL predecessor have a one-element chain — the query collapses to
+# the pre-Migration-44 latest-per-slot-for-this-journey behavior.
+WITH RECURSIVE
+target_journey AS (
+    SELECT journey_id FROM rev.dispatches WHERE id = :bind(dispatch_id)::UUID
+),
+# Inline copy of shared/journey_chain.sqlc (the anchor differs: it starts from
+# the dispatch's journey). Keep the fork_cutoff_ord column in lockstep with the
+# shared fragment — the predecessor's row carries the SUCCESSOR's fork stage
+# ord (Migration 74) so the filter below can scope inheritance per edge.
+journey_chain(journey_id, depth, fork_cutoff_ord) AS (
+    SELECT (SELECT journey_id FROM target_journey), 0, NULL::INTEGER
+    UNION ALL
+    SELECT j.predecessor_journey_id, jc.depth + 1, ps.ord
+    FROM journey_chain jc
+    JOIN rev.journeys j ON j.id = jc.journey_id
+    LEFT JOIN rev.playbook_stages ps ON ps.id = j.fork_stage_id
+    WHERE j.predecessor_journey_id IS NOT NULL
+      AND jc.depth < 50
+),
+chain_bindings AS (
+    SELECT
+        dib.id AS binding_id,
+        dib.value_slot_id,
+        dib.created_at AS bound_at,
+        jc.depth
+    FROM journey_chain jc
+    JOIN rev.dispatches d ON d.journey_id = jc.journey_id
+    JOIN rev.dispatch_intent_bindings dib ON dib.dispatch_id = d.id
+    WHERE :compose(shared/fork_cutoff_filter.sqlc)
+),
+journey_bindings AS (
+    SELECT DISTINCT ON (cb.value_slot_id)
+        cb.binding_id,
+        cb.value_slot_id
+    FROM chain_bindings cb
+    ORDER BY cb.value_slot_id, cb.depth ASC, cb.bound_at DESC, cb.binding_id DESC
+)
+# One row per slot. The per-kind scalar columns are the FIRST item (ORDER BY
+# item id) — a representative value for single slots and previews. `item_values`
+# is the full ordered array of items for the slot's kind — populated for `multi`
+# (keep-N) slots ONLY, '[]' for single slots (the readers route singles through
+# the scalars, so the aggregate would fetch each large payload twice);
+# `cardinality` tells the reader whether to use the scalar (single) or the
+# array (multi). Scalar subqueries (not item LEFT JOINs) avoid fanning a
+# multi-item binding into N rows.
+SELECT
+    jb.value_slot_id,
+    # The winning binding's id — the handle `binding open` resolves. Seeded into
+    # the envelope for `constraints.delivery = "envelope"` slots.
+    jb.binding_id AS "binding_id!",
+    # The slot's PATH id — the key space the overlay tables use. Lets the
+    # task-context blinder intersect bindings with the overlay cascade without
+    # a second query. Purely additive; the flow engine ignores it.
+    vo.path_id AS "value_slot_path_id!",
+    vspd.name AS value_slot_name,
+    vk.key AS value_kind,
+    vs.cardinality AS "cardinality!",
+    (SELECT ti.value FROM rev.dispatch_intent_binding_text_items ti
+        WHERE ti.dispatch_intent_binding_id = jb.binding_id
+        ORDER BY ti.id LIMIT 1) AS text_value,
+    (SELECT ii.value FROM rev.dispatch_intent_binding_int_items ii
+        WHERE ii.dispatch_intent_binding_id = jb.binding_id
+        ORDER BY ii.id LIMIT 1) AS int_value,
+    (SELECT ni.value FROM rev.dispatch_intent_binding_number_items ni
+        WHERE ni.dispatch_intent_binding_id = jb.binding_id
+        ORDER BY ni.id LIMIT 1) AS number_value,
+    (SELECT bi.value FROM rev.dispatch_intent_binding_bool_items bi
+        WHERE bi.dispatch_intent_binding_id = jb.binding_id
+        ORDER BY bi.id LIMIT 1) AS bool_value,
+    # A slot authored `constraints.delivery = "envelope"` never ships its json
+    # payload in the seed — the task receives a handle and calls `binding open`
+    # on demand (the dataset-envelope precedent generalized). Availability is
+    # unchanged: the slot is still visible to every task in the chain.
+    (CASE WHEN vs.constraints ->> 'delivery' = 'envelope' THEN NULL
+     ELSE (SELECT ji.value FROM rev.dispatch_intent_binding_json_items ji
+        WHERE ji.dispatch_intent_binding_id = jb.binding_id
+        ORDER BY ji.id LIMIT 1)
+    END) AS json_value,
+    (SELECT ai.asset_id FROM rev.dispatch_intent_binding_asset_items ai
+        WHERE ai.dispatch_intent_binding_id = jb.binding_id
+        ORDER BY ai.id LIMIT 1) AS asset_id,
+    # Dataset: the pinned extraction's schema envelope (two-hop item -> extraction).
+    # NULL for every non-dataset slot; the reader routes on vk.key.
+    (SELECT ade.envelope FROM rev.dispatch_intent_binding_dataset_items dsi
+        JOIN rev.asset_dataset_extractions ade ON ade.id = dsi.asset_dataset_extraction_id
+        WHERE dsi.dispatch_intent_binding_id = jb.binding_id
+        ORDER BY dsi.id LIMIT 1) AS envelope,
+    # The journey-pinned value_slot's constraints (NOT NULL JSONB). For a dataset
+    # slot the query layer merges these over the shared envelope at read time
+    # (per-slot `columns` type overrides + `sample: false`); ignored for other kinds.
+    vs.constraints AS "value_slot_constraints!",
+    # item_values is populated ONLY for multi-cardinality slots IN THIS
+    # DISPATCH-SCOPED QUERY: the readers (binding_row_to_json in the flow
+    # engine, the task-context blinder) route single slots through the scalar
+    # columns above, so aggregating the full array for a single slot fetched
+    # every large json/dataset payload TWICE per seed (scalar + array). The
+    # journey-keyed sibling select_bindings_by_journey_id.sqlc keeps the
+    # unconditional aggregate (options_slot readers consume item_values there
+    # regardless of cardinality) -- do not copy this guard into it.
+    (CASE WHEN vs.cardinality != 'multi'
+            OR vs.constraints ->> 'delivery' = 'envelope' THEN '[]'::jsonb
+     ELSE CASE vk.key
+        WHEN 'text' THEN COALESCE((SELECT jsonb_agg(x.value ORDER BY x.id)
+            FROM rev.dispatch_intent_binding_text_items x
+            WHERE x.dispatch_intent_binding_id = jb.binding_id), '[]'::jsonb)
+        WHEN 'int' THEN COALESCE((SELECT jsonb_agg(x.value ORDER BY x.id)
+            FROM rev.dispatch_intent_binding_int_items x
+            WHERE x.dispatch_intent_binding_id = jb.binding_id), '[]'::jsonb)
+        WHEN 'number' THEN COALESCE((SELECT jsonb_agg(x.value ORDER BY x.id)
+            FROM rev.dispatch_intent_binding_number_items x
+            WHERE x.dispatch_intent_binding_id = jb.binding_id), '[]'::jsonb)
+        WHEN 'bool' THEN COALESCE((SELECT jsonb_agg(x.value ORDER BY x.id)
+            FROM rev.dispatch_intent_binding_bool_items x
+            WHERE x.dispatch_intent_binding_id = jb.binding_id), '[]'::jsonb)
+        WHEN 'json' THEN COALESCE((SELECT jsonb_agg(x.value ORDER BY x.id)
+            FROM rev.dispatch_intent_binding_json_items x
+            WHERE x.dispatch_intent_binding_id = jb.binding_id), '[]'::jsonb)
+        WHEN 'asset' THEN COALESCE((SELECT jsonb_agg(jsonb_build_object('asset_id', x.asset_id) ORDER BY x.id)
+            FROM rev.dispatch_intent_binding_asset_items x
+            WHERE x.dispatch_intent_binding_id = jb.binding_id), '[]'::jsonb)
+        WHEN 'dataset' THEN COALESCE((SELECT jsonb_agg(ade.envelope ORDER BY x.id)
+            FROM rev.dispatch_intent_binding_dataset_items x
+            JOIN rev.asset_dataset_extractions ade ON ade.id = x.asset_dataset_extraction_id
+            WHERE x.dispatch_intent_binding_id = jb.binding_id), '[]'::jsonb)
+        ELSE '[]'::jsonb
+     END
+    END) AS "item_values!"
+FROM journey_bindings jb
+JOIN rev.value_slots vs ON vs.id = jb.value_slot_id
+JOIN rev.versioned_objects vo ON vo.id = vs.versioned_object_id
+JOIN rev.value_slot_path_details vspd ON vspd.path_id = vo.path_id
+JOIN rev.value_kinds vk ON vk.id = vs.value_kind_id
+ORDER BY jb.value_slot_id;

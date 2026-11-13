@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nWITH latest_deprecation AS (\n    SELECT DISTINCT ON (versioned_object_id)\n        versioned_object_id,\n        to_level_id\n    FROM rev.deprecation_events\n    ORDER BY versioned_object_id, created_at DESC\n),\n\nprofiles AS (\n    SELECT DISTINCT ON (ipvo.path_id)\n        jip.id,\n        jip.journey_id,\n        jip.inference_profile_id,\n        ip.name AS inference_profile_name\n    FROM rev.journey_inference_profiles jip\n    JOIN rev.inference_profiles ip ON ip.id = jip.inference_profile_id\n    JOIN rev.versioned_objects ipvo ON ipvo.id = ip.versioned_object_id\n    LEFT JOIN latest_deprecation ld ON ld.versioned_object_id = ipvo.id\n    WHERE jip.journey_id = $1::UUID\n      AND ld.to_level_id IS NULL\n        ORDER BY ipvo.path_id, ipvo.created_at DESC, ipvo.id DESC\n)\nSELECT\n    id,\n    journey_id,\n    inference_profile_id,\n    inference_profile_name\nFROM profiles\nORDER BY inference_profile_id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.journey_inference_profiles",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "journey_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.journey_inference_profiles",
+            "name": "journey_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "inference_profile_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.journey_inference_profiles",
+            "name": "inference_profile_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "inference_profile_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.inference_profiles",
+            "name": "name"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "ff30bf8eed24743118950bb2bf4943967efb76b0210e363e11451c1e2840d546"
+}

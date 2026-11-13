@@ -1,0 +1,85 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::TEXT[],\n        $2::UUID[],\n        $3::TEXT[],\n        $4::UUID[]\n    ) WITH ORDINALITY AS o(\n        content_hash,\n        description_fluent_message_id,\n        description,\n        path_id,\n        ord\n    )\n),\npaths AS (\n    SELECT\n        op.id AS path_id,\n        spd.name,\n        spd.slug,\n        args.ord\n    FROM args\n    JOIN rev.object_paths op ON op.id = args.path_id\n    JOIN rev.step_path_details spd ON spd.path_id = op.id\n),\nnew_versions_inserted AS (\n    INSERT INTO rev.versioned_objects (path_id, content_hash)\n    SELECT paths.path_id, args.content_hash\n    FROM args\n    JOIN paths ON paths.ord = args.ord\n    ORDER BY paths.ord\n    ON CONFLICT (path_id, content_hash) DO NOTHING\n    RETURNING id, path_id, content_hash, created_at\n),\nnew_versions AS (\n            SELECT nvi.id, nvi.path_id, nvi.content_hash, nvi.created_at, p.ord\n    FROM new_versions_inserted nvi\n    JOIN paths p ON p.path_id = nvi.path_id\n    UNION ALL\n        SELECT vo.id, paths.path_id, vo.content_hash, vo.created_at, args.ord\n    FROM args\n    JOIN paths ON paths.ord = args.ord\n    JOIN rev.versioned_objects vo ON vo.path_id = paths.path_id AND vo.content_hash = args.content_hash\n    WHERE NOT EXISTS (\n        SELECT 1 FROM new_versions_inserted nvi\n        WHERE nvi.path_id = paths.path_id AND nvi.content_hash = args.content_hash\n    )\n),\nnumbered_versions AS (\n    SELECT nv.id, nv.path_id, nv.content_hash, nv.created_at, nv.ord\n    FROM new_versions nv\n),\n\nnew_steps AS (\n    INSERT INTO rev.steps (versioned_object_id, description, description_fluent_message_id)\n    SELECT\n        nuv.id,\n        args.description,\n        args.description_fluent_message_id\n    FROM args\n    JOIN numbered_versions nuv ON nuv.ord = args.ord\n    WHERE NOT EXISTS (SELECT 1 FROM rev.steps s WHERE s.versioned_object_id = nuv.id)\n    ORDER BY args.ord\n    RETURNING id, versioned_object_id, description, description_fluent_message_id, created_at\n),\nall_steps AS (\n            SELECT ns.id, ns.versioned_object_id, ns.description, ns.description_fluent_message_id, ns.created_at, nuv.ord\n    FROM new_steps ns\n    JOIN numbered_versions nuv ON nuv.id = ns.versioned_object_id\n    UNION ALL\n    SELECT s.id, s.versioned_object_id, s.description, s.description_fluent_message_id, s.created_at, nuv.ord\n    FROM rev.steps s\n    JOIN numbered_versions nuv ON s.versioned_object_id = nuv.id\n    WHERE NOT EXISTS (SELECT 1 FROM new_steps ns WHERE ns.versioned_object_id = nuv.id)\n),\nnumbered_steps AS (\n    SELECT ast.* FROM all_steps ast\n)\nSELECT\n    nus.id AS \"id!\",\n    nus.versioned_object_id AS \"versioned_object_id!\",\n    nuv.path_id AS \"path_id!\",\n    paths.name AS \"name!\",\n    paths.slug AS \"slug!\",\n    nuv.content_hash AS \"content_hash!\",\n    COALESCE(rev.fluent_body(nus.description_fluent_message_id, 'en'), nus.description, paths.name) AS \"description!\",\n    nus.created_at AS \"created_at!\"\nFROM numbered_steps nus\nJOIN numbered_versions nuv ON nuv.ord = nus.ord\nJOIN paths ON paths.ord = nus.ord\nORDER BY nus.ord;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "versioned_object_id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "path_id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "name!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.step_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "slug!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.step_path_details",
+            "name": "slug"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "content_hash!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 6,
+        "name": "description!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at!",
+        "type_info": "Timestamptz",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "UuidArray",
+        "TextArray",
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      false,
+      false,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "a8e8ba780d4fb6a5ba9a0998211ef309b4fa67b6b24ced2b4656ee3b9ea87d92"
+}

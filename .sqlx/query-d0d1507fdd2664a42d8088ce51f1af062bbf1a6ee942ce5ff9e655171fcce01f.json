@@ -1,0 +1,47 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST($1::UUID[]) WITH ORDINALITY AS o(stage_step_id, ord)\n)\nSELECT\n    args.ord,\n    ss.id AS stage_step_id,\n    pst.id AS playbook_stage_id\nFROM args\nJOIN rev.stage_steps ss ON ss.id = args.stage_step_id\nJOIN rev.playbook_stages pst ON ss.stage_id = pst.stage_id\nORDER BY args.ord;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "ord",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "stage_step_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.stage_steps",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "playbook_stage_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.playbook_stages",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      null,
+      false,
+      false
+    ]
+  },
+  "hash": "d0d1507fdd2664a42d8088ce51f1af062bbf1a6ee942ce5ff9e655171fcce01f"
+}

@@ -1,0 +1,30 @@
+# Deprecate directives by their path IDs
+# Creates deprecation events for the latest version of each directive path
+WITH args AS (
+    SELECT *
+    FROM UNNEST(
+        :bind(path_ids)::UUID[],
+        :bind(reasons)::TEXT[]
+    ) WITH ORDINALITY AS o(path_id, reason, ord)
+),
+:compose(shared/deprecate_latest_versions.sqlc)
+:compose(shared/deprecate_events.sqlc)
+SELECT
+    d.id,
+    d.versioned_object_id,
+    op.id AS path_id,
+    dpd.name,
+    vo.content_hash,
+    dl.key AS "deprecation_level_key?",
+    d.logic,
+    d.max_attempts,
+    d.retry_delay_ms,
+    d.description,
+    d.created_at
+FROM resolved
+JOIN rev.versioned_objects vo ON vo.id = resolved.versioned_object_id
+JOIN rev.object_paths op ON op.id = resolved.path_id
+JOIN rev.directive_path_details dpd ON dpd.path_id = op.id
+JOIN rev.directives d ON d.versioned_object_id = resolved.versioned_object_id
+LEFT JOIN rev.deprecation_levels dl ON dl.id = :bind(to_level_id)::SMALLINT
+ORDER BY vo.id;

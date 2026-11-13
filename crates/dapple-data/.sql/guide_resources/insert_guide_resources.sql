@@ -1,0 +1,38 @@
+-- Insert guide resource references.
+-- Links guides to PDFs, URLs, or other citable resources.
+WITH args AS (
+    SELECT *
+    FROM UNNEST(
+        $1::UUID[],          -- asset_id[]
+        $2::TEXT[],           -- author[]
+        $3::UUID[],           -- guide_id[]
+        $4::TEXT[],           -- key[]
+        $5::TIMESTAMPTZ[],   -- retrieved_at[]
+        $6::TEXT[],           -- title[]
+        $7::TEXT[]            -- url[]
+    ) WITH ORDINALITY AS o(
+        asset_id,
+        author,
+        guide_id,
+        key,
+        retrieved_at,
+        title,
+        url,
+        ord
+    )
+),
+objs AS (
+    INSERT INTO rev.guide_resources (guide_id, asset_id, key, title, author, url, retrieved_at)
+    SELECT
+        args.guide_id,
+        args.asset_id,
+        args.key,
+        args.title,
+        args.author,
+        args.url,
+        args.retrieved_at
+    FROM args
+    ORDER BY args.ord
+    RETURNING id, guide_id, key, created_at
+)
+SELECT * FROM objs ORDER BY objs.id;

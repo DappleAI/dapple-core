@@ -1,0 +1,8 @@
+title = "Crosstalk"
+description = "Minimal parser-test fixture: a one-step guide whose nushell task chains the conduit media commands (prompt send, synth, av mix). The real Crosstalk guide lives in dapple-guides."
+author = "Dapple Team"
+classification = "workflow"
+source_path = "crosstalk"
+
+[chapters."crosstalk.md"]
+subtitle = "One stage, one step, one orchestrator task."

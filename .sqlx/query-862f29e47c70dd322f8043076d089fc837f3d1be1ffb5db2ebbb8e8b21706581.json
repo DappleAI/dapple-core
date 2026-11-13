@@ -1,0 +1,65 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::UUID[],          $2::UUID[]       ) WITH ORDINALITY AS o(hat_id, category_id, ord)\n),\nreturned AS (\n    INSERT INTO rev.hat_categories (hat_id, category_id)\n    SELECT a.hat_id, a.category_id\n    FROM args a\n    JOIN rev.categories t ON a.category_id = t.id\n    ORDER BY a.ord\n    RETURNING *\n)\nSELECT\n    returned.id,\n    returned.hat_id,\n    returned.category_id,\n    returned.created_at\nFROM returned\nJOIN args ON returned.hat_id = args.hat_id AND returned.category_id = args.category_id\nORDER BY returned.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.hat_categories",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "hat_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.hat_categories",
+            "name": "hat_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "category_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.hat_categories",
+            "name": "category_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.hat_categories",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "862f29e47c70dd322f8043076d089fc837f3d1be1ffb5db2ebbb8e8b21706581"
+}

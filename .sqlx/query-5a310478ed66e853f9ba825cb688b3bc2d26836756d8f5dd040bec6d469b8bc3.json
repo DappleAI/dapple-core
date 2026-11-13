@@ -1,0 +1,78 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nWITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::UUID[],\n        $2::UUID[],\n        $3::TEXT[]\n    ) WITH ORDINALITY\n    AS o(\n        playbook_stage_id,\n        value_slot_path_id,\n        visibility,\n        ord\n    )\n),\nobjs AS (\n    INSERT INTO rev.playbook_stage_overlays (playbook_stage_id, value_slot_path_id, visibility)\n    SELECT args.playbook_stage_id, args.value_slot_path_id, args.visibility\n    FROM args\n    ORDER BY args.ord\n                ON CONFLICT (playbook_stage_id, value_slot_path_id) DO NOTHING\n    RETURNING *\n),\nnumbered_objs AS (\n    SELECT o.*, row_number() OVER (ORDER BY o.id) AS ord\n    FROM objs o\n)\nSELECT\n    no.id,\n    no.playbook_stage_id,\n    no.value_slot_path_id,\n    no.visibility,\n    no.created_at\nFROM numbered_objs no\nORDER BY no.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.playbook_stage_overlays",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "playbook_stage_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.playbook_stage_overlays",
+            "name": "playbook_stage_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "value_slot_path_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.playbook_stage_overlays",
+            "name": "value_slot_path_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "visibility",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.playbook_stage_overlays",
+            "name": "visibility"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.playbook_stage_overlays",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "UuidArray",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "5a310478ed66e853f9ba825cb688b3bc2d26836756d8f5dd040bec6d469b8bc3"
+}

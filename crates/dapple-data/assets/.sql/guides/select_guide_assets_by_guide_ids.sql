@@ -1,0 +1,19 @@
+WITH args AS (
+    SELECT *
+    FROM UNNEST($1::UUID[]) WITH ORDINALITY AS o(guide_id, ord)
+)
+SELECT
+    ga.id,
+    ga.guide_id,
+    ga.asset_id,
+    a_vo.path_id AS asset_path_id,
+    ga.role,
+    ga.relative_path,
+    a.mime_type,
+    a.content_length,
+    ga.created_at
+FROM args
+JOIN rev.guide_assets ga ON ga.guide_id = args.guide_id
+JOIN rev.assets a ON a.id = ga.asset_id
+JOIN rev.versioned_objects a_vo ON a_vo.id = a.versioned_object_id
+ORDER BY ga.guide_id, ga.id;

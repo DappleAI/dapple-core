@@ -1,0 +1,54 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::UUID[],\n        $2::UUID[],\n        $3::INTEGER[]\n    ) WITH ORDINALITY AS o(extraction_id, chunk_id, ordinal, ord)\n),\nobjs AS (\n    INSERT INTO rev.asset_extraction_chunks (extraction_id, chunk_id, ordinal)\n    SELECT args.extraction_id, args.chunk_id, args.ordinal\n    FROM args\n    ORDER BY args.ord\n    RETURNING extraction_id, chunk_id, ordinal\n)\nSELECT extraction_id, chunk_id, ordinal\nFROM objs\nORDER BY extraction_id, ordinal;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "extraction_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.asset_extraction_chunks",
+            "name": "extraction_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "chunk_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.asset_extraction_chunks",
+            "name": "chunk_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "ordinal",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "rev.asset_extraction_chunks",
+            "name": "ordinal"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "UuidArray",
+        "Int4Array"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "712bf70d0954211603577607a50270ced151bc4f1144886e51aeaa525db2d4c5"
+}

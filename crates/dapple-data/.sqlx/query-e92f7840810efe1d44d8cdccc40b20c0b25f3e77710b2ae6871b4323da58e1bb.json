@@ -1,0 +1,60 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nWITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::UUID[],\n        $2::TEXT[],\n        $3::TEXT[]\n    ) WITH ORDINALITY AS o(message_id, locale_tag, body, ord)\n),\nlocale_refs AS (\n    SELECT DISTINCT locale_tag FROM args\n),\ninserted_locales AS (\n    INSERT INTO rev.fluent_message_locales (tag)\n    SELECT locale_tag FROM locale_refs\n    ON CONFLICT (tag) DO NOTHING\n    RETURNING *\n),\nall_locales AS (\n    SELECT id, tag FROM inserted_locales\n    UNION\n    SELECT id, tag FROM rev.fluent_message_locales\n    WHERE tag IN (SELECT locale_tag FROM locale_refs)\n),\nnew_bodies AS (\n    INSERT INTO rev.fluent_message_bodies (\n        fluent_message_id,\n        locale_id,\n        body,\n        created_at\n    )\n    SELECT\n        args.message_id,\n        l.id,\n        args.body,\n        now()\n    FROM args\n    JOIN all_locales l ON l.tag = args.locale_tag\n    WHERE NOT EXISTS (\n        SELECT 1 FROM rev.fluent_message_bodies fb\n        WHERE fb.fluent_message_id = args.message_id AND fb.locale_id = l.id\n    )\n    RETURNING *\n),\nobjs AS (\n    SELECT * FROM new_bodies\n    UNION ALL\n    SELECT fb.*\n    FROM rev.fluent_message_bodies fb\n    JOIN args ON fb.fluent_message_id = args.message_id\n    JOIN all_locales l ON l.tag = args.locale_tag AND fb.locale_id = l.id\n    WHERE NOT EXISTS (SELECT 1 FROM new_bodies nb WHERE nb.fluent_message_id = fb.fluent_message_id AND nb.locale_id = fb.locale_id)\n)\nSELECT\n    objs.id AS \"id!\",\n    objs.fluent_message_id AS \"fluent_message_id!\",\n    l.id as \"locale_id!\",\n    l.tag as \"locale_tag!\",\n    objs.body AS \"body!\",\n    objs.created_at AS \"created_at!\"\nFROM objs\nJOIN all_locales l ON l.id = objs.locale_id\nORDER BY objs.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "fluent_message_id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "locale_id!",
+        "type_info": "Int2",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "locale_tag!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 4,
+        "name": "body!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at!",
+        "type_info": "Timestamptz",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "TextArray",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "e92f7840810efe1d44d8cdccc40b20c0b25f3e77710b2ae6871b4323da58e1bb"
+}

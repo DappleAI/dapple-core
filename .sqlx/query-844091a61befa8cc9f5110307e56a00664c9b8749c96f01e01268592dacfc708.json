@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT g.id FROM rev.guides g JOIN rev.guide_playbooks gp ON gp.guide_id = g.id WHERE gp.playbook_id = $1 ORDER BY g.id DESC LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.guides",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "844091a61befa8cc9f5110307e56a00664c9b8749c96f01e01268592dacfc708"
+}

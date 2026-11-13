@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT COUNT(*)::BIGINT AS \"count!\"\n           FROM rev.brief_unit_input bui\n           JOIN rev.brief_units bu ON bu.id = bui.brief_unit_id\n           WHERE bu.unit_key = 'broken-slot-input'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "0cb8bbffe05a94076f24e1df8d3072a699232bab144750b523b8d0d41cfe4ae4"
+}

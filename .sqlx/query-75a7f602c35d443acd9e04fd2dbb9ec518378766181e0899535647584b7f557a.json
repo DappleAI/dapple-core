@@ -1,0 +1,98 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nWITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::UUID[],\n        $2::TEXT[],\n        $3::TEXT[],\n        $4::TEXT[],\n        $5::TEXT[],\n        $6::TEXT[]\n    ) WITH ORDINALITY AS o(message_id, lineage_key, provider_key, tier, release, body, ord)\n),\nlineage_refs AS (\n    SELECT DISTINCT lineage_key FROM args\n),\ninserted_lineages AS (\n    INSERT INTO rev.lineages (key)\n    SELECT lineage_key FROM lineage_refs\n    ON CONFLICT (key) DO NOTHING\n    RETURNING *\n),\nall_lineages AS (\n    SELECT id, key FROM inserted_lineages\n    UNION\n    SELECT id, key FROM rev.lineages\n    WHERE key IN (SELECT lineage_key FROM lineage_refs)\n),\nprovider_refs AS (\n    SELECT DISTINCT provider_key FROM args\n),\ninserted_providers AS (\n    INSERT INTO rev.providers (key)\n    SELECT provider_key FROM provider_refs\n    ON CONFLICT (key) DO NOTHING\n    RETURNING *\n),\nall_providers AS (\n    SELECT id, key FROM inserted_providers\n    UNION\n    SELECT id, key FROM rev.providers\n    WHERE key IN (SELECT provider_key FROM provider_refs)\n),\nrelease_refs AS (\n    SELECT DISTINCT lineage_key, provider_key, tier, release FROM args\n),\ninserted_releases AS (\n    INSERT INTO rev.model_releases (lineage_id, provider_id, tier, release)\n    SELECT\n        l.id,\n        p.id,\n        rr.tier,\n        rr.release\n    FROM release_refs rr\n    JOIN all_lineages l ON l.key = rr.lineage_key\n    JOIN all_providers p ON p.key = rr.provider_key\n    ON CONFLICT (lineage_id, provider_id, tier, release) DO NOTHING\n    RETURNING *\n),\nall_releases AS (\n    SELECT mr.id, l.key as lineage_key, p.key as provider_key, mr.tier, mr.release\n    FROM inserted_releases mr\n    JOIN all_lineages l ON l.id = mr.lineage_id\n    JOIN all_providers p ON p.id = mr.provider_id\n    UNION\n    SELECT mr.id, l.key as lineage_key, p.key as provider_key, mr.tier, mr.release\n    FROM rev.model_releases mr\n    JOIN all_lineages l ON l.id = mr.lineage_id\n    JOIN all_providers p ON p.id = mr.provider_id\n    WHERE (l.key, p.key, mr.tier, mr.release) IN (\n        SELECT lineage_key, provider_key, tier, release FROM release_refs\n    )\n),\nnew_engine_bodies AS (\n    INSERT INTO rev.fluent_message_engine_bodies (\n        fluent_message_id,\n        model_release_id,\n        body,\n        created_at\n    )\n    SELECT\n        args.message_id,\n        mr.id,\n        args.body,\n        now()\n    FROM args\n    JOIN all_releases mr ON mr.lineage_key = args.lineage_key\n        AND mr.provider_key = args.provider_key\n        AND mr.tier = args.tier\n        AND (mr.release = args.release OR (mr.release IS NULL AND args.release IS NULL))\n    WHERE NOT EXISTS (\n        SELECT 1 FROM rev.fluent_message_engine_bodies eb\n        WHERE eb.fluent_message_id = args.message_id AND eb.model_release_id = mr.id\n    )\n    RETURNING *\n),\nobjs AS (\n    SELECT * FROM new_engine_bodies\n    UNION ALL\n    SELECT eb.*\n    FROM rev.fluent_message_engine_bodies eb\n    JOIN args ON eb.fluent_message_id = args.message_id\n    JOIN all_releases mr ON mr.lineage_key = args.lineage_key\n        AND mr.provider_key = args.provider_key\n        AND mr.tier = args.tier\n        AND (mr.release = args.release OR (mr.release IS NULL AND args.release IS NULL))\n    WHERE eb.model_release_id = mr.id\n        AND NOT EXISTS (SELECT 1 FROM new_engine_bodies neb WHERE neb.fluent_message_id = eb.fluent_message_id AND neb.model_release_id = eb.model_release_id)\n)\nSELECT\n    objs.id AS \"id!\",\n    objs.fluent_message_id AS \"fluent_message_id!\",\n    objs.model_release_id AS \"model_release_id!\",\n    NULL::UUID as model_variant_id,\n    mr.id as \"model_release_object_id!\",\n    mr.lineage_key AS \"lineage_key!\",\n    mr.provider_key AS \"provider_key!\",\n    mr.tier AS \"tier!\",\n    mr.release,\n    objs.body AS \"body!\",\n    objs.created_at AS \"created_at!\"\nFROM objs\nJOIN all_releases mr ON mr.id = objs.model_release_id\nORDER BY objs.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "fluent_message_id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "model_release_id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "model_variant_id",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 4,
+        "name": "model_release_object_id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 5,
+        "name": "lineage_key!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 6,
+        "name": "provider_key!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 7,
+        "name": "tier!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 8,
+        "name": "release",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 9,
+        "name": "body!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 10,
+        "name": "created_at!",
+        "type_info": "Timestamptz",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "TextArray",
+        "TextArray",
+        "TextArray",
+        "TextArray",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "75a7f602c35d443acd9e04fd2dbb9ec518378766181e0899535647584b7f557a"
+}

@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE rev.lago_event_sync\nSET\n    sent_at = CASE WHEN $5::BOOLEAN THEN now() ELSE sent_at END,\n    lago_response_status = $3::INTEGER,\n    lago_response_body = $2::JSONB,\n    retry_count = CASE WHEN $5::BOOLEAN THEN retry_count ELSE retry_count + 1 END,\n    next_retry_at = $4::TIMESTAMPTZ\nWHERE id = $1::UUID\nRETURNING id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.lago_event_sync",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Jsonb",
+        "Int4",
+        "Timestamptz",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "8054bc08e4962a856f7b84747d3af9f4ba537e2c8ac5e27a71cbc4913849a2ed"
+}

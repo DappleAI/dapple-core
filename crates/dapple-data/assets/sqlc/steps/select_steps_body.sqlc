@@ -1,0 +1,32 @@
+# Shared body template for step SELECT queries.
+# Callers provide a @page slot defining one or more CTEs
+# that produce a `step_page` CTE with at minimum `step_page.id`.
+WITH :compose(@page)
+SELECT
+    s.id,
+    s.versioned_object_id,
+    vo.path_id,
+    spd.name,
+    spd.slug,
+    vo.content_hash,
+    dl.key AS "deprecation_level_key?",
+    COALESCE(rev.fluent_body(s.description_fluent_message_id, 'en'), s.description, spd.name) AS "description!",
+    s.created_at,
+    st.id AS "step_task_id?",
+    st.created_at AS "step_task_created_at?",
+    t.id AS "step_task_task_id?"
+FROM step_page sp
+JOIN rev.steps s ON s.id = sp.id
+JOIN rev.versioned_objects vo ON vo.id = s.versioned_object_id
+JOIN rev.object_paths op ON op.id = vo.path_id
+JOIN rev.step_path_details spd ON spd.path_id = op.id
+LEFT JOIN LATERAL (
+    :compose(shared/select/latest_deprecation_probe.sqlc)
+) ld ON TRUE
+LEFT JOIN rev.deprecation_levels dl ON dl.id = ld.to_level_id
+# Return ALL of a step's tasks: a step is an ordered SET of tasks (a transaction),
+# not a single task. The fold collects them into StepModel.tasks in authored order
+# (step_tasks.ord). A step with no task yields a single NULL-task row.
+LEFT JOIN rev.step_tasks st ON st.step_id = s.id
+LEFT JOIN rev.tasks t ON t.id = st.task_id
+ORDER BY s.id, st.ord NULLS FIRST;

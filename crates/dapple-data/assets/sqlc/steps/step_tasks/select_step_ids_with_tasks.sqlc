@@ -1,0 +1,8 @@
+# Which of the given step ids already have at least one step_task link.
+# Patch ingest uses this to skip re-linking immutable, already-materialized step
+# versions: a content-addressed step's task links are written once, and the
+# (step_id, ord) UNIQUE constraint from migration 53 makes re-linking a different
+# task at an occupied ord collide.
+SELECT DISTINCT step_id
+FROM rev.step_tasks
+WHERE step_id = ANY(:bind(step_ids)::UUID[]);

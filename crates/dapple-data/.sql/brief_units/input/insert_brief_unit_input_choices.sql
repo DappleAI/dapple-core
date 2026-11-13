@@ -1,0 +1,43 @@
+-- Insert brief unit input choices
+-- Parameters:
+--   $1: brief_unit_ids (UUID[])
+--   $2: label_texts (TEXT[]) - nullable elements
+--   $3: label_fluent_message_ids (UUID[]) - nullable elements
+--   $4: value_texts (TEXT[])
+
+WITH args AS (
+    SELECT *
+    FROM UNNEST(
+        $1::UUID[],
+        $2::TEXT[],
+        $3::UUID[],
+        $4::TEXT[]
+    ) WITH ORDINALITY AS o(brief_unit_id, label_text, label_fluent_message_id, value_text, ord)
+),
+objs AS (
+    INSERT INTO rev.brief_unit_input_choices (
+        brief_unit_id,
+        label_text,
+        label_fluent_message_id,
+        value_text,
+        created_at
+    )
+    SELECT
+        args.brief_unit_id,
+        args.label_text,
+        args.label_fluent_message_id,
+        args.value_text,
+        now()
+    FROM args
+    ORDER BY args.ord
+    RETURNING id, brief_unit_id, label_text, label_fluent_message_id, value_text, created_at
+)
+SELECT
+    objs.id,
+    objs.brief_unit_id,
+    objs.label_text,
+    objs.label_fluent_message_id,
+    objs.value_text,
+    objs.created_at
+FROM objs
+ORDER BY objs.id;

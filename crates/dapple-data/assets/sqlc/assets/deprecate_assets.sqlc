@@ -1,0 +1,36 @@
+# Deprecate assets by path IDs
+# This creates deprecation events for the latest version of each asset path
+WITH args AS (
+    SELECT *
+    FROM UNNEST(
+        :bind(path_ids)::UUID[],
+        :bind(reasons)::TEXT[]
+    ) WITH ORDINALITY AS o(
+        path_id,
+        reason,
+        ord
+    )
+),
+:compose(shared/deprecate_latest_versions.sqlc)
+:compose(shared/deprecate_events.sqlc)
+# Return the updated assets
+SELECT
+    a.id,
+    a.versioned_object_id,
+    vo.path_id,
+    ak.key as asset_kind_key,
+    vo.content_hash,
+    dl.key AS "deprecation_level_key?",
+    a.draft_id,
+    a.content_length,
+    a.mime_type,
+    a.created_at
+FROM resolved
+JOIN rev.versioned_objects vo ON vo.id = resolved.versioned_object_id
+JOIN rev.assets a ON a.versioned_object_id = vo.id
+JOIN rev.object_paths op ON op.id = vo.path_id
+JOIN rev.asset_path_details apd ON apd.path_id = op.id
+JOIN rev.asset_kinds ak ON ak.id = apd.asset_kind_id
+LEFT JOIN rev.deprecation_levels dl ON dl.id = :bind(to_level_id)::SMALLINT
+LEFT JOIN rev.drafts d ON d.id = a.draft_id
+ORDER BY a.id;

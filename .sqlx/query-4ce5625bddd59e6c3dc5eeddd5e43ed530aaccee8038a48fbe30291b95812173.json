@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO rev.value_slots (versioned_object_id, title, value_kind_id) VALUES ($1, $2, (SELECT id FROM rev.value_kinds WHERE key = 'text')) RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slots",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "4ce5625bddd59e6c3dc5eeddd5e43ed530aaccee8038a48fbe30291b95812173"
+}

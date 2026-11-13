@@ -1,0 +1,157 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH latest_deprecation AS (\n    SELECT DISTINCT ON (versioned_object_id)\n        versioned_object_id,\n        to_level_id\n    FROM rev.deprecation_events\n    ORDER BY versioned_object_id, created_at DESC\n),\n\nargs AS (\n    SELECT *\n    FROM UNNEST($2::UUID[]) WITH ORDINALITY AS o(id, ord)\n),\nstep_page AS (\n    SELECT s.id\n    FROM args\n    JOIN rev.steps s ON s.id = args.id\n    ORDER BY s.id\n    LIMIT $1::BIGINT OFFSET $3::BIGINT\n)\n\nSELECT\n    s.id,\n    s.versioned_object_id,\n    vo.path_id,\n    spd.name,\n    spd.slug,\n    vo.content_hash,\n    dl.key AS \"deprecation_level_key?\",\n    COALESCE(rev.fluent_body(s.description_fluent_message_id, 'en'), s.description, spd.name) AS \"description!\",\n    s.created_at,\n    st.id AS \"step_task_id?\",\n    st.created_at AS \"step_task_created_at?\",\n    t.id AS \"step_task_task_id?\"\nFROM step_page sp\nJOIN rev.steps s ON s.id = sp.id\nJOIN rev.versioned_objects vo ON vo.id = s.versioned_object_id\nJOIN rev.object_paths op ON op.id = vo.path_id\nJOIN rev.step_path_details spd ON spd.path_id = op.id\nLEFT JOIN latest_deprecation ld ON ld.versioned_object_id = vo.id\nLEFT JOIN rev.deprecation_levels dl ON dl.id = ld.to_level_id\nLEFT JOIN rev.step_tasks st ON st.step_id = s.id\nLEFT JOIN rev.tasks t ON t.id = st.task_id\nORDER BY s.id, st.ord NULLS FIRST;\n\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.steps",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "versioned_object_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.steps",
+            "name": "versioned_object_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "path_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "path_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.step_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "slug",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.step_path_details",
+            "name": "slug"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "content_hash",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "content_hash"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "deprecation_level_key?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.deprecation_levels",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "description!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.steps",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "step_task_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.step_tasks",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "step_task_created_at?",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.step_tasks",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "step_task_task_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.tasks",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "UuidArray",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "480ac4b0b91d8125fe1be13c940c107742322b62ccb77831b68ca09d254bd06d"
+}

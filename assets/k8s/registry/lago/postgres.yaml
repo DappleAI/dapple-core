@@ -1,0 +1,98 @@
+# Lago PostgreSQL - Separate database from dapple
+# Uses postgres-partman image for table partitioning support
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: lago-postgres-pvc
+  namespace: lago
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: microk8s-hostpath
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lago-postgres
+  namespace: lago
+  labels:
+    app: lago-postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: lago-postgres
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: lago-postgres
+    spec:
+      securityContext:
+        fsGroup: 999
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: lago-postgres
+          image: getlago/postgres-partman:15.0-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: lago-config
+                  key: POSTGRES_DB
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: lago-config
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: lago-postgres-secret
+                  key: POSTGRES_PASSWORD
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+          volumeMounts:
+            - name: lago-pg-data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            tcpSocket:
+              port: 5432
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: 5432
+            initialDelaySeconds: 20
+            periodSeconds: 10
+      volumes:
+        - name: lago-pg-data
+          persistentVolumeClaim:
+            claimName: lago-postgres-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lago-postgres
+  namespace: lago
+spec:
+  type: ClusterIP
+  selector:
+    app: lago-postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432

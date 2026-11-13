@@ -1,0 +1,91 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO rev.dispatch_task_attempts (dispatch_step_id, task_id, context_data, context_metadata)\nVALUES (\n  (SELECT id FROM rev.dispatch_steps WHERE id = $1::uuid),\n  (SELECT id FROM rev.tasks WHERE id = $2::uuid),\n  $3::jsonb,\n  $4::jsonb\n)\nRETURNING\n  id,\n  dispatch_step_id,\n  task_id,\n  context_data,\n  context_metadata,\n  created_at;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_task_attempts",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "dispatch_step_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_task_attempts",
+            "name": "dispatch_step_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "task_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_task_attempts",
+            "name": "task_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "context_data",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_task_attempts",
+            "name": "context_data"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "context_metadata",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_task_attempts",
+            "name": "context_metadata"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_task_attempts",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Jsonb",
+        "Jsonb"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "9fcf26d7b17edbafdb79c243d5145168e4dc8fbdbe90b30dafe9873fb96cde91"
+}

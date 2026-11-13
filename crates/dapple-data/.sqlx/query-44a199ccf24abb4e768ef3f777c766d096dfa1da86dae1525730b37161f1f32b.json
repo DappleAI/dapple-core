@@ -1,0 +1,187 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $2::UUID[],\n        $3::TEXT[]\n    ) WITH ORDINALITY AS o(\n        path_id,\n        reason,\n        ord\n    )\n),\nlatest_deprecation AS (\n    SELECT DISTINCT ON (versioned_object_id)\n        versioned_object_id,\n        to_level_id\n    FROM rev.deprecation_events\n    ORDER BY versioned_object_id, created_at DESC\n),\nlatest_versions AS (\n    SELECT DISTINCT ON (op.id)\n        op.id AS path_id,\n        vo.id AS versioned_object_id,\n        ld.to_level_id AS from_level_id\n    FROM args\n    JOIN rev.object_paths op ON op.id = args.path_id\n    JOIN rev.versioned_objects vo ON vo.path_id = op.id\n    LEFT JOIN latest_deprecation ld ON ld.versioned_object_id = vo.id\n    ORDER BY op.id, vo.created_at DESC\n),\nresolved AS (\n    SELECT lv.versioned_object_id, lv.from_level_id, lv.path_id, args.reason\n    FROM args\n    JOIN latest_versions lv ON lv.path_id = args.path_id\n),\n\nevents AS (\n    INSERT INTO rev.deprecation_events (\n        versioned_object_id, from_level_id, to_level_id, reason, deprecated_by_user_id\n    )\n    SELECT\n        resolved.versioned_object_id,\n        resolved.from_level_id,\n        $4::SMALLINT,\n        resolved.reason,\n        $1::UUID\n    FROM resolved\n    RETURNING *\n)\n\nSELECT\n    t.id,\n    t.versioned_object_id,\n    vo.path_id,\n    tpd.name,\n    tpd.slug,\n    vo.content_hash,\n    dl.key AS \"deprecation_level_key?\",\n    t.description,\n    t.function,\n    t.function_input,\n    t.created_at,\n    tp.id AS \"task_prompt_id?\",\n    p.id AS \"prompt_id?\",\n    ppd.name AS \"prompt_name?\"\nFROM resolved\nJOIN rev.versioned_objects vo ON vo.id = resolved.versioned_object_id\nJOIN rev.tasks t ON t.versioned_object_id = vo.id\nJOIN rev.object_paths op ON op.id = vo.path_id\nJOIN rev.task_path_details tpd ON tpd.path_id = op.id\nLEFT JOIN rev.deprecation_levels dl ON dl.id = $4::SMALLINT\nLEFT JOIN rev.task_prompts tp ON tp.task_id = t.id\nLEFT JOIN rev.prompts p ON p.id = tp.prompt_id\nLEFT JOIN rev.versioned_objects vo_p ON vo_p.id = p.versioned_object_id\nLEFT JOIN rev.object_paths op_p ON op_p.id = vo_p.path_id\nLEFT JOIN rev.prompt_path_details ppd ON ppd.path_id = op_p.id\nORDER BY t.id, tp.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.tasks",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "versioned_object_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.tasks",
+            "name": "versioned_object_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "path_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "path_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.task_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "slug",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.task_path_details",
+            "name": "slug"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "content_hash",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "content_hash"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "deprecation_level_key?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.deprecation_levels",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "description",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.tasks",
+            "name": "description"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "function",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.tasks",
+            "name": "function"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "function_input",
+        "type_info": "Json",
+        "origin": {
+          "Table": {
+            "table": "rev.tasks",
+            "name": "function_input"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.tasks",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "task_prompt_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.task_prompts",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "prompt_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.prompts",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "prompt_name?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.prompt_path_details",
+            "name": "name"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "UuidArray",
+        "TextArray",
+        "Int2"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "44a199ccf24abb4e768ef3f777c766d096dfa1da86dae1525730b37161f1f32b"
+}

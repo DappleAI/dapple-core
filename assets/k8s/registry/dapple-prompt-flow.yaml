@@ -1,0 +1,112 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dapple-sandbox
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dapple-prompt-flow
+  namespace: dapple-sandbox
+  labels:
+    app: dapple-prompt-flow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dapple-prompt-flow
+  template:
+    metadata:
+      labels:
+        app: dapple-prompt-flow
+    spec:
+      containers:
+        - name: dapple-prompt-flow
+          image: localhost:32000/dapple-prompt-flow:dapple-latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8082
+          env:
+            - name: DAPPLE_PROMPT_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: prompt-db
+                  key: DAPPLE_PROMPT_DATABASE_URL
+            - name: DAPPLE_PROMPT_API_SIGNING_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: dapple-prompt-auth
+                  key: DAPPLE_PROMPT_API_SIGNING_KEY
+            - name: DAPPLE_PROMPT_CONDUIT_URL
+              value: "http://dapple-prompt-conduit:8081"
+            # conduit-oximedia media service — `av mix` / `av compose` / `audio
+            # analyze` tasks POST here (compose-av, analyze-audio). Absent this,
+            # get_media_url() hard-errors "media service not configured".
+            - name: DAPPLE_PROMPT_CONDUIT_MEDIA_URL
+              value: "http://conduit-oximedia:8085"
+            # conduit-media-gateway (opt-in) — `twitch pull` / `vod *` tasks POST
+            # here. Absent this, get_media_gateway_url() hard-errors. Harmless when
+            # the service isn't deployed (the commands just aren't used).
+            - name: DAPPLE_MEDIA_GATEWAY_URL
+              value: "http://conduit-media-gateway:8086"
+            # SEC EDGAR (opt-in) — the `edgar filings` / `edgar facts` tasks use
+            # this as the SEC-mandated declared User-Agent (fair-access policy
+            # requires app name + contact). Absent this, the commands fail with a
+            # shaped "not configured" error; no other service is involved.
+            - name: DAPPLE_EDGAR_USER_AGENT
+              value: "dapple ops@dappleai.com"
+            # Sent as the X-Internal-Key header to conduit-oximedia, which
+            # enforces it whenever the secret exists (it is created on every
+            # deploy). optional:true so flow still starts if the secret is absent
+            # (oximedia then runs unauthenticated and the header is simply unset).
+            - name: CONDUIT_INTERNAL_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: conduit-internal-auth
+                  key: internal-key
+                  optional: true
+            - name: RUST_LOG
+              value: "warn,dapple_prompt_flow=debug,dapple_data=debug"
+            # Cap glibc malloc arenas (same rationale as dapple-prompt-api /
+            # dapple-prompt-external-api, measured there via /proc/1/status:
+            # default is up to 8 * num_cpus arenas, each holding ~50 MiB of
+            # headroom that is never returned to the OS). Flow matters MOST of
+            # the three: it materializes multi-MB journey-context seeds per
+            # dispatch, and freed pages parked in per-thread arenas between
+            # retries are what let sequential seeds look like a leak — the
+            # 2026-08-02 OOMKill at the 4Gi limit rode exactly that pattern.
+            - name: MALLOC_ARENA_MAX
+              value: "2"
+          resources:
+            # Sized for CONCURRENT heavy generates, not one at a time. A run-the-10k
+            # task carries the whole accumulated journey payload (~21 keys of EDGAR
+            # data: facts, filings_10k, scenes, insiders, ...) plus its prompt_data
+            # and RAG context, and several dispatches across several journeys run at
+            # once. At a 1Gi limit (idle ~645Mi) two concurrent run-the-10k journeys
+            # OOMKilled flow mid-generate (exit 137), which strands every in-flight
+            # attempt. Node headroom is ample, so the cap is generous on purpose.
+            requests: { cpu: "100m", memory: "512Mi" }
+            limits:   { cpu: "500m", memory: "4Gi" }
+          readinessProbe:
+            httpGet: { path: /api/health_check, port: 8082 }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /api/health_check, port: 8082 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dapple-prompt-flow
+  namespace: dapple-sandbox
+spec:
+  type: ClusterIP
+  selector:
+    app: dapple-prompt-flow
+  ports:
+    - name: http
+      port: 8082
+      targetPort: 8082

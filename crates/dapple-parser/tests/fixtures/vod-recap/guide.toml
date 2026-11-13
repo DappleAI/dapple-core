@@ -1,0 +1,8 @@
+title = "VOD Recap"
+description = "Minimal parser-test fixture: a one-step guide whose nushell task chains the media-gateway VOD commands (vod analyze, prompt send, vod assemble) and whose computed brief-output carries the `video` display hint. The real gaming-VOD guide lives in dapple-guides."
+author = "Dapple Team"
+classification = "workflow"
+source_path = "vod-recap"
+
+[chapters."vod-recap.md"]
+subtitle = "One stage, one step, one recap task; a video-hinted computed output."

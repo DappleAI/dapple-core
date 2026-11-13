@@ -1,0 +1,76 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nWITH args AS (\n    SELECT *\n    FROM UNNEST($1::UUID[]) WITH ORDINALITY AS o(id, ord)\n)\nSELECT\n    tp.id,\n    tp.task_id,\n    tp.prompt_id,\n    ppd.name AS prompt_name,\n    tp.created_at\nFROM args\nJOIN rev.task_prompts tp ON tp.id = args.id\nJOIN rev.tasks t ON t.id = tp.task_id\nJOIN rev.prompts p ON p.id = tp.prompt_id\nJOIN rev.versioned_objects vo ON vo.id = p.versioned_object_id\nJOIN rev.object_paths op ON op.id = vo.path_id\nJOIN rev.prompt_path_details ppd ON ppd.path_id = op.id\nORDER BY tp.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.task_prompts",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "task_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.task_prompts",
+            "name": "task_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "prompt_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.task_prompts",
+            "name": "prompt_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "prompt_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.prompt_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.task_prompts",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "2b145bf8722e50d06eb1be79d5caa7a8a27c0e45713dd38ae4943907b28d5991"
+}

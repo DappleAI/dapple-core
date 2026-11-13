@@ -1,0 +1,128 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::TEXT[],\n        $2::TEXT[],\n        $3::BIGINT[],\n        $4::UUID[],\n        $5::TEXT[]\n    ) WITH ORDINALITY AS o(\n        asset_kind_key,\n        content_hash,\n        content_length,\n        draft_id,\n        mime_type,\n        ord\n    )\n),\nkinds AS (\n    SELECT\n        ak.id as kind_id,\n        ak.key as kind_key,\n        args.mime_type,\n        args.content_length,\n        args.draft_id,\n        args.content_hash,\n        args.ord\n    FROM args\n    JOIN rev.asset_kinds ak ON ak.key = args.asset_kind_key\n),\nentity_type AS (\n    SELECT id FROM rev.entity_types WHERE key = 'asset'\n),\nnew_paths AS (\n    INSERT INTO rev.object_paths (entity_type_id, namespace_company_id, scope)\n    SELECT\n        (SELECT id FROM entity_type),\n        COALESCE(\n            NULLIF(current_setting('dapple.namespace_company_id', true), ''),\n            '019e132e-2610-7a4a-b64a-77a49e286ac0'\n        )::UUID,\n        COALESCE(\n            NULLIF(current_setting('dapple.scope', true), ''),\n            'public'\n        )::TEXT\n    FROM kinds\n    ORDER BY kinds.ord\n    RETURNING id\n),\nnumbered_paths AS (\n    SELECT np.id, row_number() OVER (ORDER BY np.id) as ord\n    FROM new_paths np\n),\npath_details AS (\n    INSERT INTO rev.asset_path_details (path_id, asset_kind_id)\n    SELECT\n        nup.id,\n        kinds.kind_id\n    FROM kinds\n    JOIN numbered_paths nup ON nup.ord = kinds.ord\n    RETURNING path_id, asset_kind_id\n),\nnumbered_path_details AS (\n    SELECT pd.path_id, pd.asset_kind_id, row_number() OVER (ORDER BY pd.path_id) as ord\n    FROM path_details pd\n),\nnew_versions AS (\n    INSERT INTO rev.versioned_objects (path_id, content_hash)\n    SELECT nup.id, kinds.content_hash\n    FROM numbered_paths nup\n    JOIN kinds ON kinds.ord = nup.ord\n    ORDER BY nup.ord\n    RETURNING id, path_id, content_hash, created_at\n),\nnumbered_versions AS (\n    SELECT nv.*, row_number() OVER (ORDER BY nv.id) as ord\n    FROM new_versions nv\n),\nnew_assets AS (\n    INSERT INTO rev.assets (versioned_object_id, draft_id, content_length, mime_type)\n    SELECT\n        nuv.id,\n        kinds.draft_id,\n        kinds.content_length,\n        kinds.mime_type\n    FROM kinds\n    JOIN numbered_versions nuv ON nuv.ord = kinds.ord\n    RETURNING id, versioned_object_id, draft_id, content_length, mime_type, created_at\n),\nnumbered_assets AS (\n    SELECT na.*, row_number() OVER (ORDER BY na.id) as ord\n    FROM new_assets na\n)\nSELECT\n    nua.id,\n    nua.versioned_object_id,\n    nuv.path_id,\n    ak.key as asset_kind_key,\n    nuv.content_hash,\n    nua.draft_id,\n    nua.content_length,\n    nua.mime_type,\n    nua.created_at\nFROM numbered_assets nua\nJOIN numbered_versions nuv ON nuv.ord = nua.ord\nJOIN numbered_paths nup ON nup.ord = nua.ord\nJOIN numbered_path_details npd ON npd.ord = nua.ord\nJOIN rev.asset_kinds ak ON ak.id = npd.asset_kind_id\nLEFT JOIN rev.drafts d ON d.id = nua.draft_id\nORDER BY nua.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.assets",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "versioned_object_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.assets",
+            "name": "versioned_object_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "path_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "path_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "asset_kind_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.asset_kinds",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "content_hash",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "content_hash"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "draft_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.assets",
+            "name": "draft_id"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "content_length",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "rev.assets",
+            "name": "content_length"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "mime_type",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.assets",
+            "name": "mime_type"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.assets",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "TextArray",
+        "Int8Array",
+        "UuidArray",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "03e517162bca530614f73c62ff3d9ccbd5d23134377a9fe69bbdc53951ee72c3"
+}

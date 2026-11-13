@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO rev.prompt_path_details (path_id, name, namespace_company_id) VALUES ($1, $2, $3)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "954eeea9f85584eb4fa64ac4ad0e09de279ba3cced7bbd0a743a6b835fca8d3c"
+}

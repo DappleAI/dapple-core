@@ -1,0 +1,55 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::JSONB[],\n        $2::UUID[],\n        $3::UUID[],\n        $4::BIGINT[]\n    ) WITH ORDINALITY AS o(claim_data, correlation_id, dispatch_task_attempt_id, resource_type_id, ord)\n),\nnew_claims AS (\n    INSERT INTO rev.resource_claims (resource_type_id, dispatch_task_attempt_id, correlation_id, claim_data)\n    SELECT args.resource_type_id, args.dispatch_task_attempt_id, args.correlation_id, args.claim_data\n    FROM args\n    ORDER BY args.ord\n    RETURNING id, resource_type_id, created_at\n)\nSELECT nc.id, nc.resource_type_id, nc.created_at\nFROM new_claims nc\nORDER BY nc.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.resource_claims",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "resource_type_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "rev.resource_claims",
+            "name": "resource_type_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.resource_claims",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "JsonbArray",
+        "UuidArray",
+        "UuidArray",
+        "Int8Array"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "3858935d67034825fb9814581f28bbe42695f1e91c23da520d17b412343523be"
+}

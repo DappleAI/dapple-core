@@ -1,0 +1,114 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::TEXT[],\n        $2::UUID[],\n        $3::TEXT[],\n        $4::TEXT[],\n        $5::UUID[],\n        $6::TEXT[]\n    ) WITH ORDINALITY AS o(\n        content_hash,\n        description_fluent_message_id,\n        description,\n        name,\n        title_fluent_message_id,\n        title,\n        ord\n    )\n),\nentity_type AS (\n    SELECT id FROM rev.entity_types WHERE key = 'brief'\n),\nnew_paths AS (\n    INSERT INTO rev.object_paths (entity_type_id, namespace_company_id, scope)\n    SELECT\n        (SELECT id FROM entity_type),\n        COALESCE(\n            NULLIF(current_setting('dapple.namespace_company_id', true), ''),\n            '019e132e-2610-7a4a-b64a-77a49e286ac0'\n        )::UUID,\n        COALESCE(\n            NULLIF(current_setting('dapple.scope', true), ''),\n            'public'\n        )::TEXT\n    FROM args\n    ORDER BY args.ord\n                    RETURNING id, namespace_company_id\n),\nnumbered_paths AS (\n    SELECT np.id, np.namespace_company_id, row_number() OVER (ORDER BY np.id) AS ord\n    FROM new_paths np\n),\n\npath_details AS (\n    INSERT INTO rev.brief_path_details (path_id, name, namespace_company_id)\n    SELECT\n        np.id,\n        args.name,\n        np.namespace_company_id\n    FROM args\n    JOIN numbered_paths np ON np.ord = args.ord\n    RETURNING path_id, name, namespace_company_id\n),\nnumbered_path_details AS (\n    SELECT pd.*, row_number() OVER (ORDER BY pd.path_id) AS ord\n    FROM path_details pd\n),\n\nnew_versions AS (\n    INSERT INTO rev.versioned_objects (path_id, content_hash)\n    SELECT np.id, args.content_hash\n    FROM numbered_paths np\n    JOIN args ON args.ord = np.ord\n    ORDER BY np.id\n    RETURNING id, path_id, content_hash, created_at\n),\nnumbered_versions AS (\n    SELECT nv.*, row_number() OVER (ORDER BY nv.id) AS ord\n    FROM new_versions nv\n),\n\nnew_briefs AS (\n    INSERT INTO rev.briefs (\n        versioned_object_id,\n        title,\n        description,\n        title_fluent_message_id,\n        description_fluent_message_id\n    )\n    SELECT\n        nuv.id,\n        args.title,\n        args.description,\n        args.title_fluent_message_id,\n        args.description_fluent_message_id\n    FROM args\n    JOIN numbered_versions nuv ON nuv.ord = args.ord\n    ORDER BY args.ord\n    RETURNING\n        id,\n        versioned_object_id,\n        title,\n        description,\n        title_fluent_message_id,\n        description_fluent_message_id,\n        created_at\n),\nnumbered_briefs AS (\n    SELECT nb.*, row_number() OVER (ORDER BY nb.id) AS ord\n    FROM new_briefs nb\n)\nSELECT\n    nub.id,\n    nub.versioned_object_id,\n    nup.id AS path_id,\n    npd.name,\n    nuv.content_hash,\n    COALESCE(rev.fluent_body(nub.title_fluent_message_id, 'en'), nub.title, npd.name) AS \"title!\",\n    COALESCE(rev.fluent_body(nub.description_fluent_message_id, 'en'), nub.description) AS description,\n    NULL::UUID AS old_brief_id,\n    nub.created_at\nFROM numbered_briefs nub\nJOIN numbered_versions nuv ON nuv.ord = nub.ord\nJOIN numbered_paths nup ON nup.ord = nub.ord\nJOIN numbered_path_details npd ON npd.ord = nub.ord\nORDER BY nub.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.briefs",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "versioned_object_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.briefs",
+            "name": "versioned_object_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "path_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.object_paths",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "content_hash",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "content_hash"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "title!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 6,
+        "name": "description",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 7,
+        "name": "old_brief_id",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.briefs",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "UuidArray",
+        "TextArray",
+        "TextArray",
+        "UuidArray",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      null,
+      null,
+      false
+    ]
+  },
+  "hash": "a70d791bf67ab00e8ad9d29e255e7f40ab12455878c3bb6c7f3014da79e8bff1"
+}

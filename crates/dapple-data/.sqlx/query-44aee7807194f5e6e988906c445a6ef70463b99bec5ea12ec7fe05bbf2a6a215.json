@@ -1,0 +1,65 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::TEXT[],          $2::TEXT[]       ) WITH ORDINALITY AS o(name, description, ord)\n),\nentity_type AS (\n    SELECT id FROM rev.entity_types WHERE key = 'fluent_message'\n),\nnew_paths AS (\n    INSERT INTO rev.object_paths (entity_type_id, namespace_company_id, scope)\n    SELECT\n        (SELECT id FROM entity_type),\n        COALESCE(\n            NULLIF(current_setting('dapple.namespace_company_id', true), ''),\n            '019e132e-2610-7a4a-b64a-77a49e286ac0'\n        )::UUID,\n        COALESCE(\n            NULLIF(current_setting('dapple.scope', true), ''),\n            'public'\n        )::TEXT\n    FROM args\n    ORDER BY args.ord\n        RETURNING id, namespace_company_id, created_at\n),\nnumbered_paths AS (\n    SELECT np.*, row_number() OVER (ORDER BY np.id) AS ord\n    FROM new_paths np\n),\npath_details AS (\n    INSERT INTO rev.fluent_message_path_details (path_id, name, description, namespace_company_id)\n    SELECT\n        np.id,\n        args.name,\n        args.description,\n        np.namespace_company_id\n    FROM args\n    JOIN numbered_paths np ON np.ord = args.ord\n    RETURNING path_id, name, description, namespace_company_id\n),\nnumbered_path_details AS (\n    SELECT pd.*, row_number() OVER (ORDER BY pd.path_id) AS ord\n    FROM path_details pd\n)\nSELECT\n    nup.id,\n    npd.name,\n    npd.description,\n    nup.created_at\nFROM numbered_paths nup\nJOIN numbered_path_details npd ON npd.ord = nup.ord\nORDER BY nup.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.object_paths",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.fluent_message_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "description",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.fluent_message_path_details",
+            "name": "description"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.object_paths",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "44aee7807194f5e6e988906c445a6ef70463b99bec5ea12ec7fe05bbf2a6a215"
+}

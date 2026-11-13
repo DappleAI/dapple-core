@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nWITH copy_outputs AS (\n    INSERT INTO rev.brief_outputs (\n        brief_id, value_slot_id, unit_key, source_kind_id, source_path, transform,\n        display_hint_id, reveal, title_text, title_fluent_message_id\n    )\n    SELECT\n        $2, bo.value_slot_id, bo.unit_key, bo.source_kind_id, bo.source_path, bo.transform,\n        bo.display_hint_id, bo.reveal, bo.title_text, bo.title_fluent_message_id\n    FROM rev.brief_outputs bo\n    WHERE bo.brief_id = $1\n    RETURNING id\n)\nSELECT count(*) AS copied_outputs FROM copy_outputs;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "copied_outputs",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "8dd9469b8f2ec00b8afcd9672816494b79b0f7ba26b534b23a33e93bc76ca750"
+}

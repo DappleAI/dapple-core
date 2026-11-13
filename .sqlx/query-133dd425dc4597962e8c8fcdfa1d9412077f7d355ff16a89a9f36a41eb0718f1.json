@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO rev.institutional_holdings_manager_ingest (manager_cik, quarter_end, accession)\nVALUES ($1, $2, $3)\nON CONFLICT (manager_cik, quarter_end)\nDO UPDATE SET ingested_at = now(), accession = EXCLUDED.accession;\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Date",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "133dd425dc4597962e8c8fcdfa1d9412077f7d355ff16a89a9f36a41eb0718f1"
+}

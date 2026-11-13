@@ -1,0 +1,69 @@
+# Lago PDF - Gotenberg service for invoice PDF generation
+#
+# replicas: 0 because getlago/lago-gotenberg:7.8.2 is published amd64-only
+# and the microk8s VM on Apple Silicon dev machines is arm64. kubelet exits
+# the container immediately with "exec /usr/bin/tini: exec format error"
+# and dapple lago setup hangs at the rollout-wait. PDFs are only used for
+# invoice generation in Lago billing — nothing in the dapple stack's day-
+# to-day flows depends on them.
+#
+# To enable: switch the image to a multi-arch alternative
+# (gotenberg/gotenberg:7 ships arm64), or enable Rosetta 2 amd64 emulation
+# in OrbStack settings, then bump replicas back to 1.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lago-pdf
+  namespace: lago
+  labels:
+    app: lago-pdf
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: lago-pdf
+  template:
+    metadata:
+      labels:
+        app: lago-pdf
+    spec:
+      containers:
+        - name: lago-pdf
+          image: getlago/lago-gotenberg:7.8.2
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 3000
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 20
+            periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lago-pdf
+  namespace: lago
+spec:
+  type: ClusterIP
+  selector:
+    app: lago-pdf
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000

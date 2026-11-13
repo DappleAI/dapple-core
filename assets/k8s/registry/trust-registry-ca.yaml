@@ -1,0 +1,141 @@
+# ConfigMap will be created by setup_k8s_registry_cert function
+# This DaemonSet reads from the ConfigMap created by that function
+---
+# DaemonSet to add the root CA certificate to each node's system CA store and configure containerd
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: registry-ca-trust
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      name: registry-ca-trust
+  template:
+    metadata:
+      labels:
+        name: registry-ca-trust
+    spec:
+      hostNetwork: true
+      hostPID: true
+      initContainers:
+      - name: trust-ca
+        image: ubuntu:22.04
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -euo pipefail
+          echo "Setting up registry CA certificate trust..."
+          SENTINEL=/host/var/lib/registry-ca-trust/installed
+          
+          # Validate certificate file exists
+          if [ ! -f /ca-cert/ca.crt ]; then
+            echo "Certificate file /ca-cert/ca.crt not found" >&2
+            exit 1
+          fi
+          
+          # Calculate checksum of the current certificate
+          if ! CURRENT_CHECKSUM=$(sha256sum /ca-cert/ca.crt | awk '{print $1}'); then
+            echo "Failed to calculate certificate checksum" >&2
+            exit 1
+          fi
+
+          # Check if certificate is already installed with the same checksum
+          if [ -f "$SENTINEL" ]; then
+            if [ -r "$SENTINEL" ]; then
+              if ! INSTALLED_CHECKSUM=$(cat "$SENTINEL"); then
+                echo "Failed to read sentinel file; reinstalling..."
+              elif [ -z "$INSTALLED_CHECKSUM" ]; then
+                echo "Sentinel file is empty; reinstalling..."
+              elif [ "$INSTALLED_CHECKSUM" = "$CURRENT_CHECKSUM" ]; then
+                echo "Registry CA already installed on this node with same checksum; skipping."
+                exit 0
+              else
+                echo "Certificate checksum has changed; reinstalling..."
+              fi
+            else
+              echo "Sentinel file exists but is not readable; reinstalling..."
+            fi
+          fi
+          
+          # Copy certificate from ConfigMap to system CA store
+          # This is the standard location for additional CA certificates on Ubuntu/Debian
+          cp /ca-cert/ca.crt /host-ca-store/local-dev-root-ca.crt
+          chmod 644 /host-ca-store/local-dev-root-ca.crt
+          
+          # Update system CA store - this will create symlinks in /etc/ssl/certs automatically
+          if [ -x /host/usr/sbin/update-ca-certificates ]; then
+            chroot /host /usr/sbin/update-ca-certificates
+          else
+            echo "update-ca-certificates not available on host; cannot install registry CA" >&2
+            exit 1
+          fi
+          
+          # Also copy to containerd's certificate directory for microk8s (if it exists)
+          mkdir -p /host-containerd-certs
+          cp /ca-cert/ca.crt /host-containerd-certs/local-dev-root-ca.crt
+          chmod 644 /host-containerd-certs/local-dev-root-ca.crt
+          
+          echo "Certificate installed. Restarting containerd..."
+
+          # Restart containerd service on the host
+          if chroot /host systemctl restart snap.microk8s.daemon-containerd.service 2>/dev/null; then
+            echo "Containerd service restarted successfully"
+          else
+            echo "Warning: Could not restart containerd service (may not be applicable in this environment)"
+          fi
+
+          # Store the certificate checksum in the sentinel file
+          mkdir -p "$(dirname "$SENTINEL")"
+          echo "$CURRENT_CHECKSUM" > "$SENTINEL"
+          
+          echo "Registry CA certificate trust configured successfully"
+        volumeMounts:
+        - name: ca-cert
+          mountPath: /ca-cert
+          readOnly: true
+        - name: ca-store
+          mountPath: /host-ca-store
+        - name: containerd-certs
+          mountPath: /host-containerd-certs
+        - name: host-root
+          mountPath: /host
+        securityContext:
+          privileged: true
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "64Mi"
+          limits:
+            cpu: "200m"
+            memory: "256Mi"
+      containers:
+      - name: pause
+        image: registry.k8s.io/pause:3.9
+        resources:
+          requests:
+            cpu: "10m"
+            memory: "16Mi"
+          limits:
+            cpu: "50m"
+            memory: "32Mi"
+      volumes:
+      - name: ca-cert
+        configMap:
+          name: registry-root-ca
+      - name: ca-store
+        hostPath:
+          path: /usr/local/share/ca-certificates
+          type: DirectoryOrCreate
+      - name: containerd-certs
+        hostPath:
+          path: /var/snap/microk8s/current/args/certs.d
+          type: DirectoryOrCreate
+      - name: host-root
+        hostPath:
+          path: /
+          type: Directory
+      tolerations:
+      - operator: Exists
+        effect: NoSchedule

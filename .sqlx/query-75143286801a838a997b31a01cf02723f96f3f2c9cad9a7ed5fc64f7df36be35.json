@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO rev.value_slot_path_details (path_id, name, value_kind_id, namespace_company_id) VALUES ($1, $2, $3, $4)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Int2",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "75143286801a838a997b31a01cf02723f96f3f2c9cad9a7ed5fc64f7df36be35"
+}

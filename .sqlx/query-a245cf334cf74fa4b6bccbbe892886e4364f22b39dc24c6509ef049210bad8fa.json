@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST($1::UUID[]) WITH ORDINALITY AS o(id, ord)\n)\nSELECT\n    vo.id,\n            dl.key AS \"deprecation_level_key!\"\nFROM args\nJOIN rev.versioned_objects vo ON vo.id = args.id\nLEFT JOIN LATERAL (\n    SELECT de.to_level_id\nFROM rev.deprecation_events de\nWHERE de.versioned_object_id = vo.id\nORDER BY de.created_at DESC\nLIMIT 1\n\n) ld ON TRUE\nJOIN rev.deprecation_levels dl ON dl.id = ld.to_level_id\nWHERE dl.key IN ('retired', 'quarantined')\nORDER BY vo.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "deprecation_level_key!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.deprecation_levels",
+            "name": "key"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "a245cf334cf74fa4b6bccbbe892886e4364f22b39dc24c6509ef049210bad8fa"
+}

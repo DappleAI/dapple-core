@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO rev.institutional_holdings\n    (cusip, quarter_end, manager_cik, manager_name, shares, value_usd, accession, filed_date)\nSELECT * FROM UNNEST(\n    $1::TEXT[],\n    $2::DATE[],\n    $3::BIGINT[],\n    $4::TEXT[],\n    $5::DOUBLE PRECISION[],\n    $6::DOUBLE PRECISION[],\n    $7::TEXT[],\n    $8::DATE[]\n);\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "DateArray",
+        "Int8Array",
+        "TextArray",
+        "Float8Array",
+        "Float8Array",
+        "TextArray",
+        "DateArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ee8e87a58d65003486036504e2902c3b9972329a7a2d1e580cff569f67653148"
+}

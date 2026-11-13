@@ -1,0 +1,2 @@
+# Select stages by object IDs using unified versioning
+:compose(stages/select_stages_body.sqlc, @page = stages/pages/by_object_ids.sqlc)

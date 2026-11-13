@@ -1,0 +1,14 @@
+-- Migration 77: Drop the stale rev.dispatch_task_attempts.status column
+--
+-- `status` was written once at attempt insert ('queued' or 'running') and never
+-- updated — the true phase lives in rev.dispatch_task_attempt_events.phase_code
+-- (append-only). Verified live: the column only ever held 'running' / 'queued',
+-- never a terminal value, and every attempt always carries >= 1 event, so the
+-- column is fully redundant. Every consumer-facing query already derives status
+-- via COALESCE(<latest event>.phase_code, a.status) — the a.status fallback has
+-- never fired. Those queries switch their fallback to a 'queued' literal in the
+-- same change set so nothing references the dropped column.
+--
+-- Removing the column forecloses any future code path from reading the
+-- permanently-'running' value.
+ALTER TABLE rev.dispatch_task_attempts DROP COLUMN status;

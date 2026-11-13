@@ -1,0 +1,2 @@
+# Select brief groups by IDs using unified versioning
+:compose(brief_groups/select_brief_groups_body.sqlc, @page = brief_groups/pages/by_object_ids.sqlc)

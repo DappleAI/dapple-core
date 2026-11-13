@@ -1,0 +1,71 @@
+# Create new versions of existing steps (PATCH).
+# Takes path_id[] to create new versioned objects under existing paths.
+# Caller supplies content_hash for idempotent upsert.
+# Display description carried as text + description_fluent_message_id reference;
+# final SELECT resolves COALESCE(rev.fluent_body(ref), text, name).
+WITH args AS (
+    SELECT *
+    FROM UNNEST(
+        :bind(content_hashes)::TEXT[],
+        :bind(description_fluent_message_ids)::UUID[],
+        :bind(descriptions)::TEXT[],
+        :bind(path_ids)::UUID[]
+    ) WITH ORDINALITY AS o(
+        content_hash,
+        description_fluent_message_id,
+        description,
+        path_id,
+        ord
+    )
+),
+paths AS (
+    SELECT
+        op.id AS path_id,
+        spd.name,
+        spd.slug,
+        args.ord
+    FROM args
+    JOIN rev.object_paths op ON op.id = args.path_id
+    JOIN rev.step_path_details spd ON spd.path_id = op.id
+),
+:compose(shared/patch_new_versions.sqlc)
+new_steps AS (
+    INSERT INTO rev.steps (versioned_object_id, description, description_fluent_message_id)
+    SELECT
+        nuv.id,
+        args.description,
+        args.description_fluent_message_id
+    FROM args
+    JOIN numbered_versions nuv ON nuv.ord = args.ord
+    WHERE NOT EXISTS (SELECT 1 FROM rev.steps s WHERE s.versioned_object_id = nuv.id)
+    ORDER BY args.ord
+    RETURNING id, versioned_object_id, description, description_fluent_message_id, created_at
+),
+all_steps AS (
+    # Carry input ord via the version id (nuv.ord is the caller's ord, not an
+    # id-rank), so numbered_steps below joins by input order.
+    SELECT ns.id, ns.versioned_object_id, ns.description, ns.description_fluent_message_id, ns.created_at, nuv.ord
+    FROM new_steps ns
+    JOIN numbered_versions nuv ON nuv.id = ns.versioned_object_id
+    UNION ALL
+    SELECT s.id, s.versioned_object_id, s.description, s.description_fluent_message_id, s.created_at, nuv.ord
+    FROM rev.steps s
+    JOIN numbered_versions nuv ON s.versioned_object_id = nuv.id
+    WHERE NOT EXISTS (SELECT 1 FROM new_steps ns WHERE ns.versioned_object_id = nuv.id)
+),
+numbered_steps AS (
+    SELECT ast.* FROM all_steps ast
+)
+SELECT
+    nus.id AS "id!",
+    nus.versioned_object_id AS "versioned_object_id!",
+    nuv.path_id AS "path_id!",
+    paths.name AS "name!",
+    paths.slug AS "slug!",
+    nuv.content_hash AS "content_hash!",
+    COALESCE(rev.fluent_body(nus.description_fluent_message_id, 'en'), nus.description, paths.name) AS "description!",
+    nus.created_at AS "created_at!"
+FROM numbered_steps nus
+JOIN numbered_versions nuv ON nuv.ord = nus.ord
+JOIN paths ON paths.ord = nus.ord
+ORDER BY nus.ord;

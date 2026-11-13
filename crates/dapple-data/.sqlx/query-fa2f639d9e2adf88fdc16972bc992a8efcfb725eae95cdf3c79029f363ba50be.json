@@ -1,0 +1,70 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::UUID[],                  $2::TEXT[],                   $3::UUID[],                   $4::TEXT[],                   $5::TIMESTAMPTZ[],           $6::TEXT[],                   $7::TEXT[]                ) WITH ORDINALITY AS o(\n        asset_id,\n        author,\n        guide_id,\n        key,\n        retrieved_at,\n        title,\n        url,\n        ord\n    )\n),\nobjs AS (\n    INSERT INTO rev.guide_resources (guide_id, asset_id, key, title, author, url, retrieved_at)\n    SELECT\n        args.guide_id,\n        args.asset_id,\n        args.key,\n        args.title,\n        args.author,\n        args.url,\n        args.retrieved_at\n    FROM args\n    ORDER BY args.ord\n    RETURNING id, guide_id, key, created_at\n)\nSELECT * FROM objs ORDER BY objs.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_resources",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "guide_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_resources",
+            "name": "guide_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_resources",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_resources",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "TextArray",
+        "UuidArray",
+        "TextArray",
+        "TimestamptzArray",
+        "TextArray",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "fa2f639d9e2adf88fdc16972bc992a8efcfb725eae95cdf3c79029f363ba50be"
+}

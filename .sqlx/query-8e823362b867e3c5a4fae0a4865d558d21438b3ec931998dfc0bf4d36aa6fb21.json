@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT ppd.path_id, ppd.name, ppd.namespace_company_id FROM rev.playbook_path_details ppd WHERE ppd.name = $1 ORDER BY ppd.namespace_company_id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "path_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.playbook_path_details",
+            "name": "path_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.playbook_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "namespace_company_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.playbook_path_details",
+            "name": "namespace_company_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "8e823362b867e3c5a4fae0a4865d558d21438b3ec931998dfc0bf4d36aa6fb21"
+}

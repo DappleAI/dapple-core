@@ -1,0 +1,115 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH latest_deprecation AS (\n    SELECT DISTINCT ON (versioned_object_id)\n        versioned_object_id,\n        to_level_id\n    FROM rev.deprecation_events\n    ORDER BY versioned_object_id, created_at DESC\n)\nSELECT\n    gpd.slug,\n    gpd.title,\n    g.source_path,\n    op.id AS path_id,\n    vo.id AS versioned_object_id,\n    vo.content_hash,\n    dl.key AS \"deprecation_level_key?\",\n    g.created_at\nFROM rev.guides g\nJOIN rev.versioned_objects vo ON vo.id = g.versioned_object_id\nJOIN rev.object_paths op ON op.id = vo.path_id\nJOIN rev.guide_path_details gpd ON gpd.path_id = op.id\nLEFT JOIN latest_deprecation ld ON ld.versioned_object_id = vo.id\nLEFT JOIN rev.deprecation_levels dl ON dl.id = ld.to_level_id\nWHERE ($1::TEXT IS NULL OR gpd.slug = $1)\n  AND ($2::TEXT IS NULL OR g.source_path = $2)\nORDER BY gpd.slug, g.created_at DESC\nLIMIT $3 OFFSET $4;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "slug",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_path_details",
+            "name": "slug"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "title",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_path_details",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "source_path",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.guides",
+            "name": "source_path"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "path_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.object_paths",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "versioned_object_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "content_hash",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "content_hash"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "deprecation_level_key?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.deprecation_levels",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.guides",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "0515022b66ae60463340f2d49faecce68f26b0d883bbe88e19e6d30f2293d90c"
+}

@@ -1,0 +1,77 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::UUID[],           $2::UUID[]        ) WITH ORDINALITY AS o(dispatch_step_id, step_task_id, ord)\n),\nreturned AS (\n    INSERT INTO rev.dispatch_tasks (dispatch_step_id, step_task_id)\n    SELECT ds.id, stk.id\n    FROM args a\n    JOIN rev.dispatch_steps ds ON a.dispatch_step_id = ds.id\n    JOIN rev.step_tasks stk ON a.step_task_id = stk.id\n    ORDER BY a.ord\n    RETURNING *\n)\nSELECT\n    returned.*,\n    stk.task_id AS task_id\nFROM returned\nJOIN rev.dispatch_steps ds ON returned.dispatch_step_id = ds.id\nJOIN rev.step_tasks stk ON returned.step_task_id = stk.id\nJOIN args a ON ds.id = a.dispatch_step_id\n             AND stk.id = a.step_task_id\nORDER BY returned.dispatch_step_id, returned.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_tasks",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "dispatch_step_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_tasks",
+            "name": "dispatch_step_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_tasks",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "step_task_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_tasks",
+            "name": "step_task_id"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "task_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.step_tasks",
+            "name": "task_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "a90a0243da91d4e643737b75e683687fc000aa920a5ae02f2b95c287dbdebefd"
+}

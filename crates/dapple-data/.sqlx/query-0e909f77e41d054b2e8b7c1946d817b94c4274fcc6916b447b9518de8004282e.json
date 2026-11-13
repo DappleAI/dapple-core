@@ -1,0 +1,108 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH draft_info AS (\n    SELECT d.id, d.asset_kind_id, d.mime_type\n    FROM rev.drafts d\n    WHERE d.id = $1\n),\ndraft_chunk_refs AS (\n    SELECT\n        dc.chunk_id,\n        dc.ordinal,\n        octet_length(c.data) as chunk_size\n    FROM rev.draft_chunks dc\n    JOIN draft_info di ON di.id = dc.draft_id\n    JOIN rev.chunks c ON c.id = dc.chunk_id\n    ORDER BY dc.ordinal\n),\ncontent_stats AS (\n    SELECT\n        COUNT(*)::BIGINT as chunk_count,\n        COALESCE(SUM(chunk_size), 0)::BIGINT as total_length\n    FROM draft_chunk_refs\n),\nentity_type AS (\n    SELECT id FROM rev.entity_types WHERE key = 'asset'\n),\nnew_path AS (\n    INSERT INTO rev.object_paths (entity_type_id, namespace_company_id, scope)\n    SELECT\n        id,\n        COALESCE(\n            NULLIF(current_setting('dapple.namespace_company_id', true), ''),\n            '019e132e-2610-7a4a-b64a-77a49e286ac0'\n        )::UUID,\n        COALESCE(\n            NULLIF(current_setting('dapple.scope', true), ''),\n            'public'\n        )::TEXT\n    FROM entity_type\n    RETURNING id\n),\nnew_path_details AS (\n    INSERT INTO rev.asset_path_details (path_id, asset_kind_id)\n    SELECT np.id, di.asset_kind_id\n    FROM new_path np, draft_info di\n    RETURNING path_id\n),\nnew_version AS (\n    INSERT INTO rev.versioned_objects (path_id, content_hash)\n    SELECT np.id, $2::TEXT\n    FROM new_path np\n    RETURNING id, path_id, content_hash, created_at\n),\nnew_asset AS (\n    INSERT INTO rev.assets (versioned_object_id, draft_id, content_length, mime_type)\n    SELECT\n        nv.id,\n        di.id,\n        cs.total_length,\n        di.mime_type\n    FROM new_version nv, draft_info di, content_stats cs\n    RETURNING id, versioned_object_id, draft_id, content_length, mime_type, created_at\n),\nnew_links AS (\n    INSERT INTO rev.asset_chunks (asset_id, chunk_id, ordinal)\n    SELECT na.id, dcr.chunk_id, dcr.ordinal\n    FROM new_asset na\n    CROSS JOIN draft_chunk_refs dcr\n    RETURNING asset_id, chunk_id\n)\nSELECT\n    na.id as asset_id,\n    nv.path_id,\n    na.draft_id,\n    na.content_length,\n    na.mime_type,\n    cs.chunk_count,\n    nv.content_hash,\n    na.created_at\nFROM new_asset na\nJOIN new_version nv ON nv.id = na.versioned_object_id\nJOIN new_path np ON np.id = nv.path_id\nJOIN draft_info di ON di.id = na.draft_id\nCROSS JOIN content_stats cs;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "asset_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.assets",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "path_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "path_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "draft_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.assets",
+            "name": "draft_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "content_length",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "rev.assets",
+            "name": "content_length"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "mime_type",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.assets",
+            "name": "mime_type"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "chunk_count",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 6,
+        "name": "content_hash",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "content_hash"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.assets",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      null,
+      false,
+      false
+    ]
+  },
+  "hash": "0e909f77e41d054b2e8b7c1946d817b94c4274fcc6916b447b9518de8004282e"
+}

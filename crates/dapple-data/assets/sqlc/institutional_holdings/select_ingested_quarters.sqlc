@@ -1,0 +1,7 @@
+# The quarters already cached for a security, so the ingest fills only the gap.
+# Parameters:
+#   $1: cusip (TEXT)
+SELECT quarter_end
+FROM rev.institutional_holdings_ingest
+WHERE cusip = $1
+ORDER BY quarter_end;

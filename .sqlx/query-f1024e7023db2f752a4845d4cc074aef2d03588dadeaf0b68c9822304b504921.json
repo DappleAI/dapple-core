@@ -1,0 +1,31 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO rev.insider_transactions\n    (issuer_cik, accession, filed_date, trans_date, owner_cik, owner_name,\n     is_director, is_officer, is_ten_pct, officer_title, security_title,\n     trans_code, acquired_disposed, shares, price_per_share, shares_owned_after,\n     is_derivative, is_10b5_1)\nSELECT * FROM UNNEST(\n    $1::BIGINT[],\n    $2::TEXT[],\n    $3::DATE[],\n    $4::DATE[],\n    $5::BIGINT[],\n    $6::TEXT[],\n    $7::BOOLEAN[],\n    $8::BOOLEAN[],\n    $9::BOOLEAN[],\n    $10::TEXT[],\n    $11::TEXT[],\n    $12::TEXT[],\n    $13::TEXT[],\n    $14::DOUBLE PRECISION[],\n    $15::DOUBLE PRECISION[],\n    $16::DOUBLE PRECISION[],\n    $17::BOOLEAN[],\n    $18::BOOLEAN[]\n);\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8Array",
+        "TextArray",
+        "DateArray",
+        "DateArray",
+        "Int8Array",
+        "TextArray",
+        "BoolArray",
+        "BoolArray",
+        "BoolArray",
+        "TextArray",
+        "TextArray",
+        "TextArray",
+        "TextArray",
+        "Float8Array",
+        "Float8Array",
+        "Float8Array",
+        "BoolArray",
+        "BoolArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f1024e7023db2f752a4845d4cc074aef2d03588dadeaf0b68c9822304b504921"
+}

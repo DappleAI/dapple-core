@@ -1,0 +1,14 @@
+# Insert a single company (B2B partner).
+#
+# The id, created_at, and revoked_at are populated by table defaults. Slug
+# format is enforced by the `companies_slug_format` CHECK constraint, and
+# uniqueness by the UNIQUE constraint on slug; the handler maps the
+# corresponding sqlx errors to HTTP 400/409.
+INSERT INTO rev.companies (slug, name)
+VALUES (:bind(slug)::TEXT, :bind(name)::TEXT)
+RETURNING
+    id,
+    slug,
+    name,
+    created_at,
+    revoked_at;

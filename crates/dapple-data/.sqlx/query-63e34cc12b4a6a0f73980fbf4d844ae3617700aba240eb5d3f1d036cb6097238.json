@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT EXISTS (\n    SELECT 1\n    FROM rev.object_paths\n    WHERE id = $2::UUID\n      AND namespace_company_id = $1::UUID\n      AND scope = 'external'\n) AS in_namespace;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "in_namespace",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "63e34cc12b4a6a0f73980fbf4d844ae3617700aba240eb5d3f1d036cb6097238"
+}

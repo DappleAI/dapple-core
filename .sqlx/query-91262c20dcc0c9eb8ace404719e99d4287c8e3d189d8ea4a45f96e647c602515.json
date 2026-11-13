@@ -1,0 +1,47 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nWITH\njourney_steps AS (\n    SELECT ps.id AS playbook_stage_id, ss.id AS stage_step_id, ss.step_id,\n           ps.ord AS stage_ord, ss.ord AS step_ord\n    FROM rev.journeys j\n    JOIN rev.playbook_stages ps ON ps.playbook_id = j.playbook_id\n    JOIN rev.stage_steps ss ON ss.stage_id = ps.stage_id\n    WHERE j.id = $1::UUID\n),\nstep_tasks AS (\n    SELECT jst.playbook_stage_id, jst.stage_step_id, jst.stage_ord, jst.step_ord,\n           stk.id AS step_task_id, stk.ord AS task_ord\n    FROM journey_steps jst\n    JOIN rev.step_tasks stk ON stk.step_id = jst.step_id\n),\nall_overlays AS (\n    SELECT st.stage_step_id, o.value_slot_path_id, o.visibility, 1 AS priority\n    FROM rev.playbook_stage_overlays o\n    JOIN step_tasks st ON st.playbook_stage_id = o.playbook_stage_id\n    UNION ALL\n    SELECT st.stage_step_id, o.value_slot_path_id, o.visibility, 2 AS priority\n    FROM rev.stage_step_overlays o\n    JOIN step_tasks st ON st.stage_step_id = o.stage_step_id\n    UNION ALL\n    SELECT st.stage_step_id, o.value_slot_path_id, o.visibility, 3 AS priority\n    FROM rev.step_task_overlays o\n    JOIN step_tasks st ON st.step_task_id = o.step_task_id\n),\nranked AS (\n    SELECT DISTINCT ON (stage_step_id, value_slot_path_id)\n        stage_step_id, value_slot_path_id, visibility\n    FROM all_overlays\n    ORDER BY stage_step_id, value_slot_path_id, priority DESC\n),\nexposed AS (\n    SELECT stage_step_id, value_slot_path_id\n    FROM ranked\n    WHERE visibility = 'expose'\n),\noperator_steps AS (\n        SELECT DISTINCT e.stage_step_id\n    FROM exposed e\n    WHERE EXISTS (\n        SELECT 1\n        FROM rev.brief_unit_input bui\n        JOIN rev.value_slots vs\n            ON bui.control_spec ? 'value_slot_id'\n           AND vs.id = (bui.control_spec ->> 'value_slot_id')::UUID\n        JOIN rev.versioned_objects vo ON vo.id = vs.versioned_object_id\n        WHERE vo.path_id = e.value_slot_path_id\n    )\n),\ncomputed_steps AS (\n        SELECT DISTINCT e.stage_step_id\n    FROM exposed e\n    WHERE EXISTS (\n        SELECT 1\n        FROM rev.brief_outputs bo\n        JOIN rev.brief_output_source_kinds bosk\n            ON bosk.id = bo.source_kind_id AND bosk.key = 'computed'\n        JOIN rev.value_slots vs ON vs.id = bo.value_slot_id\n        JOIN rev.versioned_objects vo ON vo.id = vs.versioned_object_id\n        WHERE vo.path_id = e.value_slot_path_id\n    )\n),\nattempt_latest AS (\n                            SELECT DISTINCT ON (ev.attempt_id)\n        ev.attempt_id,\n        ev.phase_code,\n        ev.context_metadata ->> 'error_class' AS error_class\n    FROM rev.dispatch_task_attempt_events ev\n    ORDER BY ev.attempt_id, ev.id DESC\n),\nstep_dispatches AS (\n            SELECT ds.stage_step_id, d.id AS dispatch_id, ds.id AS dispatch_step_id\n    FROM rev.dispatches d\n    JOIN rev.dispatch_stages dst ON dst.dispatch_id = d.id\n    JOIN rev.dispatch_steps ds ON ds.dispatch_stage_id = dst.id\n    WHERE d.journey_id = $1::UUID\n),\nstep_dispatch_verdicts AS (\n                                                SELECT\n        sd.stage_step_id,\n        sd.dispatch_id,\n        CASE\n            WHEN count(al.attempt_id) = 0          THEN NULL\n            WHEN bool_or(NOT dp.terminal)          THEN NULL\n            WHEN bool_or(al.phase_code = 'unsafe') THEN 'unsafe'\n            WHEN bool_or(al.phase_code = 'failed'\n                     AND al.error_class = 'deterministic')\n                                                   THEN 'failed_deterministic'\n            WHEN bool_or(al.phase_code = 'failed') THEN 'failed'\n            ELSE 'ok'\n        END AS verdict\n    FROM step_dispatches sd\n    LEFT JOIN rev.dispatch_task_attempts a ON a.dispatch_step_id = sd.dispatch_step_id\n    LEFT JOIN attempt_latest al ON al.attempt_id = a.id\n    LEFT JOIN rev.dispatch_phases dp ON dp.code = al.phase_code\n    GROUP BY sd.stage_step_id, sd.dispatch_id\n),\ndispatched_steps AS (\n                                                                                                                                                SELECT stage_step_id\n    FROM step_dispatch_verdicts\n    GROUP BY stage_step_id\n    HAVING bool_or(verdict IS DISTINCT FROM 'failed')\n        OR count(*) >= 3\n),\nfork_cutoff AS (\n                                SELECT ps.ord AS fork_ord\n    FROM rev.journeys j\n    LEFT JOIN rev.playbook_stages ps ON ps.id = j.fork_stage_id\n    WHERE j.id = $1::UUID\n)\nSELECT\n    st.playbook_stage_id AS \"playbook_stage_id!\",\n    st.stage_step_id AS \"stage_step_id!\",\n    array_agg(st.step_task_id ORDER BY st.task_ord) AS \"step_task_ids!\"\nFROM step_tasks st\nWHERE st.stage_step_id IN (SELECT stage_step_id FROM computed_steps)\n  AND st.stage_step_id NOT IN (SELECT stage_step_id FROM operator_steps)\n  AND st.stage_step_id NOT IN (SELECT stage_step_id FROM dispatched_steps)\n  AND (\n      (SELECT fork_ord FROM fork_cutoff) IS NULL\n      OR st.stage_ord >= (SELECT fork_ord FROM fork_cutoff)\n  )\nGROUP BY st.playbook_stage_id, st.stage_step_id, st.stage_ord, st.step_ord\nORDER BY st.stage_ord, st.step_ord;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "playbook_stage_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.playbook_stages",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "stage_step_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.stage_steps",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "step_task_ids!",
+        "type_info": "UuidArray",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "91262c20dcc0c9eb8ace404719e99d4287c8e3d189d8ea4a45f96e647c602515"
+}

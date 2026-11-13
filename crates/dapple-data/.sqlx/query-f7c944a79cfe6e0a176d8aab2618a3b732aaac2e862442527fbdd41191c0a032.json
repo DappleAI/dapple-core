@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n    hp.principal_id AS \"principal_id!\"\nFROM rev.user_details ud\nJOIN rev.human_principals hp ON hp.user_id = ud.user_id\nWHERE ud.object_id = $1::UUID;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "principal_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.human_principals",
+            "name": "principal_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "f7c944a79cfe6e0a176d8aab2618a3b732aaac2e862442527fbdd41191c0a032"
+}

@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT b.id AS \"id!\"\n                   FROM rev.briefs b\n                   WHERE b.id = ANY($1)\n                     AND (EXISTS (SELECT 1 FROM rev.brief_units u  WHERE u.brief_id = b.id)\n                       OR EXISTS (SELECT 1 FROM rev.brief_outputs o WHERE o.brief_id = b.id))",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.briefs",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "675badedfad001856cefa8a1b63a5e4fdf56edcfd903d847c151037a479850fb"
+}

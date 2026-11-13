@@ -1,0 +1,38 @@
+args AS (
+    SELECT *
+    FROM UNNEST($5::TEXT[]) WITH ORDINALITY AS o(slug, ord)
+),
+current_pins AS (
+    SELECT crp.ref_key, crp.versioned_object_id, crp.id AS pin_id
+    FROM rev.canonical_release_pins crp
+    LEFT JOIN rev.canonical_release_pins newer ON newer.supersedes_id = crp.id
+    WHERE newer.id IS NULL
+      AND crp.scope = $4::TEXT
+      AND crp.environment = $1::TEXT
+      AND crp.object_type = 'guides'
+      AND crp.resolved_at IS NOT NULL
+),
+guide_latest AS (
+    SELECT DISTINCT ON (args.slug)
+        g.id
+    FROM args
+    JOIN rev.guide_path_details gpd ON gpd.slug = args.slug
+    JOIN rev.object_paths op ON op.id = gpd.path_id
+    JOIN rev.versioned_objects vo ON vo.path_id = op.id
+    JOIN rev.guides g ON g.versioned_object_id = vo.id
+    LEFT JOIN latest_deprecation ld ON ld.versioned_object_id = vo.id
+    LEFT JOIN rev.deprecation_levels dl ON dl.id = ld.to_level_id
+    LEFT JOIN current_pins cp
+        ON cp.ref_key = g.source_path
+       AND cp.versioned_object_id = vo.id
+    WHERE dl.id IS NULL
+    ORDER BY args.slug,
+        cp.pin_id NULLS LAST,
+        vo.created_at DESC
+),
+guide_page AS (
+    SELECT id
+    FROM guide_latest
+    ORDER BY id
+    LIMIT $2::BIGINT OFFSET $3::BIGINT
+)

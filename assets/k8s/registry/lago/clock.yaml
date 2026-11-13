@@ -1,0 +1,62 @@
+# Lago Clock - Scheduled job runner (singleton)
+# IMPORTANT: Only ONE replica should run at a time to avoid duplicate job scheduling
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lago-clock
+  namespace: lago
+  labels:
+    app: lago-clock
+spec:
+  replicas: 1  # MUST be 1 - clock schedules recurring jobs
+  strategy:
+    type: Recreate  # Ensure old pod is down before new one starts
+  selector:
+    matchLabels:
+      app: lago-clock
+  template:
+    metadata:
+      labels:
+        app: lago-clock
+    spec:
+      containers:
+        - name: lago-clock
+          image: getlago/api:v1.41.0
+          imagePullPolicy: IfNotPresent
+          # Lago dropped clockwork-based scheduling somewhere before v1.41.
+          # config/clock.rb no longer exists in the image; recurring jobs
+          # are now driven by a sidekiq instance pinned to the "clock"
+          # queue, configured via config/sidekiq/sidekiq_clock.yml. The
+          # readiness/liveness probes below were updated to grep sidekiq
+          # instead of clockwork to match.
+          command: ["bundle", "exec", "sidekiq", "-C", "config/sidekiq/sidekiq_clock.yml"]
+          envFrom:
+            - configMapRef:
+                name: lago-config
+            - secretRef:
+                name: lago-secrets
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "256Mi"
+            limits:
+              cpu: "250m"
+              # Rails 8 + bootsnap clock/scheduler. Same first-boot iseq
+              # compile cost (~1.2-1.6 GB peak) as lago-api/worker/migrations
+              # — this pod is otherwise idle, but it has to boot Rails first
+              # and bootsnap doesn't care that the steady-state workload is
+              # small. Match the other Rails-based Lago services at 2Gi.
+              memory: "2Gi"
+          # Lago slim image doesn't ship procps. PID 1 is sidekiq (set
+          # by the command above), so check /proc/1/cmdline directly —
+          # works without ps/pgrep. See worker.yaml for full rationale.
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "grep -q sidekiq /proc/1/cmdline"]
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "grep -q sidekiq /proc/1/cmdline"]
+            initialDelaySeconds: 30
+            periodSeconds: 30

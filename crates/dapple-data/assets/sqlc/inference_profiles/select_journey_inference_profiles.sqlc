@@ -1,0 +1,43 @@
+# Select inference profiles attached to a journey.
+#
+# `journey_inference_profiles` is append-only and keyed by *version* id, so a
+# journey can accumulate multiple versions of the same inference-profile path
+# (a re-versioned profile linked more than once). Returning them all lets the
+# consumer (conduit `ModelService`) pin a stale version. The `profiles` CTE
+# collapses to the latest non-deprecated profile version per path first — the
+# correlated latest-deprecation probe + `DISTINCT ON (path)` idiom
+# `select_briefs_by_journey_object_id` uses. Distinct profile *paths* are
+# preserved; only multiple *versions of one path* collapse to the newest.
+# Parameters:
+#   $1: journey_id (UUID)
+
+WITH profiles AS (
+    SELECT DISTINCT ON (ipvo.path_id)
+        jip.id,
+        jip.journey_id,
+        jip.inference_profile_id,
+        ip.name AS inference_profile_name
+    FROM rev.journey_inference_profiles jip
+    JOIN rev.inference_profiles ip ON ip.id = jip.inference_profile_id
+    JOIN rev.versioned_objects ipvo ON ipvo.id = ip.versioned_object_id
+    # Inlined shared/select/latest_deprecation_probe.sqlc — this site keys the
+    # probe on ipvo.id, not the fragment's `vo` alias contract.
+    LEFT JOIN LATERAL (
+        SELECT de.to_level_id
+        FROM rev.deprecation_events de
+        WHERE de.versioned_object_id = ipvo.id
+        ORDER BY de.created_at DESC
+        LIMIT 1
+    ) ld ON TRUE
+    WHERE jip.journey_id = :bind(journey_id)::UUID
+      AND ld.to_level_id IS NULL
+    # ipvo.id (UUIDv7) breaks created_at ties for a deterministic total order.
+    ORDER BY ipvo.path_id, ipvo.created_at DESC, ipvo.id DESC
+)
+SELECT
+    id,
+    journey_id,
+    inference_profile_id,
+    inference_profile_name
+FROM profiles
+ORDER BY inference_profile_id;

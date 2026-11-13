@@ -1,0 +1,78 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nWITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::UUID[],\n        $2::UUID[],\n        $3::TEXT[]\n    ) WITH ORDINALITY\n    AS o(\n        step_task_id,\n        value_slot_path_id,\n        visibility,\n        ord\n    )\n),\nobjs AS (\n    INSERT INTO rev.step_task_overlays (step_task_id, value_slot_path_id, visibility)\n    SELECT args.step_task_id, args.value_slot_path_id, args.visibility\n    FROM args\n    ORDER BY args.ord\n    RETURNING *\n),\nnumbered_objs AS (\n    SELECT o.*, row_number() OVER (ORDER BY o.id) AS ord\n    FROM objs o\n)\nSELECT\n    no.id,\n    no.step_task_id,\n    no.value_slot_path_id,\n    no.visibility,\n    no.created_at\nFROM numbered_objs no\nORDER BY no.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.step_task_overlays",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "step_task_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.step_task_overlays",
+            "name": "step_task_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "value_slot_path_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.step_task_overlays",
+            "name": "value_slot_path_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "visibility",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.step_task_overlays",
+            "name": "visibility"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.step_task_overlays",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "UuidArray",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "0912cd13055d5182aff23c683930334fce268e066dafc7bb0312f68384203ec7"
+}

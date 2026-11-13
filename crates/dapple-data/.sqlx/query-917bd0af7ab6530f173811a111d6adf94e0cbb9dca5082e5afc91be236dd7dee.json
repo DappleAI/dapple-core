@@ -1,0 +1,78 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nWITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::UUID[],\n        $2::UUID[],\n        $3::JSONB[]\n    ) WITH ORDINALITY AS o(brief_pack_id, brief_group_id, ui_overrides, ord)\n)\nINSERT INTO rev.brief_pack_groups (brief_pack_id, brief_group_id, ui_overrides, created_at)\nSELECT args.brief_pack_id, args.brief_group_id, COALESCE(args.ui_overrides, '{}'::jsonb), now()\nFROM args\nORDER BY args.ord\nRETURNING id, brief_pack_id, brief_group_id, ui_overrides, created_at;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_pack_groups",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "brief_pack_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_pack_groups",
+            "name": "brief_pack_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "brief_group_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_pack_groups",
+            "name": "brief_group_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "ui_overrides",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_pack_groups",
+            "name": "ui_overrides"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_pack_groups",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "UuidArray",
+        "JsonbArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "917bd0af7ab6530f173811a111d6adf94e0cbb9dca5082e5afc91be236dd7dee"
+}

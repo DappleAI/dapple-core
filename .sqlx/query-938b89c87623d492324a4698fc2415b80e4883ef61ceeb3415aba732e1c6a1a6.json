@@ -1,0 +1,81 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH chunks_missing_checksums AS (\n    SELECT c.id as chunk_id\n    FROM rev.chunks c\n    LEFT JOIN rev.chunk_checksums cc ON cc.chunk_id = c.id\n    WHERE cc.id IS NULL\n),\nchunks_with_mismatches AS (\n    SELECT c.id as chunk_id\n    FROM rev.chunks c\n    JOIN rev.chunk_checksums cc ON cc.chunk_id = c.id\n    WHERE cc.checksum != sha256(c.data)\n),\nproblem_chunks AS (\n    SELECT chunk_id FROM chunks_missing_checksums\n    UNION\n    SELECT chunk_id FROM chunks_with_mismatches\n)\nSELECT DISTINCT\n    a.id as asset_id,\n    vo.path_id,\n    a.content_length,\n    a.mime_type,\n    a.created_at,\n    CASE\n        WHEN EXISTS (SELECT 1 FROM chunks_missing_checksums cmc\n                     JOIN rev.asset_chunks ac ON ac.chunk_id = cmc.chunk_id\n                     WHERE ac.asset_id = a.id) THEN 'missing_checksum'\n        WHEN EXISTS (SELECT 1 FROM chunks_with_mismatches cwm\n                     JOIN rev.asset_chunks ac ON ac.chunk_id = cwm.chunk_id\n                     WHERE ac.asset_id = a.id) THEN 'checksum_mismatch'\n    END as issue_type\nFROM rev.assets a\nJOIN rev.versioned_objects vo ON vo.id = a.versioned_object_id\nJOIN rev.asset_chunks ac ON ac.asset_id = a.id\nJOIN problem_chunks pc ON pc.chunk_id = ac.chunk_id\nORDER BY a.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "asset_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.assets",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "path_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "path_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "content_length",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "rev.assets",
+            "name": "content_length"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "mime_type",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.assets",
+            "name": "mime_type"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.assets",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "issue_type",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "938b89c87623d492324a4698fc2415b80e4883ef61ceeb3415aba732e1c6a1a6"
+}

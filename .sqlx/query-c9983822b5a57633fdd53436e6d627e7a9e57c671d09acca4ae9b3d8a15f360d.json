@@ -1,0 +1,85 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nWITH RECURSIVE\njourney_chain(journey_id, depth, fork_cutoff_ord) AS (\n    SELECT $1::UUID, 0, NULL::INTEGER\n    UNION ALL\n    SELECT j.predecessor_journey_id, jc.depth + 1, ps.ord\n    FROM journey_chain jc\n    JOIN rev.journeys j ON j.id = jc.journey_id\n    LEFT JOIN rev.playbook_stages ps ON ps.id = j.fork_stage_id\n    WHERE j.predecessor_journey_id IS NOT NULL\n      AND jc.depth < 50\n)\n\n,\njourney_scope AS (\n    SELECT $1::UUID AS journey_id\n),\njourney_packs AS (\n    SELECT DISTINCT ON (bpvo.path_id) bpack.id AS brief_pack_id\n    FROM journey_scope js\n    JOIN rev.journey_brief_packs jbp ON jbp.journey_id = js.journey_id\n    JOIN rev.brief_packs bpack ON bpack.id = jbp.brief_pack_id\n    JOIN rev.versioned_objects bpvo ON bpvo.id = bpack.versioned_object_id\n    ORDER BY bpvo.path_id, bpvo.created_at DESC, bpvo.id DESC\n)\n\n,\njourney_operator_inputs AS (\n                        SELECT DISTINCT ON (vo.path_id)\n        vo.path_id AS value_slot_path_id,\n        (NOT COALESCE((bui.control_spec ->> 'optional')::boolean, false)\n            AND COALESCE(vs.min_selections, 1) > 0) AS required,\n                                        cs_vo.path_id AS candidate_source_path_id\n    FROM journey_packs jp\n    JOIN rev.brief_pack_groups bpg ON bpg.brief_pack_id = jp.brief_pack_id\n    JOIN rev.brief_groups bg ON bg.id = bpg.brief_group_id\n    JOIN rev.brief_group_briefs bgb ON bgb.brief_group_id = bg.id\n    JOIN rev.briefs b ON b.id = bgb.brief_id\n    JOIN rev.brief_units bu ON bu.brief_id = b.id\n    JOIN rev.brief_unit_input bui ON bui.brief_unit_id = bu.id\n    JOIN rev.value_slots vs\n        ON bui.control_spec ? 'value_slot_id'\n       AND vs.id = (bui.control_spec ->> 'value_slot_id')::UUID\n    JOIN rev.versioned_objects vo ON vo.id = vs.versioned_object_id\n    LEFT JOIN rev.value_slots cs_vs\n        ON bui.control_spec ? 'candidate_source_value_slot_id'\n       AND cs_vs.id = (bui.control_spec ->> 'candidate_source_value_slot_id')::UUID\n    LEFT JOIN rev.versioned_objects cs_vo ON cs_vo.id = cs_vs.versioned_object_id\n    ORDER BY vo.path_id, vs.id DESC\n),\njourney_stages AS (\n                        SELECT ps.id AS playbook_stage_id, ps.ord AS stage_ord,\n           spd.name,\n           COALESCE(rev.fluent_body(s.description_fluent_message_id, 'en'), s.description, spd.name) AS description,\n           sk.key AS kind,\n           s.icons AS icon\n    FROM rev.journeys j\n    JOIN rev.playbook_stages ps ON ps.playbook_id = j.playbook_id\n    JOIN rev.stages s ON s.id = ps.stage_id\n    JOIN rev.versioned_objects vo_s ON vo_s.id = s.versioned_object_id\n    JOIN rev.stage_path_details spd ON spd.path_id = vo_s.path_id\n    LEFT JOIN rev.stage_kinds sk ON sk.id = s.kind_id\n    WHERE j.id = $1::UUID\n),\nstage_tasks AS (\n    SELECT\n        js.playbook_stage_id,\n        stk.id AS step_task_id,\n        ss.id AS stage_step_id\n    FROM journey_stages js\n    JOIN rev.playbook_stages pstage ON pstage.id = js.playbook_stage_id\n    JOIN rev.stage_steps ss ON ss.stage_id = pstage.stage_id\n    JOIN rev.step_tasks stk ON stk.step_id = ss.step_id\n),\nall_overlays AS (\n    SELECT st.playbook_stage_id, st.step_task_id, o.value_slot_path_id, o.visibility, 1 AS priority\n    FROM rev.playbook_stage_overlays o\n    JOIN stage_tasks st ON st.playbook_stage_id = o.playbook_stage_id\n    UNION ALL\n    SELECT st.playbook_stage_id, st.step_task_id, o.value_slot_path_id, o.visibility, 2 AS priority\n    FROM rev.stage_step_overlays o\n    JOIN stage_tasks st ON st.stage_step_id = o.stage_step_id\n    UNION ALL\n    SELECT st.playbook_stage_id, st.step_task_id, o.value_slot_path_id, o.visibility, 3 AS priority\n    FROM rev.step_task_overlays o\n    JOIN stage_tasks st ON st.step_task_id = o.step_task_id\n),\nranked AS (\n    SELECT DISTINCT ON (playbook_stage_id, step_task_id, value_slot_path_id)\n        playbook_stage_id, value_slot_path_id, visibility\n    FROM all_overlays\n    ORDER BY playbook_stage_id, step_task_id, value_slot_path_id, priority DESC\n),\nrequired AS (\n                    SELECT DISTINCT r.playbook_stage_id, r.value_slot_path_id\n    FROM ranked r\n    LEFT JOIN journey_operator_inputs joi\n        ON joi.value_slot_path_id = r.value_slot_path_id\n    WHERE r.visibility = 'expose'\n      AND COALESCE(joi.required, true)\n),\nunbound AS (\n    SELECT DISTINCT req.playbook_stage_id\n    FROM required req\n    WHERE NOT EXISTS (\n        SELECT 1\n        FROM rev.value_slots vs\n        JOIN rev.versioned_objects vo ON vo.id = vs.versioned_object_id\n        JOIN rev.dispatch_intent_bindings dib ON dib.value_slot_id = vs.id\n        JOIN rev.dispatches d ON d.id = dib.dispatch_id\n        JOIN journey_chain jc ON jc.journey_id = d.journey_id\n        WHERE vo.path_id = req.value_slot_path_id\n          AND (\n    jc.fork_cutoff_ord IS NULL\n    OR COALESCE((\n        SELECT MAX(fps.ord)\n        FROM rev.dispatch_stages fds\n        JOIN rev.playbook_stages fps ON fps.id = fds.playbook_stage_id\n        WHERE fds.dispatch_id = d.id\n    ), 2147483647) < jc.fork_cutoff_ord\n)\n\n    )\n),\nblocked_stages AS (\n                                            SELECT DISTINCT req.playbook_stage_id\n    FROM required req\n    JOIN journey_operator_inputs joi\n        ON joi.value_slot_path_id = req.value_slot_path_id\n    WHERE joi.candidate_source_path_id IS NOT NULL\n      AND joi.required\n      AND req.playbook_stage_id IN (SELECT playbook_stage_id FROM unbound)\n      AND COALESCE((\n          SELECT dib.produced_empty\n          FROM rev.value_slots cvs\n          JOIN rev.versioned_objects cvo ON cvo.id = cvs.versioned_object_id\n          JOIN rev.dispatch_intent_bindings dib ON dib.value_slot_id = cvs.id\n          JOIN rev.dispatches d ON d.id = dib.dispatch_id\n          JOIN journey_chain jc ON jc.journey_id = d.journey_id\n          WHERE cvo.path_id = joi.candidate_source_path_id\n            AND (\n    jc.fork_cutoff_ord IS NULL\n    OR COALESCE((\n        SELECT MAX(fps.ord)\n        FROM rev.dispatch_stages fds\n        JOIN rev.playbook_stages fps ON fps.id = fds.playbook_stage_id\n        WHERE fds.dispatch_id = d.id\n    ), 2147483647) < jc.fork_cutoff_ord\n)\n\n          ORDER BY dib.id DESC\n          LIMIT 1\n      ), false)\n)\nSELECT\n    js.playbook_stage_id AS \"playbook_stage_id!\",\n    js.name AS \"name!\",\n    js.description AS \"description!\",\n    js.kind AS \"kind?\",\n    js.icon AS \"icon?\",\n    (js.playbook_stage_id NOT IN (SELECT playbook_stage_id FROM unbound)) AS \"done!\",\n    (js.playbook_stage_id IN (SELECT playbook_stage_id FROM blocked_stages)) AS \"blocked!\"\nFROM journey_stages js\nORDER BY js.stage_ord;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "playbook_stage_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.playbook_stages",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "name!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.stage_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "description!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "kind?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.stage_kinds",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "icon?",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "rev.stages",
+            "name": "icons"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "done!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 6,
+        "name": "blocked!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      null,
+      false,
+      true,
+      null,
+      null
+    ]
+  },
+  "hash": "c9983822b5a57633fdd53436e6d627e7a9e57c671d09acca4ae9b3d8a15f360d"
+}

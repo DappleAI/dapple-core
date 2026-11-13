@@ -1,0 +1,84 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::UUID[],           $2::BYTEA[]       ) WITH ORDINALITY AS o(\n        draft_id,\n        data,\n        ord\n    )\n),\ninput_checksums AS (\n    SELECT\n        args.draft_id,\n        args.data,\n        args.ord,\n        sha256(args.data) as checksum\n    FROM args\n),\nexisting_chunks AS (\n    SELECT DISTINCT ON (ic.ord)\n        ic.draft_id,\n        ic.data,\n        ic.ord,\n        ic.checksum,\n        cc.chunk_id,\n        c.id as chunk_uuid\n    FROM input_checksums ic\n    JOIN rev.chunk_checksums cc ON cc.checksum = ic.checksum\n    JOIN rev.chunks c ON c.id = cc.chunk_id\n    ORDER BY ic.ord, cc.id  ),\ninputs_needing_chunks AS (\n    SELECT\n        ic.draft_id,\n        ic.data,\n        ic.ord,\n        ic.checksum\n    FROM input_checksums ic\n    LEFT JOIN existing_chunks ec ON ec.ord = ic.ord\n    WHERE ec.chunk_id IS NULL\n),\nnew_chunks AS (\n    INSERT INTO rev.chunks (data)\n    SELECT inc.data\n    FROM inputs_needing_chunks inc\n    ORDER BY inc.ord\n    RETURNING id, data\n),\nnumbered_new_chunks AS (\n    SELECT\n        nc.id,\n        nc.data,\n        sha256(nc.data) as checksum,\n        row_number() OVER (ORDER BY nc.id) as seq\n    FROM new_chunks nc\n),\nnew_chunk_mapping AS (\n    SELECT\n        inc.draft_id,\n        inc.data,\n        inc.ord,\n        inc.checksum,\n        nnc.id as chunk_id,\n        nnc.id as chunk_uuid\n    FROM inputs_needing_chunks inc\n    JOIN numbered_new_chunks nnc ON nnc.checksum = inc.checksum\n        WHERE nnc.seq = (\n        SELECT COUNT(*) + 1\n        FROM inputs_needing_chunks inc2\n        WHERE inc2.checksum = inc.checksum AND inc2.ord < inc.ord\n    )\n),\nnew_checksums AS (\n    INSERT INTO rev.chunk_checksums (checksum, chunk_id)\n    SELECT nnc.checksum, nnc.id\n    FROM numbered_new_chunks nnc\n    RETURNING id, chunk_id\n),\nall_chunk_mappings AS (\n    SELECT\n        ec.draft_id,\n        ec.ord,\n        ec.chunk_id,\n        octet_length(ec.data)::BIGINT as byte_length\n    FROM existing_chunks ec\n    UNION ALL\n    SELECT\n        ncm.draft_id,\n        ncm.ord,\n        ncm.chunk_id,\n        octet_length(ncm.data)::BIGINT as byte_length\n    FROM new_chunk_mapping ncm\n),\ndraft_ordinals AS (\n    SELECT\n        acm.draft_id,\n        acm.ord,\n        acm.chunk_id,\n        acm.byte_length,\n        (COALESCE(\n            (SELECT MAX(dc.ordinal) FROM rev.draft_chunks dc WHERE dc.draft_id = acm.draft_id),\n            0\n         ) + row_number() OVER (PARTITION BY acm.draft_id ORDER BY acm.ord))::INTEGER as ordinal\n    FROM all_chunk_mappings acm\n),\nnew_draft_chunks AS (\n    INSERT INTO rev.draft_chunks (draft_id, chunk_id, ordinal)\n    SELECT\n        dord.draft_id,\n        dord.chunk_id,\n        dord.ordinal\n    FROM draft_ordinals dord\n    ORDER BY dord.ord\n    RETURNING id, draft_id, chunk_id, ordinal, created_at\n)\nSELECT\n    ndc.id,\n    ndc.draft_id,\n    ndc.chunk_id,\n    dord.byte_length,\n    ndc.ordinal,\n    ndc.created_at\nFROM new_draft_chunks ndc\nJOIN draft_ordinals dord ON dord.draft_id = ndc.draft_id AND dord.ordinal = ndc.ordinal\nORDER BY ndc.chunk_id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.draft_chunks",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "draft_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.draft_chunks",
+            "name": "draft_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "chunk_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.draft_chunks",
+            "name": "chunk_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "byte_length",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 4,
+        "name": "ordinal",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "rev.draft_chunks",
+            "name": "ordinal"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.draft_chunks",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "ByteaArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      null,
+      false,
+      false
+    ]
+  },
+  "hash": "0fe412b0968edaa75cfafbf8dcf57ebf7094907243920fb306264c9fb421b94d"
+}

@@ -1,0 +1,76 @@
+# Insert tasks using the unified versioning infrastructure
+# Creates: object_path → task_path_details → versioned_object → task
+WITH args AS (
+    SELECT *
+    FROM UNNEST(
+        :bind(names)::TEXT[],
+        :bind(descriptions)::TEXT[],
+        :bind(functions)::TEXT[],
+        :bind(function_inputs)::JSONB[],
+        :bind(content_hashes)::TEXT[]
+    ) WITH ORDINALITY AS o(
+        name,
+        description,
+        function,
+        function_input,
+        content_hash,
+        ord
+    )
+),
+# Get the entity type ID for tasks
+entity_type AS (
+    SELECT id FROM rev.entity_types WHERE key = 'task'
+),
+:compose(shared/insert_object_paths.sqlc)
+# Create path details (name, slug, namespace_company_id).
+# Migration 41 made the UNIQUE constraint composite over (column, namespace);
+# pull namespace_company_id off numbered_paths (which surfaces it from the
+# shared insert_object_paths CTE's RETURNING) so two namespaces can hold
+# the same name without colliding.
+path_details AS (
+    INSERT INTO rev.task_path_details (path_id, name, slug, namespace_company_id)
+    SELECT
+        np.id,
+        args.name,
+        rev.slugify(args.name),
+        np.namespace_company_id
+    FROM args
+    JOIN numbered_paths np ON np.ord = args.ord
+    RETURNING path_id, name, slug, namespace_company_id
+),
+:compose(shared/numbered_path_details.sqlc)
+:compose(shared/insert_versioned_objects.sqlc)
+# Create tasks
+new_tasks AS (
+    INSERT INTO rev.tasks (versioned_object_id, description, function, function_input)
+    SELECT
+        nuv.id,
+        args.description,
+        args.function,
+        args.function_input
+    FROM args
+    JOIN numbered_versions nuv ON nuv.ord = args.ord
+    ORDER BY args.ord
+    RETURNING id, versioned_object_id, description, function, function_input, created_at
+),
+# Number tasks to preserve ordinality
+numbered_tasks AS (
+    SELECT nt.*, row_number() OVER (ORDER BY nt.id) AS ord
+    FROM new_tasks nt
+)
+SELECT
+    nut.id,
+    nut.versioned_object_id,
+    nuv.path_id,
+    npd.name,
+    npd.slug,
+    nuv.content_hash,
+    nut.description,
+    nut.function,
+    nut.function_input,
+    nut.created_at
+FROM numbered_tasks nut
+JOIN numbered_versions nuv ON nuv.ord = nut.ord
+JOIN numbered_paths nup ON nup.ord = nut.ord
+JOIN numbered_path_details npd ON npd.ord = nut.ord
+ORDER BY nut.id;

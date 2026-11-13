@@ -1,0 +1,9 @@
+playbook_page AS (
+    SELECT p.id
+    FROM rev.playbooks p
+    JOIN rev.versioned_objects vo ON vo.id = p.versioned_object_id
+    JOIN rev.object_paths op ON op.id = vo.path_id
+    JOIN rev.playbook_path_details ppd ON ppd.path_id = op.id
+    ORDER BY p.id
+    LIMIT $1::BIGINT OFFSET $2::BIGINT
+)

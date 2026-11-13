@@ -1,0 +1,9 @@
+value_slot_page AS (
+    SELECT vs.id
+    FROM rev.value_slots vs
+    JOIN rev.versioned_objects vo ON vo.id = vs.versioned_object_id
+    JOIN rev.object_paths op ON op.id = vo.path_id
+    JOIN rev.value_slot_path_details vspd ON vspd.path_id = op.id
+    ORDER BY vs.id
+    LIMIT $1::BIGINT OFFSET $2::BIGINT
+)

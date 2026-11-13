@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nWITH args AS (\n    SELECT *\n    FROM UNNEST($1::UUID[]) WITH ORDINALITY AS o(id, ord)\n)\nSELECT\n    op.id,\n    ak.key as asset_kind_key,\n    op.created_at\nFROM args\nJOIN rev.object_paths op ON op.id = args.id\nJOIN rev.asset_path_details apd ON apd.path_id = op.id\nJOIN rev.asset_kinds ak ON ak.id = apd.asset_kind_id\nORDER BY op.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.object_paths",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "asset_kind_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.asset_kinds",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.object_paths",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "bc357b62f2ea653f6b5675b6ff360a9e623d5d4b53aa4ebb49b303bd8962a25b"
+}

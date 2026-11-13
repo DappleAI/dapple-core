@@ -1,0 +1,47 @@
+# gitleaks configuration — secret scanning for this repo.
+#
+# Run locally (whole history, same as CI):
+#   gitleaks git --log-opts=--all --redact .
+#
+# Starts from gitleaks' built-in ruleset and only adds an allowlist for
+# values that were hand-verified as NOT secrets in the 2026-11-11 full-history
+# audit (989 commits, 208 hits, all false positives).
+#
+# Keep entries narrow: allowlist exact placeholder SHAPES, never whole files
+# or paths — a path allowlist would also hide a real key pasted into that file
+# later. If a new false positive appears, add the narrowest regex that matches
+# it here; if it's an inline one-off, a trailing `gitleaks:allow` comment on
+# the line works too.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "LLM model identifiers (claude-3-5-sonnet, mistral-7b-instruct, ...) trip generic-api-key"
+regexTarget = "secret"
+regexes = [
+  '''^(claude|mistral)-[0-9][a-z0-9.\-]*$''',
+]
+
+[[allowlists]]
+description = "Truncated doc placeholders: a value ending in a literal '...' is illustrative by construction"
+regexTarget = "secret"
+regexes = [
+  '''\.\.\.$''',
+]
+
+[[allowlists]]
+description = "Named placeholder tokens in the API docs"
+regexTarget = "secret"
+regexes = [
+  '''^dp[lt]_(token|your_token|your_token_here)$''',
+  # Example token in docs/plans/api-tokens.md and the auth guides (alphabet run).
+  '''^dpl_7Kj2mNpQrStUvWxYz3AbCdEfGhIjKlMn$''',
+]
+
+[[allowlists]]
+description = "Python keyword argument in a doc snippet, not a credential"
+regexTarget = "secret"
+regexes = [
+  '''^valid_for_minutes=''',
+]

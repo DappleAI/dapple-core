@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n    aec.extraction_id,\n    aec.chunk_id,\n    aec.ordinal,\n    c.data AS \"data!\"\nFROM rev.asset_extraction_chunks aec\nJOIN rev.chunks c ON c.id = aec.chunk_id\nWHERE aec.extraction_id = $1\nORDER BY aec.ordinal;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "extraction_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.asset_extraction_chunks",
+            "name": "extraction_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "chunk_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.asset_extraction_chunks",
+            "name": "chunk_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "ordinal",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "rev.asset_extraction_chunks",
+            "name": "ordinal"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "data!",
+        "type_info": "Bytea",
+        "origin": {
+          "Table": {
+            "table": "rev.chunks",
+            "name": "data"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "5bcff800306d491c9b191ca4b69ae5cd638fc96222e4f054a2c19d5b8f3f068e"
+}

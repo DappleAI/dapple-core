@@ -1,0 +1,88 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n    les.id,\n    les.resource_type_id,\n    les.resource_id,\n    les.lago_transaction_id,\n    les.retry_count,\n    les.created_at\nFROM rev.lago_event_sync les\nWHERE les.sent_at IS NULL\n  AND (les.next_retry_at IS NULL OR les.next_retry_at <= now())\nORDER BY les.created_at\nLIMIT $1::BIGINT;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.lago_event_sync",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "resource_type_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "rev.lago_event_sync",
+            "name": "resource_type_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "resource_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.lago_event_sync",
+            "name": "resource_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "lago_transaction_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.lago_event_sync",
+            "name": "lago_transaction_id"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "retry_count",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "rev.lago_event_sync",
+            "name": "retry_count"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.lago_event_sync",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "975e7a6a323e40722360feb04abd12405637470943d79e6eb6a518692b8cd2f5"
+}

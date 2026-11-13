@@ -1,0 +1,21 @@
+# Shared body template for guide card SELECT queries.
+# Callers provide a @page slot defining one or more CTEs
+# that produce a `guide_card_page` CTE with columns:
+#   guide_id, path_id, title, slug, content_hash
+WITH :compose(@page)
+SELECT
+    gc.id,
+    gc.guide_id,
+    gcp.path_id,
+    gcp.title,
+    gcp.slug,
+    gc.subtitle,
+    gc.card_image_asset_id,
+    gc.category,
+    gc.color,
+    gc.accent,
+    gc.created_at
+FROM guide_card_page gcp
+JOIN rev.guide_cards gc ON gc.guide_id = gcp.guide_id
+ORDER BY gc.category, gcp.title
+LIMIT :bind(limit)::BIGINT OFFSET :bind(offset)::BIGINT;

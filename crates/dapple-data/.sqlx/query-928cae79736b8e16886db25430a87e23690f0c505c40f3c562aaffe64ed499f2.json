@@ -1,0 +1,31 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH RECURSIVE\njourney_chain(journey_id, depth, fork_cutoff_ord) AS (\n    SELECT $1::UUID, 0, NULL::INTEGER\n    UNION ALL\n    SELECT j.predecessor_journey_id, jc.depth + 1, ps.ord\n    FROM journey_chain jc\n    JOIN rev.journeys j ON j.id = jc.journey_id\n    LEFT JOIN rev.playbook_stages ps ON ps.id = j.fork_stage_id\n    WHERE j.predecessor_journey_id IS NOT NULL\n      AND jc.depth < 50\n)\n,\nchain_root AS (\n    SELECT journey_id AS root_id\n    FROM journey_chain\n    ORDER BY depth DESC\n    LIMIT 1\n)\nSELECT\n    (SELECT root_id FROM chain_root) AS \"chain_root_journey_id?\",\n    EXISTS (\n        SELECT 1\n        FROM web.user_favorite_journey_chains f\n        JOIN rev.user_details ud ON ud.user_id = f.user_id\n        LEFT JOIN web.user_favorite_journey_chains_removed r\n            ON r.user_favorite_journey_chains_id = f.id\n        WHERE ud.object_id = $2::UUID\n          AND f.chain_root_journey_id = (SELECT root_id FROM chain_root)\n          AND r.user_favorite_journey_chains_id IS NULL\n    )::bool AS \"is_favorited!\";\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "chain_root_journey_id?",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "is_favorited!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "928cae79736b8e16886db25430a87e23690f0c505c40f3c562aaffe64ed499f2"
+}

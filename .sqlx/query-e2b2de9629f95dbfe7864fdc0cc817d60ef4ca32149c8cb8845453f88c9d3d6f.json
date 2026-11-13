@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO rev.dispatch_task_attempt_events (attempt_id, phase_code, context_data, context_metadata) VALUES ($1, $2, $3::jsonb, $4::jsonb)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Jsonb",
+        "Jsonb"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e2b2de9629f95dbfe7864fdc0cc817d60ef4ca32149c8cb8845453f88c9d3d6f"
+}

@@ -1,0 +1,88 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::TEXT[],\n        $2::BIGINT[],\n        $3::UUID[],\n        $4::UUID[],\n        $5::TEXT[]\n    ) WITH ORDINALITY AS o(content_hash, content_length, draft_id, id, mime_type, ord)\n),\nexisting_assets AS (\n    SELECT\n        vo.path_id,\n        args.id as old_id,\n        args.mime_type,\n        args.content_length,\n        args.draft_id,\n        args.content_hash,\n        args.ord\n    FROM args\n    JOIN rev.assets a ON a.id = args.id\n    JOIN rev.versioned_objects vo ON vo.id = a.versioned_object_id\n),\nnew_versions_inserted AS (\n    INSERT INTO rev.versioned_objects (path_id, content_hash)\n    SELECT\n        ea.path_id,\n        ea.content_hash\n    FROM existing_assets ea\n    ON CONFLICT (path_id, content_hash) DO NOTHING\n    RETURNING id, path_id, content_hash, created_at\n),\nall_versions AS (\n    SELECT nvi.id, nvi.path_id, nvi.content_hash, nvi.created_at\n    FROM new_versions_inserted nvi\n    UNION ALL\n    SELECT vo.id, vo.path_id, vo.content_hash, vo.created_at\n    FROM existing_assets ea\n    JOIN rev.versioned_objects vo ON vo.path_id = ea.path_id AND vo.content_hash = ea.content_hash\n    WHERE NOT EXISTS (\n        SELECT 1 FROM new_versions_inserted nvi\n        WHERE nvi.path_id = ea.path_id AND nvi.content_hash = ea.content_hash\n    )\n),\nnew_assets AS (\n    INSERT INTO rev.assets (versioned_object_id, draft_id, content_length, mime_type)\n    SELECT\n        av.id,\n        ea.draft_id,\n        ea.content_length,\n        ea.mime_type\n    FROM existing_assets ea\n    JOIN all_versions av ON av.path_id = ea.path_id\n    WHERE NOT EXISTS (SELECT 1 FROM rev.assets a WHERE a.versioned_object_id = av.id)\n    RETURNING id, versioned_object_id, draft_id, content_length, mime_type, created_at\n),\nall_assets AS (\n    SELECT na.id, na.versioned_object_id, na.draft_id, na.content_length, na.mime_type, na.created_at\n    FROM new_assets na\n    UNION ALL\n    SELECT a.id, a.versioned_object_id, a.draft_id, a.content_length, a.mime_type, a.created_at\n    FROM rev.assets a\n    JOIN all_versions av ON a.versioned_object_id = av.id\n    WHERE NOT EXISTS (SELECT 1 FROM new_assets na WHERE na.versioned_object_id = av.id)\n)\nSELECT\n    aa.id AS \"id!\",\n    aa.versioned_object_id AS \"versioned_object_id!\",\n    av.path_id AS \"path_id!\",\n    ak.key AS \"asset_kind_key!\",\n    av.content_hash AS \"content_hash!\",\n    aa.draft_id,\n    aa.content_length AS \"content_length!\",\n    aa.mime_type AS \"mime_type!\",\n    aa.created_at AS \"created_at!\"\nFROM all_assets aa\nJOIN all_versions av ON av.id = aa.versioned_object_id\nJOIN rev.object_paths op ON op.id = av.path_id\nJOIN rev.asset_path_details apd ON apd.path_id = op.id\nJOIN rev.asset_kinds ak ON ak.id = apd.asset_kind_id\nJOIN existing_assets ea ON ea.path_id = av.path_id\nLEFT JOIN rev.drafts d ON d.id = aa.draft_id\nORDER BY aa.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "versioned_object_id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "path_id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "asset_kind_key!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.asset_kinds",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "content_hash!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 5,
+        "name": "draft_id",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 6,
+        "name": "content_length!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 7,
+        "name": "mime_type!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at!",
+        "type_info": "Timestamptz",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "Int8Array",
+        "UuidArray",
+        "UuidArray",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      false,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "75a83112f7c3a334aa219baecfc991e7d60f9b87b8e90b0b007f43e991e7b0a6"
+}

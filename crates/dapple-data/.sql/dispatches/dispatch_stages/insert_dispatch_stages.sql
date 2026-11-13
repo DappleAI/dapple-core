@@ -1,0 +1,35 @@
+WITH args AS (
+    SELECT *
+    FROM UNNEST(
+        $1::UUID[],     -- dispatch_id[]
+        $2::UUID[],     -- playbook_stage_id[]
+        $3::JSONB[]     -- params[]
+    ) WITH ORDINALITY AS o(dispatch_id, playbook_stage_id, params, ord)
+),
+input AS (
+    SELECT
+        a.*,
+        ps.id AS resolved_playbook_stage_id
+    FROM args a
+    LEFT JOIN rev.playbook_stages ps ON ps.id = a.playbook_stage_id
+),
+objs AS (
+    INSERT INTO rev.dispatch_stages (dispatch_id, playbook_stage_id, params)
+    SELECT input.dispatch_id, input.resolved_playbook_stage_id, input.params
+    FROM input
+    ORDER BY input.ord
+    RETURNING *
+)
+SELECT
+    objs.*,
+    st.id         AS stage_id,
+    p.id          AS playbook_id
+FROM objs
+JOIN rev.dispatches d ON objs.dispatch_id = d.id
+JOIN rev.playbook_stages ps ON objs.playbook_stage_id = ps.id
+JOIN rev.stages st ON ps.stage_id = st.id
+JOIN rev.playbooks p ON ps.playbook_id = p.id
+JOIN input ON objs.dispatch_id = input.dispatch_id
+    AND objs.playbook_stage_id = input.resolved_playbook_stage_id
+    AND objs.params = input.params
+ORDER BY objs.dispatch_id, objs.id;

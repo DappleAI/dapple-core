@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nWITH target_prompt AS (\n    SELECT p.id\n    FROM rev.prompts p\n    WHERE p.id = $1\n),\ntarget_releases AS (\n    SELECT mr.id AS release_id\n    FROM rev.model_releases mr\n    JOIN rev.lineages l ON l.id = mr.lineage_id\n    WHERE l.key = $2\n)\nSELECT\n    fmeb.body AS engine_body\nFROM target_prompt tp\nJOIN rev.prompt_fluent_messages pfm ON pfm.prompt_id = tp.id\nJOIN rev.fluent_messages fm ON fm.id = pfm.fluent_message_id\nJOIN target_releases tr ON true\nJOIN rev.fluent_message_engine_bodies fmeb\n    ON fmeb.fluent_message_id = fm.id\n    AND fmeb.model_release_id = tr.release_id\nORDER BY pfm.id\nLIMIT 1;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "engine_body",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.fluent_message_engine_bodies",
+            "name": "body"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "bcd05effefadcb48ac18f4754b2152ae489aa9a6ec99a812f131e92e291edf09"
+}

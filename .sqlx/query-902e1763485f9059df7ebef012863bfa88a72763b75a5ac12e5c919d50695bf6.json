@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n    hp.principal_id AS \"principal_id!\"\nFROM rev.human_principals hp\nWHERE hp.user_id = $1::BIGINT;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "principal_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.human_principals",
+            "name": "principal_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "902e1763485f9059df7ebef012863bfa88a72763b75a5ac12e5c919d50695bf6"
+}

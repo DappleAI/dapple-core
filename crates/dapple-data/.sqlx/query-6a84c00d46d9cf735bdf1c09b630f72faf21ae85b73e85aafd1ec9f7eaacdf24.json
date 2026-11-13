@@ -1,0 +1,136 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST($1::UUID[]) WITH ORDINALITY AS o(id, ord)\n)\nSELECT\n    crp.id,\n    crp.scope,\n    crp.environment,\n    crp.object_type,\n    crp.ref_key,\n    crp.content_hash,\n    crp.versioned_object_id,\n    crp.resolved_at,\n    crp.supersedes_id,\n    crp.created_at\nFROM args\nJOIN rev.canonical_release_pins crp ON crp.id = args.id\nLEFT JOIN rev.canonical_release_pins newer ON newer.supersedes_id = crp.id\nWHERE newer.id IS NULL\nORDER BY crp.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.canonical_release_pins",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "scope",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.canonical_release_pins",
+            "name": "scope"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "environment",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.canonical_release_pins",
+            "name": "environment"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "object_type",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.canonical_release_pins",
+            "name": "object_type"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "ref_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.canonical_release_pins",
+            "name": "ref_key"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "content_hash",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.canonical_release_pins",
+            "name": "content_hash"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "versioned_object_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.canonical_release_pins",
+            "name": "versioned_object_id"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "resolved_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.canonical_release_pins",
+            "name": "resolved_at"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "supersedes_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.canonical_release_pins",
+            "name": "supersedes_id"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.canonical_release_pins",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "6a84c00d46d9cf735bdf1c09b630f72faf21ae85b73e85aafd1ec9f7eaacdf24"
+}

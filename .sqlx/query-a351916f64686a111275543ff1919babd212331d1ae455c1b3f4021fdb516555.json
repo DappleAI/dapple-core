@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT cusip\nFROM rev.security_cusip\nWHERE cik = $1;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "cusip",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.security_cusip",
+            "name": "cusip"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "a351916f64686a111275543ff1919babd212331d1ae455c1b3f4021fdb516555"
+}

@@ -1,0 +1,77 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::TEXT[],\n        $2::TEXT[],\n        $3::UUID[]\n    ) WITH ORDINALITY AS o(content_hash, description, id, ord)\n),\nexisting_prompts AS (\n    SELECT\n        vo.path_id,\n        args.id as old_id,\n        args.description,\n        args.content_hash,\n        args.ord\n    FROM args\n    JOIN rev.prompts p ON p.id = args.id\n    JOIN rev.versioned_objects vo ON vo.id = p.versioned_object_id\n),\nnew_versions_inserted AS (\n    INSERT INTO rev.versioned_objects (path_id, content_hash)\n    SELECT\n        ep.path_id,\n        ep.content_hash\n    FROM existing_prompts ep\n    ON CONFLICT (path_id, content_hash) DO NOTHING\n    RETURNING id, path_id, content_hash, created_at\n),\nall_versions AS (\n    SELECT nvi.id, nvi.path_id, nvi.content_hash, nvi.created_at\n    FROM new_versions_inserted nvi\n    UNION ALL\n    SELECT vo.id, vo.path_id, vo.content_hash, vo.created_at\n    FROM existing_prompts ep\n    JOIN rev.versioned_objects vo ON vo.path_id = ep.path_id AND vo.content_hash = ep.content_hash\n    WHERE NOT EXISTS (\n        SELECT 1 FROM new_versions_inserted nvi\n        WHERE nvi.path_id = ep.path_id AND nvi.content_hash = ep.content_hash\n    )\n),\nnew_prompts AS (\n    INSERT INTO rev.prompts (versioned_object_id, description)\n    SELECT\n        av.id,\n        ep.description\n    FROM existing_prompts ep\n    JOIN all_versions av ON av.path_id = ep.path_id\n    WHERE NOT EXISTS (SELECT 1 FROM rev.prompts p WHERE p.versioned_object_id = av.id)\n    RETURNING id, versioned_object_id, description, created_at\n),\nall_prompts AS (\n    SELECT np.id, np.versioned_object_id, np.description, np.created_at\n    FROM new_prompts np\n    UNION ALL\n    SELECT p.id, p.versioned_object_id, p.description, p.created_at\n    FROM rev.prompts p\n    JOIN all_versions av ON p.versioned_object_id = av.id\n    WHERE NOT EXISTS (SELECT 1 FROM new_prompts np WHERE np.versioned_object_id = av.id)\n)\nSELECT\n    ap.id AS \"id!\",\n    ap.versioned_object_id AS \"versioned_object_id!\",\n    op.id AS \"path_id!\",\n    ppd.name AS \"name!\",\n    av.content_hash AS \"content_hash!\",\n    ap.description,\n    ap.created_at AS \"created_at!\"\nFROM all_prompts ap\nJOIN all_versions av ON av.id = ap.versioned_object_id\nJOIN rev.object_paths op ON op.id = av.path_id\nJOIN rev.prompt_path_details ppd ON ppd.path_id = op.id\nORDER BY ap.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "versioned_object_id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "path_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.object_paths",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "name!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.prompt_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "content_hash!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 5,
+        "name": "description",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at!",
+        "type_info": "Timestamptz",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "TextArray",
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      false,
+      false,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "be6c13440125200da5a651cd989959808ba87d3e92a9a86a616f98aa6755c89c"
+}

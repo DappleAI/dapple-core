@@ -1,0 +1,91 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::UUID[],             $2::UUID[],             $3::TEXT[],              $4::TEXT[]           ) WITH ORDINALITY AS o(guide_id, asset_id, role, relative_path, ord)\n),\nobjs AS (\n    INSERT INTO rev.guide_assets (guide_id, asset_id, role, relative_path)\n    SELECT args.guide_id, args.asset_id, args.role, args.relative_path\n    FROM args\n    ORDER BY args.ord\n    RETURNING id, guide_id, asset_id, role, relative_path, created_at\n)\nSELECT * FROM objs ORDER BY objs.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_assets",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "guide_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_assets",
+            "name": "guide_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "asset_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_assets",
+            "name": "asset_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "role",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_assets",
+            "name": "role"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "relative_path",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_assets",
+            "name": "relative_path"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_assets",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "UuidArray",
+        "TextArray",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "a1acf95a998e7bb56582389e6cf3069ee9c5f9b814db1b07c20dc25e1f88a7e8"
+}

@@ -1,0 +1,20 @@
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+# Every first-party crate inherits this (`license.workspace = true`). The vendored
+# fluent-syntax-unicode fork keeps its upstream "Apache-2.0 OR MIT".
+[workspace.package]
+license = "Apache-2.0"
+
+# Single source of truth for cross-cutting versions so individual crates can't
+# drift apart. sqlx in particular MUST stay aligned with pgvector's sqlx range:
+# pgvector 0.4.2 widened to `>=0.8, <0.10`, so without one pinned sqlx version a
+# fresh resolve pulled sqlx 0.9 for pgvector and 0.8 for the dapple crates,
+# producing two incompatible sqlx_core versions (the CI-only build break).
+# tls-rustls (not tls-native-tls) keeps openssl-sys out of the tree, preserving
+# the macOS cargo-zigbuild cross-compile path for api/flow/lago-worker.
+[workspace.dependencies]
+sqlx = { version = "0.9", features = ["runtime-tokio", "tls-rustls", "postgres", "macros"] }
+pgvector = { version = "0.4.2", features = ["sqlx"] }
+

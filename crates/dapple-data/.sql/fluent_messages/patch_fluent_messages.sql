@@ -1,0 +1,75 @@
+-- Patch fluent messages using unified versioning (create new version with caller-supplied content_hash)
+WITH args AS (
+    SELECT *
+    FROM UNNEST(
+        $1::TEXT[],
+        $2::UUID[]
+    ) WITH ORDINALITY AS o(content_hash, id, ord)
+),
+-- Look up existing messages and their versioned objects
+existing_messages AS (
+    SELECT
+        vo.path_id,
+        args.id as old_id,
+        args.content_hash,
+        args.ord
+    FROM args
+    JOIN rev.fluent_messages fm ON fm.id = args.id
+    JOIN rev.versioned_objects vo ON vo.id = fm.versioned_object_id
+),
+-- Create new versioned objects with caller-supplied content_hash
+new_versions_inserted AS (
+    INSERT INTO rev.versioned_objects (path_id, content_hash)
+    SELECT
+        em.path_id,
+        em.content_hash
+    FROM existing_messages em
+    ON CONFLICT (path_id, content_hash) DO NOTHING
+    RETURNING id, path_id, content_hash, created_at
+),
+-- Include already-existing versioned objects (conflict hit — content reverted)
+all_versions AS (
+    SELECT nvi.id, nvi.path_id, nvi.content_hash, nvi.created_at
+    FROM new_versions_inserted nvi
+    UNION ALL
+    SELECT vo.id, vo.path_id, vo.content_hash, vo.created_at
+    FROM existing_messages em
+    JOIN rev.versioned_objects vo ON vo.path_id = em.path_id AND vo.content_hash = em.content_hash
+    WHERE NOT EXISTS (
+        SELECT 1 FROM new_versions_inserted nvi
+        WHERE nvi.path_id = em.path_id AND nvi.content_hash = em.content_hash
+    )
+),
+-- Create new fluent messages (skip if entity row already exists for this versioned_object)
+new_messages AS (
+    INSERT INTO rev.fluent_messages (versioned_object_id)
+    SELECT av.id
+    FROM existing_messages em
+    JOIN all_versions av ON av.path_id = em.path_id
+    WHERE NOT EXISTS (SELECT 1 FROM rev.fluent_messages fm WHERE fm.versioned_object_id = av.id)
+    RETURNING id, versioned_object_id, created_at
+),
+-- Include already-existing fluent messages (for reverted versions)
+all_messages AS (
+    SELECT nm.id, nm.versioned_object_id, nm.created_at
+    FROM new_messages nm
+    UNION ALL
+    SELECT fm.id, fm.versioned_object_id, fm.created_at
+    FROM rev.fluent_messages fm
+    JOIN all_versions av ON fm.versioned_object_id = av.id
+    WHERE NOT EXISTS (SELECT 1 FROM new_messages nm WHERE nm.versioned_object_id = av.id)
+)
+SELECT
+    am.id AS "id!",
+    am.versioned_object_id AS "versioned_object_id!",
+    op.id AS "path_id!",
+    fmpd.name AS "name!",
+    fmpd.description,
+    av.content_hash AS "content_hash!",
+    am.created_at AS "created_at!"
+FROM all_messages am
+JOIN all_versions av ON av.id = am.versioned_object_id
+JOIN rev.object_paths op ON op.id = av.path_id
+JOIN rev.fluent_message_path_details fmpd ON fmpd.path_id = op.id
+JOIN existing_messages em ON em.path_id = av.path_id
+ORDER BY am.id;

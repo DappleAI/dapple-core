@@ -1,0 +1,92 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::UUID[],           $2::UUID[],            $3::UUID[],            $4::UUID[],            $5::INT[]          ) WITH ORDINALITY AS o(\n        inference_profile_id,\n        prompt_path_object_id,\n        model_release_id,\n        model_variant_id,\n        priority,\n        ord\n    )\n),\n_inserted AS (\n    INSERT INTO rev.inference_profile_configs (\n        inference_profile_id,\n        prompt_path_object_id,\n        model_release_id,\n        model_variant_id,\n        priority\n    )\n    SELECT\n        args.inference_profile_id,\n        args.prompt_path_object_id,\n        args.model_release_id,\n        args.model_variant_id,\n        args.priority\n    FROM args\n    WHERE NOT EXISTS (\n        SELECT 1 FROM rev.inference_profile_configs ipc\n        WHERE ipc.inference_profile_id = args.inference_profile_id\n          AND ipc.prompt_path_object_id = args.prompt_path_object_id\n    )\n    ORDER BY args.ord\n    RETURNING id\n)\nSELECT\n    ipc.id AS \"id!\",\n    ipc.inference_profile_id AS \"inference_profile_id!\",\n    ipc.prompt_path_object_id AS \"prompt_path_id!\",\n    ipc.model_release_id,\n    ipc.model_variant_id,\n    ipc.priority AS \"priority!\"\nFROM args\nJOIN rev.inference_profile_configs ipc\n    ON ipc.inference_profile_id = args.inference_profile_id\n    AND ipc.prompt_path_object_id = args.prompt_path_object_id\nORDER BY ipc.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.inference_profile_configs",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "inference_profile_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.inference_profile_configs",
+            "name": "inference_profile_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "prompt_path_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.inference_profile_configs",
+            "name": "prompt_path_object_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "model_release_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.inference_profile_configs",
+            "name": "model_release_id"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "model_variant_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.inference_profile_configs",
+            "name": "model_variant_id"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "priority!",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "rev.inference_profile_configs",
+            "name": "priority"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "UuidArray",
+        "UuidArray",
+        "UuidArray",
+        "Int4Array"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "6ae1a55a88cfa66339196bfeede6661acf19b22a321344121357d044ad33f82b"
+}

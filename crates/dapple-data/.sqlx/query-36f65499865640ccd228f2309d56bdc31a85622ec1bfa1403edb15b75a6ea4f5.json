@@ -1,0 +1,280 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH latest_deprecation AS (\n    SELECT DISTINCT ON (versioned_object_id)\n        versioned_object_id,\n        to_level_id\n    FROM rev.deprecation_events\n    ORDER BY versioned_object_id, created_at DESC\n),\n\nargs AS (\n    SELECT *\n    FROM UNNEST($1::UUID[]) WITH ORDINALITY AS o(id, ord)\n),\nfluent_message_page AS (\n    SELECT fm.id\n    FROM args\n    JOIN rev.fluent_messages fm ON fm.id = args.id\n)\n\nSELECT\n    fm.id,\n    fm.versioned_object_id,\n    op.id AS path_id,\n    fmpd.name,\n    fmpd.description,\n    vo.content_hash,\n    dl.key AS \"deprecation_level_key?\",\n    fm.created_at,\n\n        fmb.id as \"body_id?\",\n    fmb.locale_id as \"body_locale_id?\",\n    l.tag as \"body_locale_tag?\",\n    fmb.body as \"body_text?\",\n    fmb.created_at as \"body_created_at?\",\n\n        fmeb.id as \"engine_body_id?\",\n    fmeb.model_release_id as \"engine_body_model_release_id?\",\n    mr.id as \"engine_body_model_release_object_id?\",\n    lin.key as \"engine_body_lineage_key?\",\n    prov.key as \"engine_body_provider_key?\",\n    mr.tier as \"engine_body_tier?\",\n    mr.release as \"engine_body_release?\",\n    fmeb.body as \"engine_body_text?\",\n    fmeb.created_at as \"engine_body_created_at?\"\nFROM fluent_message_page fmp\nJOIN rev.fluent_messages fm ON fm.id = fmp.id\nJOIN rev.versioned_objects vo ON vo.id = fm.versioned_object_id\nJOIN rev.object_paths op ON op.id = vo.path_id\nJOIN rev.fluent_message_path_details fmpd ON fmpd.path_id = op.id\nLEFT JOIN latest_deprecation ld ON ld.versioned_object_id = vo.id\nLEFT JOIN rev.deprecation_levels dl ON dl.id = ld.to_level_id\nLEFT JOIN rev.fluent_message_bodies fmb ON fmb.fluent_message_id = fm.id\nLEFT JOIN rev.fluent_message_locales l ON l.id = fmb.locale_id\nLEFT JOIN rev.fluent_message_engine_bodies fmeb ON fmeb.fluent_message_id = fm.id\nLEFT JOIN rev.model_releases mr ON mr.id = fmeb.model_release_id\nLEFT JOIN rev.lineages lin ON lin.id = mr.lineage_id\nLEFT JOIN rev.providers prov ON prov.id = mr.provider_id\nORDER BY fm.id, fmb.id, fmeb.id;\n\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.fluent_messages",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "versioned_object_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.fluent_messages",
+            "name": "versioned_object_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "path_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.object_paths",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.fluent_message_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "description",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.fluent_message_path_details",
+            "name": "description"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "content_hash",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "content_hash"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "deprecation_level_key?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.deprecation_levels",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.fluent_messages",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "body_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.fluent_message_bodies",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "body_locale_id?",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "rev.fluent_message_bodies",
+            "name": "locale_id"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "body_locale_tag?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.fluent_message_locales",
+            "name": "tag"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "body_text?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.fluent_message_bodies",
+            "name": "body"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "body_created_at?",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.fluent_message_bodies",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "engine_body_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.fluent_message_engine_bodies",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "engine_body_model_release_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.fluent_message_engine_bodies",
+            "name": "model_release_id"
+          }
+        }
+      },
+      {
+        "ordinal": 15,
+        "name": "engine_body_model_release_object_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.model_releases",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 16,
+        "name": "engine_body_lineage_key?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.lineages",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 17,
+        "name": "engine_body_provider_key?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.providers",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 18,
+        "name": "engine_body_tier?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.model_releases",
+            "name": "tier"
+          }
+        }
+      },
+      {
+        "ordinal": 19,
+        "name": "engine_body_release?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.model_releases",
+            "name": "release"
+          }
+        }
+      },
+      {
+        "ordinal": 20,
+        "name": "engine_body_text?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.fluent_message_engine_bodies",
+            "name": "body"
+          }
+        }
+      },
+      {
+        "ordinal": 21,
+        "name": "engine_body_created_at?",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.fluent_message_engine_bodies",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "36f65499865640ccd228f2309d56bdc31a85622ec1bfa1403edb15b75a6ea4f5"
+}

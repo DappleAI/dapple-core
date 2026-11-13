@@ -1,0 +1,13 @@
+# Clear one MANAGER's rows for one quarter, so a re-persist replaces the slice
+# wholesale and is idempotent — the manager-first mirror of
+# delete_holdings_for_quarter.
+#
+# Scoped by (manager_cik, quarter_end) and NEVER by cusip: deleting by cusip
+# here would remove other managers' rows that a per-CUSIP ingest put there and
+# still claims to hold.
+# Parameters:
+#   $1: manager_cik (BIGINT)
+#   $2: quarter_end (DATE)
+DELETE FROM rev.institutional_holdings
+WHERE manager_cik = $1
+  AND quarter_end = $2;

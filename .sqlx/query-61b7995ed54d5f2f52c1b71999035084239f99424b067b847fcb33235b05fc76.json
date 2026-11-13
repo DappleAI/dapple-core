@@ -1,0 +1,87 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::TEXT[],\n        $2::UUID[],\n        $3::TEXT[],\n        $4::UUID[],\n        $5::UUID[],\n        $6::TEXT[]\n    ) WITH ORDINALITY AS o(\n        content_hash,\n        description_fluent_message_id,\n        description,\n        id,\n        title_fluent_message_id,\n        title,\n        ord\n    )\n),\nexisting_groups AS (\n    SELECT\n        vo.path_id,\n        args.id as old_id,\n        args.title,\n        args.description,\n        args.title_fluent_message_id,\n        args.description_fluent_message_id,\n        args.content_hash,\n        args.ord\n    FROM args\n    JOIN rev.brief_groups bg ON bg.id = args.id\n    JOIN rev.versioned_objects vo ON vo.id = bg.versioned_object_id\n),\nnew_versions_inserted AS (\n    INSERT INTO rev.versioned_objects (path_id, content_hash)\n    SELECT\n        eg.path_id,\n        eg.content_hash\n    FROM existing_groups eg\n    ON CONFLICT (path_id, content_hash) DO NOTHING\n    RETURNING id, path_id, content_hash, created_at\n),\nall_versions AS (\n    SELECT nvi.id, nvi.path_id, nvi.content_hash, nvi.created_at\n    FROM new_versions_inserted nvi\n    UNION ALL\n    SELECT vo.id, vo.path_id, vo.content_hash, vo.created_at\n    FROM existing_groups eg\n    JOIN rev.versioned_objects vo ON vo.path_id = eg.path_id AND vo.content_hash = eg.content_hash\n    WHERE NOT EXISTS (\n        SELECT 1 FROM new_versions_inserted nvi\n        WHERE nvi.path_id = eg.path_id AND nvi.content_hash = eg.content_hash\n    )\n),\nnew_groups AS (\n    INSERT INTO rev.brief_groups (\n        versioned_object_id,\n        title,\n        description,\n        title_fluent_message_id,\n        description_fluent_message_id\n    )\n    SELECT\n        av.id,\n        eg.title,\n        eg.description,\n        eg.title_fluent_message_id,\n        eg.description_fluent_message_id\n    FROM existing_groups eg\n    JOIN all_versions av ON av.path_id = eg.path_id\n    WHERE NOT EXISTS (SELECT 1 FROM rev.brief_groups bg WHERE bg.versioned_object_id = av.id)\n    RETURNING\n        id,\n        versioned_object_id,\n        title,\n        description,\n        title_fluent_message_id,\n        description_fluent_message_id,\n        created_at\n),\nall_groups AS (\n    SELECT\n        ng.id,\n        ng.versioned_object_id,\n        ng.title,\n        ng.description,\n        ng.title_fluent_message_id,\n        ng.description_fluent_message_id,\n        ng.created_at\n    FROM new_groups ng\n    UNION ALL\n    SELECT\n        bg.id,\n        bg.versioned_object_id,\n        bg.title,\n        bg.description,\n        bg.title_fluent_message_id,\n        bg.description_fluent_message_id,\n        bg.created_at\n    FROM rev.brief_groups bg\n    JOIN all_versions av ON bg.versioned_object_id = av.id\n    WHERE NOT EXISTS (SELECT 1 FROM new_groups ng WHERE ng.versioned_object_id = av.id)\n)\nSELECT\n    ag.id AS \"id!\",\n    ag.versioned_object_id AS \"versioned_object_id!\",\n    op.id AS \"path_id!\",\n    bgpd.name AS \"name!\",\n    av.content_hash AS \"content_hash!\",\n    COALESCE(rev.fluent_body(ag.title_fluent_message_id, 'en'), ag.title, bgpd.name) AS \"title!\",\n    COALESCE(rev.fluent_body(ag.description_fluent_message_id, 'en'), ag.description) AS description,\n    ag.created_at AS \"created_at!\"\nFROM all_groups ag\nJOIN all_versions av ON av.id = ag.versioned_object_id\nJOIN rev.object_paths op ON op.id = av.path_id\nJOIN rev.brief_group_path_details bgpd ON bgpd.path_id = op.id\nJOIN existing_groups eg ON eg.path_id = av.path_id\nORDER BY ag.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "versioned_object_id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "path_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.object_paths",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "name!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_group_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "content_hash!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 5,
+        "name": "title!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 6,
+        "name": "description",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at!",
+        "type_info": "Timestamptz",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "UuidArray",
+        "TextArray",
+        "UuidArray",
+        "UuidArray",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      false,
+      false,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "61b7995ed54d5f2f52c1b71999035084239f99424b067b847fcb33235b05fc76"
+}

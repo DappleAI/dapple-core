@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM rev.institutional_holdings\nWHERE cusip = $1 AND quarter_end = $2;\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Date"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "77a2247920bf660ee78b536e128294f3b18b282635080ad3aebd0334c4218ff1"
+}

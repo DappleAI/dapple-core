@@ -1,0 +1,46 @@
+# Lago Database Migrations Job
+# Run this ONCE after postgres is ready:
+#   kubectl apply -f migrations-job.yaml
+#
+# Check status:
+#   kubectl logs -n lago job/lago-migrations
+#
+# If you need to re-run, delete first:
+#   kubectl delete job -n lago lago-migrations
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: lago-migrations
+  namespace: lago
+spec:
+  ttlSecondsAfterFinished: 86400  # Clean up after 24 hours
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: lago-migrations
+          image: getlago/api:v1.41.0
+          imagePullPolicy: IfNotPresent
+          command: ["rails", "db:migrate"]
+          envFrom:
+            - configMapRef:
+                name: lago-config
+            - secretRef:
+                name: lago-secrets
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "512Mi"
+            limits:
+              cpu: "500m"
+              # Lago is Rails 8 + bootsnap; the very first boot in a fresh
+              # container has to compile every gem's iseq cache, which can
+              # peak around 1.2-1.6 GB before db:migrate even starts. With a
+              # 1Gi limit kubelet OOMKills the pod mid-bootsnap-compile and
+              # the failure surfaces as "SignalException: SIGTERM" in the
+              # rails stack trace — confusing because it looks like a
+              # graceful shutdown rather than a memory limit hit. Match the
+              # 2Gi the long-lived lago-api pod uses.
+              memory: "2Gi"

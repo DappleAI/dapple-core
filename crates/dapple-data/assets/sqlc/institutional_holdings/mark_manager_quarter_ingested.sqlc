@@ -1,0 +1,14 @@
+# Record that one MANAGER's holdings are stored for one quarter.
+#
+# This marker asserts "every security this manager reported holding in this
+# quarter is stored". It does NOT assert anything about any CUSIP's holder base,
+# which is what rev.institutional_holdings_ingest means — see migration 94.
+# Idempotent: a re-persist refreshes the timestamp and the source accession.
+# Parameters:
+#   $1: manager_cik (BIGINT)
+#   $2: quarter_end (DATE)
+#   $3: accession (TEXT)
+INSERT INTO rev.institutional_holdings_manager_ingest (manager_cik, quarter_end, accession)
+VALUES ($1, $2, $3)
+ON CONFLICT (manager_cik, quarter_end)
+DO UPDATE SET ingested_at = now(), accession = EXCLUDED.accession;

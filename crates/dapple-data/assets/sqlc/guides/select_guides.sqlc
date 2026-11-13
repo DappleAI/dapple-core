@@ -1,0 +1,2 @@
+# Select all guides, one version per path (pinned or latest non-deprecated)
+:compose(guides/select_guides_body.sqlc, @page = guides/pages/all.sqlc)

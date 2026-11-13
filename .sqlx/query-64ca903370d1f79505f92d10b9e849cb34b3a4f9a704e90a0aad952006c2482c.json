@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nSELECT DISTINCT l.key AS lineage_key\nFROM rev.prompts p\nJOIN rev.prompt_fluent_messages pfm ON pfm.prompt_id = p.id\nJOIN rev.fluent_message_engine_bodies fmeb ON fmeb.fluent_message_id = pfm.fluent_message_id\nJOIN rev.model_releases mr ON mr.id = fmeb.model_release_id\nJOIN rev.lineages l ON l.id = mr.lineage_id\nWHERE p.id = $1\nORDER BY l.key;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "lineage_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.lineages",
+            "name": "key"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "64ca903370d1f79505f92d10b9e849cb34b3a4f9a704e90a0aad952006c2482c"
+}

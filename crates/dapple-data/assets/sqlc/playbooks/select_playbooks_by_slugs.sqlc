@@ -1,0 +1,2 @@
+# Select playbooks by slugs using path_details lookup
+:compose(playbooks/select_playbooks_body.sqlc, @page = playbooks/pages/by_slugs.sqlc)

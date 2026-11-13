@@ -1,0 +1,139 @@
+#!/usr/bin/env -S nu --no-config-file
+
+# ─────────────────────────────────────────────────────────────────────────────
+# dapple-prompt pre-commit gate. Refuses to commit code that would break CI.
+# It mirrors CI exactly and needs NO database — every check is offline.
+#
+# Three checks, cheapest-first so a fast failure never pays for a compile:
+#
+#   1. rustfmt    — `cargo fmt --all --check`. Instant. Fails if `cargo fmt`
+#                   wasn't run.
+#   2. sqlc drift — generated `.sql` matches the `.sqlc` sources
+#                   (mirrors `dapple sqlc verify`; instant).
+#   3. clippy     — `SQLX_OFFLINE=true cargo clippy --workspace --all-targets
+#                   --locked -- -D warnings`. This is CI's exact gate. It catches
+#                   BOTH:
+#                     • a stale/incomplete `.sqlx` cache — e.g. a query added or
+#                       a `cargo sqlx prepare` run WITHOUT `-- --all-targets`,
+#                       which drops the test-target queries and makes CI fail
+#                       with "SQLX_OFFLINE=true but there is no cached data for
+#                       this query"; and
+#                     • clippy/rustc warnings (the "was `cargo fix` run?" gate —
+#                       `cargo fix` has no check mode, so we assert the result).
+#
+# NOT checked here: `cargo sqlx prepare --check`. That regenerates metadata from
+# the live DB and, on a dev box whose Postgres has a collation-version drift,
+# reports query-metadata "differs" that CI never sees (CI uses the committed
+# cache as-is, offline). Gating on it would block commits over a local-only
+# difference. The offline build above is what actually decides CI pass/fail.
+#
+# Reliability note: the offline build is incremental. The normal trigger for a
+# cache miss is a SOURCE change (you add/edit a query, or run a bad `prepare`,
+# then commit) — that recompiles the crate and is caught. Because everyday
+# builds run live (SQLX_OFFLINE unset), this gate flipping it to "true" also
+# changes the tracked env and forces the query crates to re-expand offline, so
+# the miss surfaces on a fresh expansion. The only gap is a `.sqlx`-only change
+# with no source change and warm offline artifacts; CI's cold build is the
+# final backstop for that.
+#
+# Bypass (use sparingly):
+#   git commit --no-verify                  # skips the hook
+#   DAPPLE_SKIP_COMMIT_CHECK=1 git commit   # skips just this check
+#
+# Installed by assets/nu/init/setup_nu.nu via `git config core.hooksPath`.
+# Edit this file in the repo, not in .git/ — core.hooksPath points right here,
+# so changes take effect with no re-install.
+# ─────────────────────────────────────────────────────────────────────────────
+
+use std/log
+
+# Escape hatch.
+if ((($env.DAPPLE_SKIP_COMMIT_CHECK? | default "")) | is-not-empty) {
+    log warning "DAPPLE_SKIP_COMMIT_CHECK set — skipping pre-commit checks"
+    exit 0
+}
+
+# Worktree root (git runs hooks from here, but be explicit).
+let repo = (^git rev-parse --show-toplevel | str trim)
+
+# Ensure cargo + cargo-sqlc (in ~/.cargo/bin) resolve even from a stripped
+# GUI/IDE env. PATH may be a string (no config) or a list — normalize either way.
+let home = (if "home-dir" in ($nu | columns) { $nu.home-dir } else { $nu.home-path })
+let cargo_bin = ($home | path join ".cargo" "bin")
+let cur_path = (if (($env.PATH | describe) | str starts-with "list") { $env.PATH } else { $env.PATH | split row (char esep) })
+$env.PATH = ($cur_path | prepend $cargo_bin | uniq)
+
+let bypass = "  Bypass: git commit --no-verify"
+
+if (which cargo | is-empty) {
+    log error "cargo not found on PATH — cannot verify the commit, blocked."
+    print "  Install the Rust toolchain (it lives in ~/.cargo/bin), or:"
+    print $bypass
+    exit 1
+}
+
+print "── pre-commit: fmt + sqlc + clippy (offline, mirrors CI) ──"
+
+# ── 1. rustfmt (instant) ─────────────────────────────────────────────────────
+let fmt = (
+    do {
+        cd $repo
+        ^cargo fmt --all --check
+    } | complete
+)
+if $fmt.exit_code != 0 {
+    print (($fmt.stdout + $fmt.stderr) | lines | first 20 | str join (char nl))
+    print ""
+    log error "Code is not formatted (cargo fmt was not run) — commit blocked."
+    print "  Fix:    cargo fmt --all   (then re-stage)"
+    print $bypass
+    exit 1
+}
+
+# ── 2. sqlc drift (instant) ──────────────────────────────────────────────────
+let data_dir = ($repo | path join "crates" "dapple-data")
+let sqlc = (
+    do {
+        cd $data_dir
+        ^cargo sqlc compose --verify --skip-prepare --source assets/sqlc/ --target assets/.sql/
+    } | complete
+)
+if $sqlc.exit_code != 0 {
+    print (($sqlc.stdout + $sqlc.stderr) | str trim)
+    print ""
+    log error "Generated .sql is out of sync with .sqlc sources — commit blocked."
+    print "  Fix:    nu -c 'use assets/nu/modules/dapple; dapple sqlc compose'"
+    print "          then re-stage crates/dapple-data/assets/.sql/ and .sqlx/"
+    print $bypass
+    exit 1
+}
+
+# ── 3. offline clippy = CI's gate (stale .sqlx cache + warnings) ─────────────
+print "   fmt + sqlc OK — running SQLX_OFFLINE clippy -D warnings (whole workspace + tests)…"
+let clippy = (
+    do {
+        cd $repo
+        with-env { SQLX_OFFLINE: "true" } {
+            ^cargo clippy --workspace --all-targets --locked -- -D warnings
+        }
+    } | complete
+)
+if $clippy.exit_code != 0 {
+    let combined = (($clippy.stdout + "\n" + $clippy.stderr) | str trim)
+    print ($combined | lines | last 25 | str join (char nl))
+    print ""
+    if (($combined | str lowercase) | str contains "no cached data") {
+        log error "The committed .sqlx cache is missing a query (CI's exact failure) — commit blocked."
+        print "  Fix:    nu -c 'use assets/nu/modules/dapple; dapple sqlx prepare'   # runs with --all-targets"
+        print "          then re-stage .sqlx/  (a bare `cargo sqlx prepare` WITHOUT --all-targets drops test queries)"
+    } else {
+        log error "clippy found warnings (cargo fix / cleanup not applied) — commit blocked."
+        print "  Fix:    cargo clippy --workspace --all-targets --fix   (or `cargo fix`), then re-stage"
+        print "          (some lints need a manual fix; see the diagnostics above)"
+    }
+    print $bypass
+    exit 1
+}
+
+log info "pre-commit OK — fmt, sqlc, and offline clippy (= CI) are all clean"
+exit 0

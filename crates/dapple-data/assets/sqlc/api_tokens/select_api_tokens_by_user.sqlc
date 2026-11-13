@@ -1,0 +1,22 @@
+# Select all API tokens for a user with revocation status
+# $1 is user UUID (rev.user_details.object_id)
+SELECT
+    t.id,
+    ud.object_id AS user_id,
+    t.name,
+    t.token_hash,
+    t.token_prefix,
+    t.expires_at,
+    t.created_at,
+    # Get the earliest revocation timestamp (if any)
+    (
+        SELECT MIN(r.revoked_at)
+        FROM web.api_token_revocations r
+        WHERE r.api_token_id = t.id
+    ) AS revoked_at
+FROM web.api_tokens t
+JOIN rev.user_details ud ON ud.user_id = t.user_id
+WHERE ud.object_id = $1
+ORDER BY t.created_at DESC
+LIMIT $2
+OFFSET $3;

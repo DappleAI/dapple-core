@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO rev.external_service_tokens (service_id, company_id, name, public_key_pem) VALUES ($1, $2, $3, $4)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Uuid",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5d246f4508f51a613a6410f3491dac7f910bf3efcd3aa63c15ecd1ba50e39532"
+}

@@ -1,0 +1,40 @@
+[package]
+name = "dapple-render"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[dependencies]
+# PDF generation -- Typst as a library. The typesetting engine compiles
+# generated Typst markup into PDFs with internal links (GoTo annotations),
+# named destinations, outline/bookmarks, a linked TOC, justification,
+# hyphenation, and native syntax highlighting -- none of which the previous
+# genpdf/printpdf stack could produce. typst-pdf must stay in version
+# lockstep with typst.
+typst = "0.15"
+typst-pdf = "0.15"
+# PagedDocument (the compile target type) is defined here and not re-exported
+# through the `typst` facade crate.
+typst-layout = "0.15"
+# Markdown parsing (shared event stream feeds both the Typst and HTML emitters)
+pulldown-cmark = "0.13"
+# Shared types from dapple-data for Guide, GuideBlock, GuideCard DTOs
+dapple-data = { path = "../dapple-data" }
+# Serialization for render profile config
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+# Logging
+log = "0.4"
+# Error handling
+thiserror = "2.0"
+charts-rs = "0.7"
+
+[dev-dependencies]
+uuid = { version = "1.18", features = ["v4"] }
+time = "0.3"
+# PDF structure assertions in integration tests (outline, destinations, link
+# annotations, metadata) -- never used by the render path itself.
+# default-features off: the date-handling integrations (time/chrono/jiff)
+# aren't needed for parsing, and lopdf 0.44's `time` feature fails to build
+# against the workspace-resolved time 0.3.47.
+lopdf = { version = "0.44", default-features = false }

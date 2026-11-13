@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO rev.guide_embedding_generations (guide_id)\nVALUES ($1)\nRETURNING id, guide_id, created_at;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_embedding_generations",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "guide_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_embedding_generations",
+            "name": "guide_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_embedding_generations",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "79749e970413ae9d64040d99c7440fc6e05b90752f1f99262e653a3d91ca685a"
+}

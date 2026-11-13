@@ -1,0 +1,12 @@
+# The conduit-facing guide frame (raw CONDUITS.md markdown) for a dispatch,
+# resolved through the dispatch's journey to its PINNED guide version.
+#
+# Pinned read: deliberately no latest_deprecation join — deprecation gates
+# browse/attachment, never a journey's pinned resolution. A journey with no
+# guide pin (legacy) simply drops out of the JOIN; a pre-Migration-93 guide
+# version returns NULL conduits_md. Both mean "no frame to inject".
+SELECT g.conduits_md
+FROM rev.dispatches d
+JOIN rev.journeys j ON j.id = d.journey_id
+JOIN rev.guides g ON g.id = j.guide_id
+WHERE d.id = :bind(dispatch_id)::UUID;

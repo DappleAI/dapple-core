@@ -1,0 +1,44 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nWITH stage_tasks AS (\n    SELECT\n        stk.id AS step_task_id,\n        ss.id AS stage_step_id,\n        pstage.id AS playbook_stage_id\n    FROM rev.playbook_stages pstage\n    JOIN rev.stage_steps ss ON ss.stage_id = pstage.stage_id\n    JOIN rev.step_tasks stk ON stk.step_id = ss.step_id\n    WHERE pstage.id = $1\n),\nall_overlays AS (\n        SELECT\n        st.step_task_id,\n        op.id,\n        vspd.name,\n        vk.id AS value_kind_id,\n        vk.key AS value_kind_key,\n        o.visibility,\n        1 AS priority\n    FROM rev.playbook_stage_overlays o\n    JOIN stage_tasks st ON st.playbook_stage_id = o.playbook_stage_id\n    JOIN rev.object_paths op ON op.id = o.value_slot_path_id\n    JOIN rev.value_slot_path_details vspd ON vspd.path_id = op.id\n    JOIN rev.value_kinds vk ON vk.id = vspd.value_kind_id\n\n    UNION ALL\n\n        SELECT\n        st.step_task_id,\n        op.id,\n        vspd.name,\n        vk.id AS value_kind_id,\n        vk.key AS value_kind_key,\n        o.visibility,\n        2 AS priority\n    FROM rev.stage_step_overlays o\n    JOIN stage_tasks st ON st.stage_step_id = o.stage_step_id\n    JOIN rev.object_paths op ON op.id = o.value_slot_path_id\n    JOIN rev.value_slot_path_details vspd ON vspd.path_id = op.id\n    JOIN rev.value_kinds vk ON vk.id = vspd.value_kind_id\n\n    UNION ALL\n\n        SELECT\n        st.step_task_id,\n        op.id,\n        vspd.name,\n        vk.id AS value_kind_id,\n        vk.key AS value_kind_key,\n        o.visibility,\n        3 AS priority\n    FROM rev.step_task_overlays o\n    JOIN stage_tasks st ON st.step_task_id = o.step_task_id\n    JOIN rev.object_paths op ON op.id = o.value_slot_path_id\n    JOIN rev.value_slot_path_details vspd ON vspd.path_id = op.id\n    JOIN rev.value_kinds vk ON vk.id = vspd.value_kind_id\n),\nranked AS (\n        SELECT DISTINCT ON (step_task_id, id)\n        step_task_id,\n        id,\n        name,\n        value_kind_id,\n        value_kind_key,\n        visibility\n    FROM all_overlays\n    ORDER BY step_task_id, id, priority DESC\n)\nSELECT DISTINCT\n    id,\n    name,\n    value_kind_id,\n    value_kind_key\nFROM ranked\nWHERE visibility = 'expose'\nORDER BY name;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "value_kind_id",
+        "type_info": "Int2",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "value_kind_key",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "3d22251ab1b640624b501b459f2bd2a4869a6db7007fd176cfa996555d9f851d"
+}

@@ -1,0 +1,46 @@
+# Insert dataset extraction rows in the 'pending' state. Append-only; the worker
+# transitions pending -> running -> ok/failed and writes the schema envelope
+# exactly once at the ok transition (write-once). "Current" is the latest row
+# per asset (see select_current_asset_dataset_extraction) — no is_current flag,
+# no flag-demotion UPDATE.
+# Batch insert with column-wise arrays.
+# Parameters:
+#   $1: asset_ids (UUID[])
+#   $2: extractor_versions (INTEGER[])
+WITH args AS (
+    SELECT *
+    FROM UNNEST(
+        $1::UUID[],
+        $2::INTEGER[]
+    ) WITH ORDINALITY AS o(asset_id, extractor_version, ord)
+),
+objs AS (
+    INSERT INTO rev.asset_dataset_extractions (asset_id, extractor_version, status)
+    SELECT args.asset_id, args.extractor_version, 'pending'
+    FROM args
+    ORDER BY args.ord
+    RETURNING
+        id,
+        asset_id,
+        extractor_version,
+        status,
+        envelope,
+        table_count,
+        row_count,
+        error_message,
+        created_at,
+        completed_at
+)
+SELECT
+    id,
+    asset_id,
+    extractor_version,
+    status,
+    envelope,
+    table_count,
+    row_count,
+    error_message,
+    created_at,
+    completed_at
+FROM objs
+ORDER BY id;

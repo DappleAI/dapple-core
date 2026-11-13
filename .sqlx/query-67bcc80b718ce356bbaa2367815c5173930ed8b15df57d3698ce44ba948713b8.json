@@ -1,0 +1,101 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::TEXT[],\n        $2::TEXT[],\n        $3::UUID[],\n        $4::JSONB[],\n        $5::INT[],\n        $6::INT[]\n    ) WITH ORDINALITY AS o(\n        content_hash,\n        description,\n        id,\n        logic,\n        max_attempts,\n        retry_delay_ms,\n        ord\n    )\n),\nexisting AS (\n    SELECT\n        args.ord,\n        args.content_hash,\n        vo.path_id,\n        dpd.name\n    FROM args\n    JOIN rev.directives d_old ON d_old.id = args.id\n    JOIN rev.versioned_objects vo ON vo.id = d_old.versioned_object_id\n    JOIN rev.object_paths op ON op.id = vo.path_id\n    JOIN rev.directive_path_details dpd ON dpd.path_id = op.id\n),\nnew_versions_inserted AS (\n    INSERT INTO rev.versioned_objects (path_id, content_hash)\n    SELECT\n        e.path_id,\n        e.content_hash\n    FROM existing e\n    ORDER BY e.ord\n    ON CONFLICT (path_id, content_hash) DO NOTHING\n    RETURNING id, path_id, content_hash, created_at\n),\nall_versions AS (\n    SELECT nvi.id, nvi.path_id, nvi.content_hash, nvi.created_at\n    FROM new_versions_inserted nvi\n    UNION ALL\n    SELECT vo.id, vo.path_id, vo.content_hash, vo.created_at\n    FROM existing e\n    JOIN rev.versioned_objects vo ON vo.path_id = e.path_id AND vo.content_hash = e.content_hash\n    WHERE NOT EXISTS (\n        SELECT 1 FROM new_versions_inserted nvi\n        WHERE nvi.path_id = e.path_id AND nvi.content_hash = e.content_hash\n    )\n),\nnew_directives AS (\n    INSERT INTO rev.directives (versioned_object_id, logic, max_attempts, retry_delay_ms, description)\n    SELECT\n        av.id,\n        args.logic,\n        COALESCE(args.max_attempts, 1),\n        args.retry_delay_ms,\n        args.description\n    FROM args\n    JOIN existing e ON e.ord = args.ord\n    JOIN all_versions av ON av.path_id = e.path_id\n    WHERE NOT EXISTS (SELECT 1 FROM rev.directives d WHERE d.versioned_object_id = av.id)\n    RETURNING id, versioned_object_id, logic, max_attempts, retry_delay_ms, description, created_at\n),\nall_directives AS (\n    SELECT nd.id, nd.versioned_object_id, nd.logic, nd.max_attempts, nd.retry_delay_ms, nd.description, nd.created_at\n    FROM new_directives nd\n    UNION ALL\n    SELECT d.id, d.versioned_object_id, d.logic, d.max_attempts, d.retry_delay_ms, d.description, d.created_at\n    FROM rev.directives d\n    JOIN all_versions av ON d.versioned_object_id = av.id\n    WHERE NOT EXISTS (SELECT 1 FROM new_directives nd WHERE nd.versioned_object_id = av.id)\n)\nSELECT\n    ad.id AS \"id!\",\n    ad.versioned_object_id AS \"versioned_object_id!\",\n    e.path_id AS \"path_id!\",\n    e.name AS \"name!\",\n    av.content_hash AS \"content_hash!\",\n    ad.logic AS \"logic!\",\n    ad.max_attempts AS \"max_attempts!\",\n    ad.retry_delay_ms,\n    ad.description,\n    ad.created_at AS \"created_at!\"\nFROM all_directives ad\nJOIN all_versions av ON av.id = ad.versioned_object_id\nJOIN existing e ON e.path_id = av.path_id\nORDER BY av.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "versioned_object_id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "path_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "path_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "name!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.directive_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "content_hash!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 5,
+        "name": "logic!",
+        "type_info": "Jsonb",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 6,
+        "name": "max_attempts!",
+        "type_info": "Int4",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 7,
+        "name": "retry_delay_ms",
+        "type_info": "Int4",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 8,
+        "name": "description",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at!",
+        "type_info": "Timestamptz",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "TextArray",
+        "UuidArray",
+        "JsonbArray",
+        "Int4Array",
+        "Int4Array"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      false,
+      false,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "67bcc80b718ce356bbaa2367815c5173930ed8b15df57d3698ce44ba948713b8"
+}

@@ -1,0 +1,25 @@
+-- Select directives attached to playbook stages by stage IDs
+WITH stage_ids AS (
+    SELECT *
+    FROM UNNEST($1::UUID[]) WITH ORDINALITY AS t(stage_id, ord)
+)
+SELECT
+    psd.id,
+    ps.id AS playbook_stage_id,
+    psd.directive_id,
+    op.id AS directive_path_id,
+    dpd.name AS directive_name,
+    vo.content_hash,
+    d.logic,
+    d.max_attempts,
+    d.retry_delay_ms,
+    d.description,
+    psd.created_at
+FROM stage_ids si
+JOIN rev.playbook_stages ps ON ps.id = si.stage_id
+LEFT JOIN rev.playbook_stage_directives psd ON psd.playbook_stage_id = ps.id
+LEFT JOIN rev.directives d ON d.id = psd.directive_id
+LEFT JOIN rev.versioned_objects vo ON vo.id = d.versioned_object_id
+LEFT JOIN rev.object_paths op ON op.id = vo.path_id
+LEFT JOIN rev.directive_path_details dpd ON dpd.path_id = op.id
+ORDER BY ps.id, psd.id;

@@ -1,0 +1,17 @@
+-- Select all current (non-superseded) canonical release pins with pagination.
+SELECT
+    crp.id,
+    crp.scope,
+    crp.environment,
+    crp.object_type,
+    crp.ref_key,
+    crp.content_hash,
+    crp.versioned_object_id,
+    crp.resolved_at,
+    crp.supersedes_id,
+    crp.created_at
+FROM rev.canonical_release_pins crp
+LEFT JOIN rev.canonical_release_pins newer ON newer.supersedes_id = crp.id
+WHERE newer.id IS NULL
+ORDER BY crp.scope, crp.environment, crp.object_type, crp.ref_key
+LIMIT $1 OFFSET $2;

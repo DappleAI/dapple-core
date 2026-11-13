@@ -1,0 +1,234 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT issuer_cik, accession, filed_date, trans_date, owner_cik, owner_name,\n       is_director, is_officer, is_ten_pct, officer_title, security_title,\n       trans_code, acquired_disposed, shares, price_per_share, shares_owned_after,\n       is_derivative, is_10b5_1\nFROM rev.insider_transactions\nWHERE issuer_cik = $1 AND trans_date >= $2 AND trans_date <= $3\nORDER BY trans_date, owner_name, accession;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "issuer_cik",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "rev.insider_transactions",
+            "name": "issuer_cik"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "accession",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.insider_transactions",
+            "name": "accession"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "filed_date",
+        "type_info": "Date",
+        "origin": {
+          "Table": {
+            "table": "rev.insider_transactions",
+            "name": "filed_date"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "trans_date",
+        "type_info": "Date",
+        "origin": {
+          "Table": {
+            "table": "rev.insider_transactions",
+            "name": "trans_date"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "owner_cik",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "rev.insider_transactions",
+            "name": "owner_cik"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "owner_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.insider_transactions",
+            "name": "owner_name"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "is_director",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "rev.insider_transactions",
+            "name": "is_director"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "is_officer",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "rev.insider_transactions",
+            "name": "is_officer"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "is_ten_pct",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "rev.insider_transactions",
+            "name": "is_ten_pct"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "officer_title",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.insider_transactions",
+            "name": "officer_title"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "security_title",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.insider_transactions",
+            "name": "security_title"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "trans_code",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.insider_transactions",
+            "name": "trans_code"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "acquired_disposed",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.insider_transactions",
+            "name": "acquired_disposed"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "shares",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "rev.insider_transactions",
+            "name": "shares"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "price_per_share",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "rev.insider_transactions",
+            "name": "price_per_share"
+          }
+        }
+      },
+      {
+        "ordinal": 15,
+        "name": "shares_owned_after",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "rev.insider_transactions",
+            "name": "shares_owned_after"
+          }
+        }
+      },
+      {
+        "ordinal": 16,
+        "name": "is_derivative",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "rev.insider_transactions",
+            "name": "is_derivative"
+          }
+        }
+      },
+      {
+        "ordinal": 17,
+        "name": "is_10b5_1",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "rev.insider_transactions",
+            "name": "is_10b5_1"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Date",
+        "Date"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "7e2b20d5d2d56f945a97c99ad664fa7fec550c5624b529826730d37cfb89a777"
+}

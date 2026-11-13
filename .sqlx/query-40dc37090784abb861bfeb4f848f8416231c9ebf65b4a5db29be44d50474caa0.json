@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT d.id\nFROM rev.dispatches d\nWHERE d.journey_id = $1::UUID\n  AND NOT EXISTS (\n      SELECT 1\n      FROM rev.dispatch_stages dst\n      JOIN rev.dispatch_steps ds ON ds.dispatch_stage_id = dst.id\n      JOIN rev.dispatch_task_attempts a ON a.dispatch_step_id = ds.id\n      WHERE dst.dispatch_id = d.id\n  )\nORDER BY d.created_at;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatches",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "40dc37090784abb861bfeb4f848f8416231c9ebf65b4a5db29be44d50474caa0"
+}

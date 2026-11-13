@@ -1,0 +1,12 @@
+-- Check if a specific version of a guide already exists for a given path.
+-- Returns the versioned_object's id and guide's id if found.
+SELECT
+    vo.id AS versioned_object_id,
+    g.id AS guide_id,
+    vo.content_hash
+FROM rev.versioned_objects vo
+JOIN rev.object_paths op ON op.id = vo.path_id
+JOIN rev.guides g ON g.versioned_object_id = vo.id
+WHERE op.id = $1
+  AND vo.content_hash = $2
+LIMIT 1;

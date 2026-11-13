@@ -1,0 +1,68 @@
+-- Select latest version's card for each guide path, filtered by category
+-- Shared body template for guide card SELECT queries.
+-- Callers provide a @page slot defining one or more CTEs
+-- that produce a `guide_card_page` CTE with columns:
+--   guide_id, path_id, title, slug, content_hash
+WITH latest_deprecation AS (
+    SELECT DISTINCT ON (versioned_object_id)
+        versioned_object_id,
+        to_level_id
+    FROM rev.deprecation_events
+    ORDER BY versioned_object_id, created_at DESC
+),
+
+current_pins AS (
+    SELECT crp.ref_key, crp.versioned_object_id, crp.id AS pin_id
+    FROM rev.canonical_release_pins crp
+    LEFT JOIN rev.canonical_release_pins newer ON newer.supersedes_id = crp.id
+    WHERE newer.id IS NULL
+      AND crp.scope = $5::TEXT
+      AND crp.environment = $2::TEXT
+      AND crp.object_type = 'guides'
+      AND crp.resolved_at IS NOT NULL
+),
+latest_guides AS (
+    SELECT DISTINCT ON (op.id)
+        g.id AS guide_id,
+        vo.path_id,
+        gpd.title,
+        gpd.slug,
+        vo.content_hash
+    FROM rev.guides g
+    JOIN rev.versioned_objects vo ON vo.id = g.versioned_object_id
+    JOIN rev.object_paths op ON op.id = vo.path_id
+    JOIN rev.guide_path_details gpd ON gpd.path_id = op.id
+    LEFT JOIN latest_deprecation ld ON ld.versioned_object_id = vo.id
+    LEFT JOIN rev.deprecation_levels dl ON dl.id = ld.to_level_id
+    LEFT JOIN current_pins cp
+        ON cp.ref_key = g.source_path
+       AND cp.versioned_object_id = vo.id
+    WHERE dl.id IS NULL
+    ORDER BY op.id,
+        cp.pin_id NULLS LAST,
+        vo.created_at DESC
+),
+guide_card_page AS (
+    SELECT lg.guide_id, lg.path_id, lg.title, lg.slug, lg.content_hash
+    FROM latest_guides lg
+    JOIN rev.guide_cards gc ON gc.guide_id = lg.guide_id
+    WHERE gc.category = $1::TEXT
+)
+
+SELECT
+    gc.id,
+    gc.guide_id,
+    gcp.path_id,
+    gcp.title,
+    gcp.slug,
+    gc.subtitle,
+    gc.card_image_asset_id,
+    gc.category,
+    gc.color,
+    gc.accent,
+    gc.created_at
+FROM guide_card_page gcp
+JOIN rev.guide_cards gc ON gc.guide_id = gcp.guide_id
+ORDER BY gc.category, gcp.title
+LIMIT $3::BIGINT OFFSET $4::BIGINT;
+

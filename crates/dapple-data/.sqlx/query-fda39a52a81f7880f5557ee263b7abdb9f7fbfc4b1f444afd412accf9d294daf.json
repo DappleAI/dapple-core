@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT EXISTS (\n    SELECT 1\n    FROM rev.guide_playbooks gp\n    WHERE gp.guide_id = $1::UUID\n      AND gp.playbook_id = $2::UUID\n) AS \"exposes!\";\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "exposes!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "fda39a52a81f7880f5557ee263b7abdb9f7fbfc4b1f444afd412accf9d294daf"
+}

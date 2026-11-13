@@ -1,0 +1,265 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n    bu.brief_id,\n    bu.id AS unit_id,\n    bu.unit_key,\n            bun.level AS \"notice_level?\",\n    bun.title_text AS \"notice_title_text?\",\n    bun.detail_text AS \"notice_detail_text?\",\n        bum.markdown_text AS \"markdown_text?\",\n            bum.deliverable_spec AS \"markdown_deliverable_spec?\",\n        bict.key AS \"input_control_type_key?\",\n    bui.label_text AS \"input_label_text?\",\n    bui.help_text AS \"input_help_text?\",\n    bui.placeholder_text AS \"input_placeholder_text?\",\n    CASE WHEN bui.control_spec ? 'value_slot_id'\n         THEN (bui.control_spec ->> 'value_slot_id')::UUID\n         ELSE NULL\n    END AS \"input_slot_id?\",\n    vspd_in.name AS \"input_slot_name?\",\n    vs_in.title AS \"input_slot_title?\",\n    vk_in.key AS \"input_slot_value_kind?\",\n            vs_in.cardinality AS \"input_slot_cardinality?\",\n    vs_in.min_selections AS \"input_slot_min_selections?\",\n    vs_in.max_selections AS \"input_slot_max_selections?\",\n        CASE WHEN bui.control_spec ? 'candidate_source_value_slot_id'\n         THEN (bui.control_spec ->> 'candidate_source_value_slot_id')::UUID\n         ELSE NULL\n    END AS \"input_candidate_source_value_slot_id?\",\n    cs_vspd_in.name AS \"input_candidate_source_name?\",\n            (bui.control_spec ->> 'optional')::boolean AS \"input_optional?\"\nFROM rev.brief_units bu\nLEFT JOIN rev.brief_unit_notice bun ON bun.brief_unit_id = bu.id\nLEFT JOIN rev.brief_unit_markdown bum ON bum.brief_unit_id = bu.id\nLEFT JOIN rev.brief_unit_input bui ON bui.brief_unit_id = bu.id\nLEFT JOIN rev.brief_input_control_types bict ON bict.id = bui.control_type_id\nLEFT JOIN rev.value_slots vs_in\n    ON bui.control_spec ? 'value_slot_id'\n   AND vs_in.id = (bui.control_spec ->> 'value_slot_id')::UUID\nLEFT JOIN rev.versioned_objects vo_in ON vo_in.id = vs_in.versioned_object_id\nLEFT JOIN rev.value_slot_path_details vspd_in ON vspd_in.path_id = vo_in.path_id\nLEFT JOIN rev.value_kinds vk_in ON vk_in.id = vs_in.value_kind_id\nLEFT JOIN rev.value_slots cs_vs_in\n    ON bui.control_spec ? 'candidate_source_value_slot_id'\n   AND cs_vs_in.id = (bui.control_spec ->> 'candidate_source_value_slot_id')::UUID\nLEFT JOIN rev.versioned_objects cs_vo_in ON cs_vo_in.id = cs_vs_in.versioned_object_id\nLEFT JOIN rev.value_slot_path_details cs_vspd_in ON cs_vspd_in.path_id = cs_vo_in.path_id\nWHERE bu.brief_id = ANY($1::UUID[])\nORDER BY bu.brief_id, bu.ord, bu.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "brief_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_units",
+            "name": "brief_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "unit_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_units",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "unit_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_units",
+            "name": "unit_key"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "notice_level?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_notice",
+            "name": "level"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "notice_title_text?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_notice",
+            "name": "title_text"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "notice_detail_text?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_notice",
+            "name": "detail_text"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "markdown_text?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_markdown",
+            "name": "markdown_text"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "markdown_deliverable_spec?",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_markdown",
+            "name": "deliverable_spec"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "input_control_type_key?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_input_control_types",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "input_label_text?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_input",
+            "name": "label_text"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "input_help_text?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_input",
+            "name": "help_text"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "input_placeholder_text?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_input",
+            "name": "placeholder_text"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "input_slot_id?",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 13,
+        "name": "input_slot_name?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slot_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "input_slot_title?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slots",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "ordinal": 15,
+        "name": "input_slot_value_kind?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.value_kinds",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 16,
+        "name": "input_slot_cardinality?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slots",
+            "name": "cardinality"
+          }
+        }
+      },
+      {
+        "ordinal": 17,
+        "name": "input_slot_min_selections?",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slots",
+            "name": "min_selections"
+          }
+        }
+      },
+      {
+        "ordinal": 18,
+        "name": "input_slot_max_selections?",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slots",
+            "name": "max_selections"
+          }
+        }
+      },
+      {
+        "ordinal": 19,
+        "name": "input_candidate_source_value_slot_id?",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 20,
+        "name": "input_candidate_source_name?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slot_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 21,
+        "name": "input_optional?",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      null,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      null,
+      false,
+      null
+    ]
+  },
+  "hash": "2af335c7a3572f56f93a6f34c8b0ac3c277a1c85aeb8b34f4373cfff49e3bbdd"
+}

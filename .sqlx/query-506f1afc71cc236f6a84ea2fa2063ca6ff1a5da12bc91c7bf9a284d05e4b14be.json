@@ -1,0 +1,144 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH stage_page AS (\n    SELECT st.id\n    FROM rev.stages st\n    JOIN rev.versioned_objects vo ON vo.id = st.versioned_object_id\n    JOIN rev.object_paths op ON op.id = vo.path_id\n    JOIN rev.stage_path_details spd ON spd.path_id = op.id\n    ORDER BY st.id\n    LIMIT $1::BIGINT OFFSET $2::BIGINT\n)\n\nSELECT\n    st.id,\n    st.versioned_object_id,\n    vo.path_id,\n    spd.name,\n    spd.slug,\n    vo.content_hash,\n    dl.key AS \"deprecation_level_key?\",\n    COALESCE(rev.fluent_body(st.description_fluent_message_id, 'en'), st.description, spd.name) AS \"description!\",\n    sk.key AS \"kind?\",\n    st.icons AS \"icons?\",\n    st.created_at\nFROM stage_page stp\nJOIN rev.stages st ON st.id = stp.id\nJOIN rev.versioned_objects vo ON vo.id = st.versioned_object_id\nJOIN rev.object_paths op ON op.id = vo.path_id\nJOIN rev.stage_path_details spd ON spd.path_id = op.id\nLEFT JOIN rev.stage_kinds sk ON sk.id = st.kind_id\nLEFT JOIN LATERAL (\n    SELECT de.to_level_id\nFROM rev.deprecation_events de\nWHERE de.versioned_object_id = vo.id\nORDER BY de.created_at DESC\nLIMIT 1\n\n) ld ON TRUE\nLEFT JOIN rev.deprecation_levels dl ON dl.id = ld.to_level_id\nORDER BY st.id;\n\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.stages",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "versioned_object_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.stages",
+            "name": "versioned_object_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "path_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "path_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.stage_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "slug",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.stage_path_details",
+            "name": "slug"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "content_hash",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "content_hash"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "deprecation_level_key?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.deprecation_levels",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "description!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 8,
+        "name": "kind?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.stage_kinds",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "icons?",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "rev.stages",
+            "name": "icons"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.stages",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "506f1afc71cc236f6a84ea2fa2063ca6ff1a5da12bc91c7bf9a284d05e4b14be"
+}

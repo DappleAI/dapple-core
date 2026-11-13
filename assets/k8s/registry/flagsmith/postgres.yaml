@@ -1,0 +1,97 @@
+# Flagsmith PostgreSQL - Separate database from dapple
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: flagsmith-postgres-pvc
+  namespace: flagsmith
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: microk8s-hostpath
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flagsmith-postgres
+  namespace: flagsmith
+  labels:
+    app: flagsmith-postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: flagsmith-postgres
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: flagsmith-postgres
+    spec:
+      securityContext:
+        fsGroup: 999
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: flagsmith-postgres
+          image: postgres:15.5-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: flagsmith-config
+                  key: POSTGRES_DB
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: flagsmith-config
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: flagsmith-postgres-secret
+                  key: POSTGRES_PASSWORD
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+          volumeMounts:
+            - name: flagsmith-pg-data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            tcpSocket:
+              port: 5432
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: 5432
+            initialDelaySeconds: 20
+            periodSeconds: 10
+      volumes:
+        - name: flagsmith-pg-data
+          persistentVolumeClaim:
+            claimName: flagsmith-postgres-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: flagsmith-postgres
+  namespace: flagsmith
+spec:
+  type: ClusterIP
+  selector:
+    app: flagsmith-postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432

@@ -1,0 +1,99 @@
+-- Create new versions of existing directives (PATCH)
+-- Takes existing directive ids and creates new versions with updated fields
+-- Caller supplies content_hash for idempotent upsert.
+WITH args AS (
+    SELECT *
+    FROM UNNEST(
+        $1::TEXT[],
+        $2::TEXT[],
+        $3::UUID[],
+        $4::JSONB[],
+        $5::INT[],
+        $6::INT[]
+    ) WITH ORDINALITY AS o(
+        content_hash,
+        description,
+        id,
+        logic,
+        max_attempts,
+        retry_delay_ms,
+        ord
+    )
+),
+-- Look up existing directive info
+existing AS (
+    SELECT
+        args.ord,
+        args.content_hash,
+        vo.path_id,
+        dpd.name
+    FROM args
+    JOIN rev.directives d_old ON d_old.id = args.id
+    JOIN rev.versioned_objects vo ON vo.id = d_old.versioned_object_id
+    JOIN rev.object_paths op ON op.id = vo.path_id
+    JOIN rev.directive_path_details dpd ON dpd.path_id = op.id
+),
+-- Create new versioned objects with caller-supplied content_hash
+new_versions_inserted AS (
+    INSERT INTO rev.versioned_objects (path_id, content_hash)
+    SELECT
+        e.path_id,
+        e.content_hash
+    FROM existing e
+    ORDER BY e.ord
+    ON CONFLICT (path_id, content_hash) DO NOTHING
+    RETURNING id, path_id, content_hash, created_at
+),
+-- Include already-existing versioned objects (conflict hit — content reverted)
+all_versions AS (
+    SELECT nvi.id, nvi.path_id, nvi.content_hash, nvi.created_at
+    FROM new_versions_inserted nvi
+    UNION ALL
+    SELECT vo.id, vo.path_id, vo.content_hash, vo.created_at
+    FROM existing e
+    JOIN rev.versioned_objects vo ON vo.path_id = e.path_id AND vo.content_hash = e.content_hash
+    WHERE NOT EXISTS (
+        SELECT 1 FROM new_versions_inserted nvi
+        WHERE nvi.path_id = e.path_id AND nvi.content_hash = e.content_hash
+    )
+),
+-- Create new directives (skip if entity row already exists for this versioned_object)
+new_directives AS (
+    INSERT INTO rev.directives (versioned_object_id, logic, max_attempts, retry_delay_ms, description)
+    SELECT
+        av.id,
+        args.logic,
+        COALESCE(args.max_attempts, 1),
+        args.retry_delay_ms,
+        args.description
+    FROM args
+    JOIN existing e ON e.ord = args.ord
+    JOIN all_versions av ON av.path_id = e.path_id
+    WHERE NOT EXISTS (SELECT 1 FROM rev.directives d WHERE d.versioned_object_id = av.id)
+    RETURNING id, versioned_object_id, logic, max_attempts, retry_delay_ms, description, created_at
+),
+-- Include already-existing directives (for reverted versions)
+all_directives AS (
+    SELECT nd.id, nd.versioned_object_id, nd.logic, nd.max_attempts, nd.retry_delay_ms, nd.description, nd.created_at
+    FROM new_directives nd
+    UNION ALL
+    SELECT d.id, d.versioned_object_id, d.logic, d.max_attempts, d.retry_delay_ms, d.description, d.created_at
+    FROM rev.directives d
+    JOIN all_versions av ON d.versioned_object_id = av.id
+    WHERE NOT EXISTS (SELECT 1 FROM new_directives nd WHERE nd.versioned_object_id = av.id)
+)
+SELECT
+    ad.id AS "id!",
+    ad.versioned_object_id AS "versioned_object_id!",
+    e.path_id AS "path_id!",
+    e.name AS "name!",
+    av.content_hash AS "content_hash!",
+    ad.logic AS "logic!",
+    ad.max_attempts AS "max_attempts!",
+    ad.retry_delay_ms,
+    ad.description,
+    ad.created_at AS "created_at!"
+FROM all_directives ad
+JOIN all_versions av ON av.id = ad.versioned_object_id
+JOIN existing e ON e.path_id = av.path_id
+ORDER BY av.id;

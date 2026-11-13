@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO rev.brief_unit_notice (brief_unit_id, level, title_text, detail_text) VALUES ($1, $2, $3, $4)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "7ee4a64d141977b6e7ed154b373d07c8c4af72b840ca6fe4ea1749d6d9f8dd15"
+}

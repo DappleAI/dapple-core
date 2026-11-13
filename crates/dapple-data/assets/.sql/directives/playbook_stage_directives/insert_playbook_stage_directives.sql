@@ -1,0 +1,31 @@
+WITH args AS (
+    SELECT *
+    FROM UNNEST(
+        $1::UUID[],          $2::UUID[]       ) WITH ORDINALITY AS t(stage_id, directive_versioned_object_id, ord)
+),
+stage_refs AS (
+    SELECT a.ord, ps.id AS stage_id
+    FROM args a
+    JOIN rev.playbook_stages ps ON ps.id = a.stage_id
+),
+directive_refs AS (
+    SELECT a.ord, d.id AS directive_id
+    FROM args a
+    JOIN rev.versioned_objects vo ON vo.id = a.directive_versioned_object_id
+    JOIN rev.directives d ON d.versioned_object_id = vo.id
+),
+new_attachments AS (
+    INSERT INTO rev.playbook_stage_directives (playbook_stage_id, directive_id)
+    SELECT sr.stage_id, dr.directive_id
+    FROM stage_refs sr
+    JOIN directive_refs dr ON sr.ord = dr.ord
+    ORDER BY sr.ord
+    RETURNING id, playbook_stage_id, directive_id, created_at
+)
+SELECT
+    na.id,
+    na.playbook_stage_id,
+    na.directive_id,
+    na.created_at
+FROM new_attachments na
+ORDER BY na.id;

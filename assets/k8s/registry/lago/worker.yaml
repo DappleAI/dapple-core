@@ -1,0 +1,69 @@
+# Lago Worker - Sidekiq background job processor
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lago-worker
+  namespace: lago
+  labels:
+    app: lago-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: lago-worker
+  template:
+    metadata:
+      labels:
+        app: lago-worker
+    spec:
+      containers:
+        - name: lago-worker
+          image: getlago/api:v1.41.0
+          imagePullPolicy: IfNotPresent
+          # Lago restructured sidekiq configs into a per-queue directory
+          # somewhere before v1.41.0. The old single config/sidekiq.yml is
+          # gone; the main config now lives at config/sidekiq/sidekiq.yml
+          # alongside per-queue siblings (sidekiq_billing.yml,
+          # sidekiq_payments.yml, etc.) The container crashes immediately
+          # with "No such file config/sidekiq.yml" if you don't update the
+          # path.
+          command: ["bundle", "exec", "sidekiq", "-C", "config/sidekiq/sidekiq.yml"]
+          envFrom:
+            - configMapRef:
+                name: lago-config
+            - secretRef:
+                name: lago-secrets
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "500m"
+              # Sidekiq + Rails 8 + bootsnap. Same first-boot memory peak
+              # (~1.2-1.6 GB during iseq compile) as lago-api and the
+              # migrations job. With a 1Gi limit the pod gets OOMKilled
+              # mid-bootsnap-compile and the rollout times out at 120s
+              # waiting for the readiness probe to pass — but the probe
+              # never runs because the container hasn't finished booting.
+              # Match api.yaml's 2Gi.
+              memory: "2Gi"
+          # Sidekiq doesn't expose HTTP by default, so use exec probes.
+          # The Lago slim image doesn't ship procps, so `ps` / `pgrep`
+          # aren't available. PID 1 is sidekiq itself (the bundle exec
+          # command above), so `grep -q sidekiq /proc/1/cmdline` confirms
+          # the main process is alive and is sidekiq using only kernel-
+          # provided files. The previous `ps aux | grep sidekiq` probe
+          # always failed (sh: ps: not found), kubelet hit the failure
+          # threshold after ~120s, sent SIGTERM, and sidekiq exited
+          # cleanly with status 0 — a confusing "Completed" container
+          # state that looked like a normal shutdown.
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "grep -q sidekiq /proc/1/cmdline"]
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "grep -q sidekiq /proc/1/cmdline"]
+            initialDelaySeconds: 30
+            periodSeconds: 30

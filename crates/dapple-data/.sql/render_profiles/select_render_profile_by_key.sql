@@ -1,0 +1,10 @@
+-- Select a render profile by its unique key.
+SELECT
+    rp.id,
+    rp.key,
+    rp.description,
+    rp.tag_filter,
+    rp.style_config,
+    rp.created_at
+FROM rev.render_profiles rp
+WHERE rp.key = $1;

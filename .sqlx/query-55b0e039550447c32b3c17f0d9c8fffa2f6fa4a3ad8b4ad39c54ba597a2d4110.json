@@ -1,0 +1,59 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::UUID[],\n        $2::UUID[],\n        $3::INTEGER[],\n        $4::UUID[],\n        $5::INTEGER[],\n        $6::SMALLINT[],\n        $7::INTEGER[],\n        $8::INTEGER[]\n    ) WITH ORDINALITY AS o(claim_id, event_id, input_tokens, model_release_id, output_tokens, provider_id, provider_input_tokens, provider_output_tokens, ord)\n),\nnew_usages AS (\n    INSERT INTO rev.dispatch_task_attempt_event_llm_usages (\n        event_id, claim_id, input_tokens, output_tokens,\n        provider_input_tokens, provider_output_tokens,\n        provider_id, model_release_id\n    )\n    SELECT\n        args.event_id, args.claim_id, args.input_tokens, args.output_tokens,\n        args.provider_input_tokens, args.provider_output_tokens,\n        args.provider_id, args.model_release_id\n    FROM args\n    ORDER BY args.ord\n    RETURNING id, event_id, created_at\n)\nSELECT nu.id, nu.event_id, nu.created_at\nFROM new_usages nu\nORDER BY nu.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_task_attempt_event_llm_usages",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "event_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_task_attempt_event_llm_usages",
+            "name": "event_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_task_attempt_event_llm_usages",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "UuidArray",
+        "Int4Array",
+        "UuidArray",
+        "Int4Array",
+        "Int2Array",
+        "Int4Array",
+        "Int4Array"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "55b0e039550447c32b3c17f0d9c8fffa2f6fa4a3ad8b4ad39c54ba597a2d4110"
+}

@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT accession\nFROM rev.insider_transactions_ingest\nWHERE issuer_cik = $1;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "accession",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.insider_transactions_ingest",
+            "name": "accession"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "a3440d576de7cd3eeeebf395ca92851d2c1467e504c0e295777ada545cf1be0c"
+}

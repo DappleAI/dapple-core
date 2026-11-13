@@ -1,0 +1,162 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH latest_deprecation AS (\n    SELECT DISTINCT ON (versioned_object_id)\n        versioned_object_id,\n        to_level_id\n    FROM rev.deprecation_events\n    ORDER BY versioned_object_id, created_at DESC\n),\n\nargs AS (\n    SELECT *\n    FROM UNNEST($1::UUID[]) WITH ORDINALITY AS o(path_id, ord)\n),\nbrief_pack_page AS (\n    SELECT bp.id\n    FROM args\n    JOIN rev.object_paths op ON op.id = args.path_id\n    JOIN rev.versioned_objects vo ON vo.path_id = op.id\n    JOIN rev.brief_packs bp ON bp.versioned_object_id = vo.id\n)\n\nSELECT\n    bp.id,\n    bp.versioned_object_id,\n    op.id AS path_id,\n    bppd.name,\n    vo.content_hash,\n    dl.key AS \"deprecation_level_key?\",\n    COALESCE(rev.fluent_body(bp.title_fluent_message_id, 'en'), bp.title, bppd.name) AS \"title!\",\n    COALESCE(rev.fluent_body(bp.description_fluent_message_id, 'en'), bp.description) AS description,\n    bp.pack_spec,\n    bp.created_at,\n        bpg.id as brief_pack_group_id,\n    bg.id as group_id,\n    bpg.ui_overrides as group_ui_overrides\nFROM brief_pack_page bpp\nJOIN rev.brief_packs bp ON bp.id = bpp.id\nJOIN rev.versioned_objects vo ON vo.id = bp.versioned_object_id\nJOIN rev.object_paths op ON op.id = vo.path_id\nJOIN rev.brief_pack_path_details bppd ON bppd.path_id = op.id\nLEFT JOIN latest_deprecation ld ON ld.versioned_object_id = vo.id\nLEFT JOIN rev.deprecation_levels dl ON dl.id = ld.to_level_id\nLEFT JOIN rev.brief_pack_groups bpg ON bpg.brief_pack_id = bp.id\nLEFT JOIN rev.brief_groups bg ON bg.id = bpg.brief_group_id\nORDER BY bp.id, bg.id;\n\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_packs",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "versioned_object_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_packs",
+            "name": "versioned_object_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "path_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.object_paths",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_pack_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "content_hash",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "content_hash"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "deprecation_level_key?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.deprecation_levels",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "title!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 7,
+        "name": "description",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 8,
+        "name": "pack_spec",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_packs",
+            "name": "pack_spec"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_packs",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "brief_pack_group_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_pack_groups",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "group_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_groups",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "group_ui_overrides",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_pack_groups",
+            "name": "ui_overrides"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      null,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "3882f48e2a1125cc038ad893a2436be739953cf7bff1ed2260a84a0009ae6957"
+}

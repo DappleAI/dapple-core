@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nWITH RECURSIVE\njourney_chain(journey_id, depth, fork_cutoff_ord) AS (\n    SELECT $3::UUID, 0, NULL::INTEGER\n    UNION ALL\n    SELECT j.predecessor_journey_id, jc.depth + 1, ps.ord\n    FROM journey_chain jc\n    JOIN rev.journeys j ON j.id = jc.journey_id\n    LEFT JOIN rev.playbook_stages ps ON ps.id = j.fork_stage_id\n    WHERE j.predecessor_journey_id IS NOT NULL\n      AND jc.depth < 50\n)\n\n,\njourney_scope AS (\n    SELECT $3::UUID AS journey_id\n),\njourney_packs AS (\n    SELECT DISTINCT ON (bpvo.path_id) bpack.id AS brief_pack_id\n    FROM journey_scope js\n    JOIN rev.journey_brief_packs jbp ON jbp.journey_id = js.journey_id\n    JOIN rev.brief_packs bpack ON bpack.id = jbp.brief_pack_id\n    JOIN rev.versioned_objects bpvo ON bpvo.id = bpack.versioned_object_id\n    ORDER BY bpvo.path_id, bpvo.created_at DESC, bpvo.id DESC\n)\n\n,\ncomputed_output_paths AS (\n        SELECT DISTINCT vo.path_id AS value_slot_path_id\n    FROM journey_packs jp\n    JOIN rev.brief_pack_groups bpg ON bpg.brief_pack_id = jp.brief_pack_id\n    JOIN rev.brief_groups bg ON bg.id = bpg.brief_group_id\n    JOIN rev.brief_group_briefs bgb ON bgb.brief_group_id = bg.id\n    JOIN rev.briefs b ON b.id = bgb.brief_id\n    JOIN rev.brief_outputs bo ON bo.brief_id = b.id\n    JOIN rev.brief_output_source_kinds bosk\n        ON bosk.id = bo.source_kind_id AND bosk.key = 'computed'\n    JOIN rev.value_slots vs ON vs.id = bo.value_slot_id\n    JOIN rev.versioned_objects vo ON vo.id = vs.versioned_object_id\n),\nplaybook_context AS (\n            SELECT ps.playbook_id\n    FROM rev.playbook_stages ps\n    JOIN rev.stage_steps ss\n        ON ss.id = $2::UUID AND ss.stage_id = ps.stage_id\n    WHERE ps.id = $1::UUID\n),\nplaybook_step_tasks AS (\n        SELECT\n        stk.id AS step_task_id,\n        ss.id AS stage_step_id,\n        ps.id AS playbook_stage_id,\n        ps.ord AS stage_ord,\n        ss.ord AS step_ord\n    FROM playbook_context pc\n    JOIN rev.playbook_stages ps ON ps.playbook_id = pc.playbook_id\n    JOIN rev.stage_steps ss ON ss.stage_id = ps.stage_id\n    JOIN rev.step_tasks stk ON stk.step_id = ss.step_id\n),\nplaybook_overlays AS (\n    SELECT pst.step_task_id, pst.stage_step_id, pst.playbook_stage_id,\n           pst.stage_ord, pst.step_ord, o.value_slot_path_id, o.visibility, 1 AS priority\n    FROM rev.playbook_stage_overlays o\n    JOIN playbook_step_tasks pst ON pst.playbook_stage_id = o.playbook_stage_id\n    UNION ALL\n    SELECT pst.step_task_id, pst.stage_step_id, pst.playbook_stage_id,\n           pst.stage_ord, pst.step_ord, o.value_slot_path_id, o.visibility, 2 AS priority\n    FROM rev.stage_step_overlays o\n    JOIN playbook_step_tasks pst ON pst.stage_step_id = o.stage_step_id\n    UNION ALL\n    SELECT pst.step_task_id, pst.stage_step_id, pst.playbook_stage_id,\n           pst.stage_ord, pst.step_ord, o.value_slot_path_id, o.visibility, 3 AS priority\n    FROM rev.step_task_overlays o\n    JOIN playbook_step_tasks pst ON pst.step_task_id = o.step_task_id\n),\nplaybook_ranked AS (\n            SELECT DISTINCT ON (step_task_id, value_slot_path_id)\n        stage_step_id, playbook_stage_id, stage_ord, step_ord, value_slot_path_id, visibility\n    FROM playbook_overlays\n    ORDER BY step_task_id, value_slot_path_id, priority DESC\n),\nplaybook_exposed_computed AS (\n        SELECT DISTINCT\n        pr.stage_step_id, pr.playbook_stage_id, pr.stage_ord, pr.step_ord, pr.value_slot_path_id\n    FROM playbook_ranked pr\n    JOIN computed_output_paths cop ON cop.value_slot_path_id = pr.value_slot_path_id\n    WHERE pr.visibility = 'expose'\n),\ntarget_deps AS (\n        SELECT t.value_slot_path_id\n    FROM playbook_exposed_computed t\n    WHERE t.stage_step_id = $2::UUID\n      AND t.playbook_stage_id = $1::UUID\n      AND EXISTS (\n          SELECT 1\n          FROM playbook_exposed_computed e\n          WHERE e.value_slot_path_id = t.value_slot_path_id\n            AND e.stage_ord < t.stage_ord\n      )\n),\nproducers AS (\n        SELECT DISTINCT ON (e.value_slot_path_id)\n        e.value_slot_path_id,\n        e.playbook_stage_id AS producer_playbook_stage_id,\n        e.stage_step_id AS producer_stage_step_id\n    FROM playbook_exposed_computed e\n    JOIN target_deps td ON td.value_slot_path_id = e.value_slot_path_id\n    ORDER BY e.value_slot_path_id, e.stage_ord, e.step_ord\n)\nSELECT\n    td.value_slot_path_id AS \"value_slot_path_id!\",\n    p.producer_playbook_stage_id AS \"producer_playbook_stage_id!\",\n    p.producer_stage_step_id AS \"producer_stage_step_id!\",\n    EXISTS (\n        SELECT 1\n        FROM rev.value_slots vs\n        JOIN rev.versioned_objects vo ON vo.id = vs.versioned_object_id\n        JOIN rev.dispatch_intent_bindings dib ON dib.value_slot_id = vs.id\n        JOIN rev.dispatches d ON d.id = dib.dispatch_id\n        JOIN journey_chain jc ON jc.journey_id = d.journey_id\n        WHERE vo.path_id = td.value_slot_path_id\n          AND (\n    jc.fork_cutoff_ord IS NULL\n    OR COALESCE((\n        SELECT MAX(fps.ord)\n        FROM rev.dispatch_stages fds\n        JOIN rev.playbook_stages fps ON fps.id = fds.playbook_stage_id\n        WHERE fds.dispatch_id = d.id\n    ), 2147483647) < jc.fork_cutoff_ord\n)\n\n    ) AS \"bound!\"\nFROM target_deps td\nJOIN producers p ON p.value_slot_path_id = td.value_slot_path_id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "value_slot_path_id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "producer_playbook_stage_id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "producer_stage_step_id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "bound!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "1b577b017923de18ba0b473ae0821d64ea31306b94879f12c46e99a5a08abc43"
+}

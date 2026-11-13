@@ -1,0 +1,88 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n    dc.id,\n    dc.draft_id,\n    dc.chunk_id,\n    c.data,\n    dc.ordinal,\n    dc.created_at\nFROM rev.draft_chunks dc\nJOIN rev.drafts d ON d.id = dc.draft_id\nJOIN rev.chunks c ON c.id = dc.chunk_id\nWHERE d.id = $1\nORDER BY dc.ordinal;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.draft_chunks",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "draft_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.draft_chunks",
+            "name": "draft_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "chunk_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.draft_chunks",
+            "name": "chunk_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "data",
+        "type_info": "Bytea",
+        "origin": {
+          "Table": {
+            "table": "rev.chunks",
+            "name": "data"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "ordinal",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "rev.draft_chunks",
+            "name": "ordinal"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.draft_chunks",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "b67484af4ee88adf8b87137ae950c053d313c9e3160930e8918aa3db46d34a99"
+}

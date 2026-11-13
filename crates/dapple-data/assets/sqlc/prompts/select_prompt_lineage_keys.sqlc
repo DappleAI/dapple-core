@@ -1,0 +1,17 @@
+# Select the lineage_keys that a prompt has model-specific bodies for
+# This is used to validate that a prompt is of the correct type (e.g., summarization, tts, mlm)
+# Parameters:
+#   $1: prompt_id (UUID)
+#
+# Note: This replaces select_prompt_maker_keys.sql with the new taxonomy.
+# lineage_key is the prompting paradigm (e.g., 'vits' for TTS, 'flan-t5' for summarization)
+
+SELECT DISTINCT l.key AS lineage_key
+FROM rev.prompts p
+JOIN rev.prompt_fluent_messages pfm ON pfm.prompt_id = p.id
+JOIN rev.fluent_message_engine_bodies fmeb ON fmeb.fluent_message_id = pfm.fluent_message_id
+JOIN rev.model_releases mr ON mr.id = fmeb.model_release_id
+JOIN rev.lineages l ON l.id = mr.lineage_id
+WHERE p.id = $1
+  AND fmeb.model_release_id IS NOT NULL
+ORDER BY l.key;

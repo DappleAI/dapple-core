@@ -1,0 +1,151 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $2::UUID[],\n        $3::TEXT[]\n    ) WITH ORDINALITY AS o(path_id, reason, ord)\n),\nlatest_deprecation AS (\n    SELECT DISTINCT ON (versioned_object_id)\n        versioned_object_id,\n        to_level_id\n    FROM rev.deprecation_events\n    ORDER BY versioned_object_id, created_at DESC\n),\nlatest_versions AS (\n    SELECT DISTINCT ON (op.id)\n        op.id AS path_id,\n        vo.id AS versioned_object_id,\n        ld.to_level_id AS from_level_id\n    FROM args\n    JOIN rev.object_paths op ON op.id = args.path_id\n    JOIN rev.versioned_objects vo ON vo.path_id = op.id\n    LEFT JOIN latest_deprecation ld ON ld.versioned_object_id = vo.id\n    ORDER BY op.id, vo.created_at DESC\n),\nresolved AS (\n    SELECT lv.versioned_object_id, lv.from_level_id, lv.path_id, args.reason\n    FROM args\n    JOIN latest_versions lv ON lv.path_id = args.path_id\n),\n\nevents AS (\n    INSERT INTO rev.deprecation_events (\n        versioned_object_id, from_level_id, to_level_id, reason, deprecated_by_user_id\n    )\n    SELECT\n        resolved.versioned_object_id,\n        resolved.from_level_id,\n        $4::SMALLINT,\n        resolved.reason,\n        $1::UUID\n    FROM resolved\n    RETURNING *\n)\n\nSELECT\n    d.id,\n    d.versioned_object_id,\n    op.id AS path_id,\n    dpd.name,\n    vo.content_hash,\n    dl.key AS \"deprecation_level_key?\",\n    d.logic,\n    d.max_attempts,\n    d.retry_delay_ms,\n    d.description,\n    d.created_at\nFROM resolved\nJOIN rev.versioned_objects vo ON vo.id = resolved.versioned_object_id\nJOIN rev.object_paths op ON op.id = resolved.path_id\nJOIN rev.directive_path_details dpd ON dpd.path_id = op.id\nJOIN rev.directives d ON d.versioned_object_id = resolved.versioned_object_id\nLEFT JOIN rev.deprecation_levels dl ON dl.id = $4::SMALLINT\nORDER BY vo.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.directives",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "versioned_object_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.directives",
+            "name": "versioned_object_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "path_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.object_paths",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.directive_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "content_hash",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "content_hash"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "deprecation_level_key?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.deprecation_levels",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "logic",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "rev.directives",
+            "name": "logic"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "max_attempts",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "rev.directives",
+            "name": "max_attempts"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "retry_delay_ms",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "rev.directives",
+            "name": "retry_delay_ms"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "description",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.directives",
+            "name": "description"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.directives",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "UuidArray",
+        "TextArray",
+        "Int2"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "d5549b8418aa1ab1e47f905de6a0f3b1a4372db5416ffada399eccee16c91a9b"
+}

@@ -1,0 +1,65 @@
+# For a set of brief ids, return one row per brief_unit with the subtype data
+# filled in (notice/markdown/input). Input units also join through their
+# `control_spec` JSON to the referenced value_slot for metadata.
+SELECT
+    bu.brief_id,
+    bu.id AS unit_id,
+    bu.unit_key,
+    # Notice subtype (LEFT JOIN -- forcibly nullable so sqlx decodes
+    # correctly when a unit has no notice row)
+    bun.level AS "notice_level?",
+    bun.title_text AS "notice_title_text?",
+    bun.detail_text AS "notice_detail_text?",
+    # Markdown subtype
+    bum.markdown_text AS "markdown_text?",
+    # A non-empty deliverable_spec marks this markdown as a deliverable whose
+    # body interpolates bound value-slots ($slot) at render time.
+    bum.deliverable_spec AS "markdown_deliverable_spec?",
+    # Input subtype (LEFT JOIN -- nullable likewise)
+    bict.key AS "input_control_type_key?",
+    bui.label_text AS "input_label_text?",
+    bui.help_text AS "input_help_text?",
+    bui.placeholder_text AS "input_placeholder_text?",
+    CASE WHEN bui.control_spec ? 'value_slot_id'
+         THEN (bui.control_spec ->> 'value_slot_id')::UUID
+         ELSE NULL
+    END AS "input_slot_id?",
+    vspd_in.name AS "input_slot_name?",
+    vs_in.title AS "input_slot_title?",
+    vk_in.key AS "input_slot_value_kind?",
+    # Cardinality + keep-N bounds of the bound slot (a checkbox over a multi slot
+    # collects a subset).
+    vs_in.cardinality AS "input_slot_cardinality?",
+    vs_in.min_selections AS "input_slot_min_selections?",
+    vs_in.max_selections AS "input_slot_max_selections?",
+    # Dynamic candidate source for the control's choices (computed slot id + name).
+    CASE WHEN bui.control_spec ? 'candidate_source_value_slot_id'
+         THEN (bui.control_spec ->> 'candidate_source_value_slot_id')::UUID
+         ELSE NULL
+    END AS "input_candidate_source_value_slot_id?",
+    cs_vspd_in.name AS "input_candidate_source_name?",
+    # Author-controlled optional flag (single-value inputs default required when
+    # absent -> NULL -> required).
+    (bui.control_spec ->> 'optional')::boolean AS "input_optional?"
+FROM rev.brief_units bu
+LEFT JOIN rev.brief_unit_notice bun ON bun.brief_unit_id = bu.id
+LEFT JOIN rev.brief_unit_markdown bum ON bum.brief_unit_id = bu.id
+LEFT JOIN rev.brief_unit_input bui ON bui.brief_unit_id = bu.id
+LEFT JOIN rev.brief_input_control_types bict ON bict.id = bui.control_type_id
+# Input -> value_slot join (only fires when control_spec has a value_slot_id)
+LEFT JOIN rev.value_slots vs_in
+    ON bui.control_spec ? 'value_slot_id'
+   AND vs_in.id = (bui.control_spec ->> 'value_slot_id')::UUID
+LEFT JOIN rev.versioned_objects vo_in ON vo_in.id = vs_in.versioned_object_id
+LEFT JOIN rev.value_slot_path_details vspd_in ON vspd_in.path_id = vo_in.path_id
+LEFT JOIN rev.value_kinds vk_in ON vk_in.id = vs_in.value_kind_id
+# Candidate-source slot -> display name (only fires when control_spec carries it)
+LEFT JOIN rev.value_slots cs_vs_in
+    ON bui.control_spec ? 'candidate_source_value_slot_id'
+   AND cs_vs_in.id = (bui.control_spec ->> 'candidate_source_value_slot_id')::UUID
+LEFT JOIN rev.versioned_objects cs_vo_in ON cs_vo_in.id = cs_vs_in.versioned_object_id
+LEFT JOIN rev.value_slot_path_details cs_vspd_in ON cs_vspd_in.path_id = cs_vo_in.path_id
+WHERE bu.brief_id = ANY(:bind(brief_ids)::UUID[])
+# Authored position first, id as the tiebreaker. Pre-migration-95 rows all carry
+# ord = 0 and so keep their historical id ordering exactly.
+ORDER BY bu.brief_id, bu.ord, bu.id;

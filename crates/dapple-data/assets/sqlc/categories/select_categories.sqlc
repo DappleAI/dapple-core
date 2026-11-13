@@ -1,0 +1,2 @@
+# Select all categories using unified versioning
+:compose(categories/select_categories_body.sqlc, @page = categories/pages/all.sqlc)

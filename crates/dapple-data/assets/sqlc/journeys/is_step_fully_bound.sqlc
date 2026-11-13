@@ -1,0 +1,156 @@
+# True iff every REQUIRED bindable-input value slot the STEP needs (its
+# overlay-exposed slots that a journey-pinned brief-input unit pins and the
+# author left required, cascade-resolved stage -> step -> task with mask
+# overriding expose) is bound by some dispatch in the journey's chain.
+#
+# THIS IS THE DISPATCH START GATE: `dispatch_ready` calls it per step to decide
+# whether a dispatch may auto-spawn. A start gate must ask only for slots an
+# operator can actually bind AND the author marked required:
+#   - Computed/output slots (`:::brief-output`, `source_kind = 'computed'`) are
+#     PRODUCED by the task and have no `brief_unit_input` row, so requiring them
+#     before the task runs is unsatisfiable — they never appear in
+#     `journey_operator_inputs` and are excluded. They DO still count toward DONE
+#     in the `select_*_binding_status_for_journey` rollups; that start-vs-done
+#     asymmetry is intentional.
+#   - OPTIONAL inputs (author `control_spec.optional = true`, or a
+#     `min_selections = 0` multi-select) are excluded too: an unbound optional
+#     slot must not block auto-spawn (the dispatch would wait forever).
+#
+# Optionality is resolved through the journey's PINNED brief packs
+# (`journey_packs` -> `journey_operator_inputs`), NOT a global scan of
+# `brief_unit_input`. A value-slot PATH can carry several `brief_unit_input`
+# rows across brief versions; a stale older version may lack the `optional` key
+# (reads as required) while the journey-pinned version is optional. Scanning
+# globally would let that stale row make an optional slot look required. This
+# mirrors `operator_slot` in select_step_binding_status_for_journey, so the gate
+# agrees with the version /brief-form and /steps actually show the operator.
+#
+# Step-scoped twin of `is_stage_fully_bound` (a DONE helper, not a start gate):
+# this one narrows `stage_tasks` to a single `stage_step` (within an explicit
+# `playbook_stage`, so a stage shared across playbooks can't bleed overlays).
+# The cascade (task priority 3 > step 2 > stage 1) and the chain-walk
+# binding-existence check are identical.
+#
+# Strict default: a step with no overlays (or no tasks) has an empty required
+# set, so `NOT EXISTS(empty)` => the step is trivially "done".
+#
+# Overlays reference a value-slot PATH (`value_slot_path_id`), while bindings
+# reference a value-slot VERSION (`value_slots.id`). We bridge via
+# `versioned_objects.path_id`: a path counts as bound iff ANY value_slot
+# version at that path has a binding in the chain.
+#
+# Parameters (alphabetical bind order):
+#   playbook_stage_id, stage_step_id, starting_journey_id
+
+WITH RECURSIVE
+:compose(shared/journey_chain.sqlc)
+,
+journey_scope AS (
+    SELECT :bind(starting_journey_id)::UUID AS journey_id
+),
+# The journey's PINNED brief_packs (shared/select/journey_pinned_packs.sqlc):
+# matches select_step_binding_status_for_journey so the optional/required
+# determination matches /brief-form and /steps. Pinned reads never consult
+# deprecation — see the fragment's doctrine comment.
+:compose(shared/select/journey_pinned_packs.sqlc)
+,
+journey_operator_inputs AS (
+    # Per exposed value-slot PATH, whether the journey-pinned brief input that
+    # pins it is REQUIRED: required iff the author did NOT mark it optional and
+    # it is not a min_selections = 0 multi-select. Single inputs have
+    # min_selections NULL -> COALESCE(...,1) > 0 -> required by default.
+    SELECT DISTINCT ON (vo.path_id)
+        vo.path_id AS value_slot_path_id,
+        (NOT COALESCE((bui.control_spec ->> 'optional')::boolean, false)
+            AND COALESCE(vs.min_selections, 1) > 0) AS required
+    FROM journey_packs jp
+    JOIN rev.brief_pack_groups bpg ON bpg.brief_pack_id = jp.brief_pack_id
+    JOIN rev.brief_groups bg ON bg.id = bpg.brief_group_id
+    JOIN rev.brief_group_briefs bgb ON bgb.brief_group_id = bg.id
+    JOIN rev.briefs b ON b.id = bgb.brief_id
+    JOIN rev.brief_units bu ON bu.brief_id = b.id
+    JOIN rev.brief_unit_input bui ON bui.brief_unit_id = bu.id
+    JOIN rev.value_slots vs
+        ON bui.control_spec ? 'value_slot_id'
+       AND vs.id = (bui.control_spec ->> 'value_slot_id')::UUID
+    JOIN rev.versioned_objects vo ON vo.id = vs.versioned_object_id
+    ORDER BY vo.path_id, vs.id DESC
+),
+stage_tasks AS (
+    SELECT
+        stk.id AS step_task_id,
+        ss.id AS stage_step_id,
+        pstage.id AS playbook_stage_id
+    FROM rev.playbook_stages pstage
+    JOIN rev.stage_steps ss ON ss.stage_id = pstage.stage_id
+    JOIN rev.step_tasks stk ON stk.step_id = ss.step_id
+    WHERE pstage.id = :bind(playbook_stage_id)::UUID
+      AND ss.id = :bind(stage_step_id)::UUID
+),
+all_overlays AS (
+    SELECT st.step_task_id, o.value_slot_path_id, o.visibility, 1 AS priority
+    FROM rev.playbook_stage_overlays o
+    JOIN stage_tasks st ON st.playbook_stage_id = o.playbook_stage_id
+    UNION ALL
+    SELECT st.step_task_id, o.value_slot_path_id, o.visibility, 2 AS priority
+    FROM rev.stage_step_overlays o
+    JOIN stage_tasks st ON st.stage_step_id = o.stage_step_id
+    UNION ALL
+    SELECT st.step_task_id, o.value_slot_path_id, o.visibility, 3 AS priority
+    FROM rev.step_task_overlays o
+    JOIN stage_tasks st ON st.step_task_id = o.step_task_id
+),
+ranked AS (
+    SELECT DISTINCT ON (step_task_id, value_slot_path_id)
+        step_task_id, value_slot_path_id, visibility
+    FROM all_overlays
+    ORDER BY step_task_id, value_slot_path_id, priority DESC
+),
+required_paths AS (
+    # A step waits only on slots an operator can actually bind AND the author
+    # left REQUIRED. Two clauses:
+    #   1. GLOBAL EXISTS(brief_unit_input) — "is this slot operator-bindable AT
+    #      ALL". Excludes computed/output slots (no brief_unit_input -> gating a
+    #      task's start on an output it produces is unsatisfiable) and preserves
+    #      the no-pin edge (a journey with no pinned brief packs still treats its
+    #      exposed brief-input slots as required, so the step isn't trivially
+    #      "done" before its form is even attached).
+    #   2. NOT EXISTS(journey_operator_inputs WHERE NOT required) — SUBTRACT only
+    #      slots whose JOURNEY-PINNED input is optional (author flag, or a
+    #      min_selections = 0 multi-select). Journey-scoped so a stale older brief
+    #      version missing the `optional` key can't keep an optional slot
+    #      required; when there's no journey pin, nothing is subtracted (clause 1
+    #      still requires it).
+    SELECT DISTINCT r.value_slot_path_id
+    FROM ranked r
+    WHERE r.visibility = 'expose'
+      AND EXISTS (
+          SELECT 1
+          FROM rev.brief_unit_input bui
+          JOIN rev.value_slots vs
+              ON bui.control_spec ? 'value_slot_id'
+             AND vs.id = (bui.control_spec ->> 'value_slot_id')::UUID
+          JOIN rev.versioned_objects vo ON vo.id = vs.versioned_object_id
+          WHERE vo.path_id = r.value_slot_path_id
+      )
+      AND NOT EXISTS (
+          SELECT 1
+          FROM journey_operator_inputs joi
+          WHERE joi.value_slot_path_id = r.value_slot_path_id
+            AND NOT joi.required
+      )
+)
+SELECT NOT EXISTS (
+    SELECT 1
+    FROM required_paths rp
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM rev.value_slots vs
+        JOIN rev.versioned_objects vo ON vo.id = vs.versioned_object_id
+        JOIN rev.dispatch_intent_bindings dib ON dib.value_slot_id = vs.id
+        JOIN rev.dispatches d ON d.id = dib.dispatch_id
+        JOIN journey_chain jc ON jc.journey_id = d.journey_id
+        WHERE vo.path_id = rp.value_slot_path_id
+          AND :compose(shared/fork_cutoff_filter.sqlc)
+    )
+) AS fully_bound;

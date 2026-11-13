@@ -1,0 +1,167 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT bo.id, b.id AS brief_id,\n       bo.unit_key, vs.id AS value_slot_id, vspd.name AS value_slot_name,\n       sk.key AS source_kind, bo.source_path, bo.transform,\n       COALESCE(dh.key, 'text') AS \"display_hint!\",\n       bo.reveal, bo.title_text, bo.title_fluent_message_id,\n       bo.created_at\nFROM rev.brief_outputs bo\nJOIN rev.briefs b ON b.id = bo.brief_id\nJOIN rev.value_slots vs ON vs.id = bo.value_slot_id\nJOIN rev.versioned_objects vo ON vo.id = vs.versioned_object_id\nJOIN rev.object_paths op ON op.id = vo.path_id\nJOIN rev.value_slot_path_details vspd ON vspd.path_id = op.id\nJOIN rev.brief_output_source_kinds sk ON sk.id = bo.source_kind_id\nLEFT JOIN rev.brief_output_display_hints dh ON dh.id = bo.display_hint_id\nWHERE b.id = ANY($1::UUID[])\nORDER BY b.id, bo.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_outputs",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "brief_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.briefs",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "unit_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_outputs",
+            "name": "unit_key"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "value_slot_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slots",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "value_slot_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slot_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "source_kind",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_output_source_kinds",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "source_path",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_outputs",
+            "name": "source_path"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "transform",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_outputs",
+            "name": "transform"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "display_hint!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 9,
+        "name": "reveal",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_outputs",
+            "name": "reveal"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "title_text",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_outputs",
+            "name": "title_text"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "title_fluent_message_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_outputs",
+            "name": "title_fluent_message_id"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_outputs",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "1ac246100906b054760e4c6d36f5eff3486127c205a7e4e2206290a5afff405b"
+}

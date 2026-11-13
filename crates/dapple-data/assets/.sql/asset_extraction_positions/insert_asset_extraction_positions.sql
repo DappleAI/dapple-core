@@ -1,0 +1,25 @@
+WITH args AS (
+    SELECT *
+    FROM UNNEST(
+        $1::UUID[],
+        $2::BIGINT[],
+        $3::BIGINT[],
+        $4::JSONB[]
+    ) WITH ORDINALITY AS o(extraction_id, byte_offset, byte_length, source_position, ord)
+),
+objs AS (
+    INSERT INTO rev.asset_extraction_positions (
+        extraction_id, byte_offset, byte_length, source_position
+    )
+    SELECT
+        args.extraction_id,
+        args.byte_offset,
+        args.byte_length,
+        args.source_position
+    FROM args
+    ORDER BY args.ord
+    RETURNING id, extraction_id, byte_offset, byte_length, source_position, created_at
+)
+SELECT id, extraction_id, byte_offset, byte_length, source_position, created_at
+FROM objs
+ORDER BY id;

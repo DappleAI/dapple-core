@@ -1,0 +1,100 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST($1::UUID[]) WITH ORDINALITY AS o(path_id, ord)\n),\nranked AS (\n    SELECT\n        vo.id,\n        vo.path_id,\n        vo.content_hash,\n        vo.created_at,\n        ROW_NUMBER() OVER (\n            PARTITION BY vo.path_id\n            ORDER BY vo.created_at DESC\n        ) AS rn\n    FROM args\n    JOIN rev.versioned_objects vo ON vo.path_id = args.path_id\n)\nSELECT\n    ranked.id,\n    ranked.path_id,\n    op.entity_type_id,\n    et.key AS entity_type_key,\n    ranked.content_hash,\n    dl.key AS \"deprecation_level_key?\",\n    ranked.created_at\nFROM ranked\nJOIN rev.object_paths op ON op.id = ranked.path_id\nJOIN rev.entity_types et ON et.id = op.entity_type_id\nLEFT JOIN LATERAL (\n    SELECT de.to_level_id\n    FROM rev.deprecation_events de\n    WHERE de.versioned_object_id = ranked.id\n    ORDER BY de.created_at DESC\n    LIMIT 1\n) ld ON TRUE\nLEFT JOIN rev.deprecation_levels dl ON dl.id = ld.to_level_id\nWHERE ranked.rn = 1\nORDER BY ranked.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "path_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "path_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "entity_type_id",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "rev.object_paths",
+            "name": "entity_type_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "entity_type_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.entity_types",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "content_hash",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "content_hash"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "deprecation_level_key?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.deprecation_levels",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "0a15d6248098468449948e90bf88df35937a524f0bfaf5b9f7172021d8e80a41"
+}

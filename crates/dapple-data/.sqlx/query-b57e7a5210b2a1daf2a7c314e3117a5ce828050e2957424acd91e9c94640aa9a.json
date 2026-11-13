@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST($1::UUID[], $2::TEXT[])\n    WITH ORDINALITY AS o(media_item_id, url, ord)\n)\nINSERT INTO rev.brief_unit_media_item_url_sources (media_item_id, url)\nSELECT args.media_item_id, args.url\nFROM args\nORDER BY args.ord\nRETURNING media_item_id, url;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "media_item_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_media_item_url_sources",
+            "name": "media_item_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "url",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_media_item_url_sources",
+            "name": "url"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "b57e7a5210b2a1daf2a7c314e3117a5ce828050e2957424acd91e9c94640aa9a"
+}

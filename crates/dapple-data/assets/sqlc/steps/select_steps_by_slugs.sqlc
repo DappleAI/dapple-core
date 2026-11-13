@@ -1,0 +1,4 @@
+# Select steps by slugs using path_details lookup
+#
+# LIMIT/OFFSET apply to distinct steps (not flat rows) via a page CTE.
+:compose(steps/select_steps_body.sqlc, @page = steps/pages/by_slugs.sqlc)

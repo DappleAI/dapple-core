@@ -1,0 +1,78 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nWITH\nlatest_deprecation AS (\n    SELECT DISTINCT ON (versioned_object_id)\n        versioned_object_id,\n        to_level_id\n    FROM rev.deprecation_events\n    ORDER BY versioned_object_id, created_at DESC\n),\n\ndispatch_journey AS (\n    SELECT d.journey_id\n    FROM rev.dispatches d\n    WHERE d.id = $1::UUID\n),\njourney_packs AS (\n                SELECT DISTINCT ON (bpvo.path_id) bpack.id AS brief_pack_id\n    FROM dispatch_journey dj\n    JOIN rev.journey_brief_packs jbp ON jbp.journey_id = dj.journey_id\n    JOIN rev.brief_packs bpack ON bpack.id = jbp.brief_pack_id\n    JOIN rev.versioned_objects bpvo ON bpvo.id = bpack.versioned_object_id\n    LEFT JOIN latest_deprecation ld ON ld.versioned_object_id = bpvo.id\n    WHERE ld.to_level_id IS NULL\n    ORDER BY bpvo.path_id, bpvo.created_at DESC, bpvo.id DESC\n),\ncomputed_outputs AS (\n                    SELECT\n        bo.value_slot_id,\n        vo.path_id AS value_slot_path_id,\n        bo.source_path,\n        vspd.name AS value_slot_name,\n        vk.key AS value_kind_key,\n        vs.cardinality\n    FROM journey_packs jp\n    JOIN rev.brief_pack_groups bpg ON bpg.brief_pack_id = jp.brief_pack_id\n    JOIN rev.brief_groups bg ON bg.id = bpg.brief_group_id\n    JOIN rev.brief_group_briefs bgb ON bgb.brief_group_id = bg.id\n    JOIN rev.briefs b ON b.id = bgb.brief_id\n    JOIN rev.brief_outputs bo ON bo.brief_id = b.id\n    JOIN rev.brief_output_source_kinds bosk\n        ON bosk.id = bo.source_kind_id AND bosk.key = 'computed'\n    JOIN rev.value_slots vs ON vs.id = bo.value_slot_id\n    JOIN rev.versioned_objects vo ON vo.id = vs.versioned_object_id\n    JOIN rev.value_slot_path_details vspd ON vspd.path_id = vo.path_id\n    JOIN rev.value_kinds vk ON vk.id = vs.value_kind_id\n),\nstage_tasks AS (\n    SELECT\n        stk.id AS step_task_id,\n        ss.id AS stage_step_id,\n        pstage.id AS playbook_stage_id\n    FROM rev.playbook_stages pstage\n    JOIN rev.stage_steps ss ON ss.stage_id = pstage.stage_id\n    JOIN rev.step_tasks stk ON stk.step_id = ss.step_id\n    WHERE pstage.id = $2::UUID\n      AND ss.id = $3::UUID\n),\nall_overlays AS (\n    SELECT st.step_task_id, o.value_slot_path_id, o.visibility, 1 AS priority\n    FROM rev.playbook_stage_overlays o\n    JOIN stage_tasks st ON st.playbook_stage_id = o.playbook_stage_id\n    UNION ALL\n    SELECT st.step_task_id, o.value_slot_path_id, o.visibility, 2 AS priority\n    FROM rev.stage_step_overlays o\n    JOIN stage_tasks st ON st.stage_step_id = o.stage_step_id\n    UNION ALL\n    SELECT st.step_task_id, o.value_slot_path_id, o.visibility, 3 AS priority\n    FROM rev.step_task_overlays o\n    JOIN stage_tasks st ON st.step_task_id = o.step_task_id\n),\nranked AS (\n            SELECT DISTINCT ON (step_task_id, value_slot_path_id)\n        step_task_id, value_slot_path_id, visibility\n    FROM all_overlays\n    ORDER BY step_task_id, value_slot_path_id, priority DESC\n),\nexposed_paths AS (\n    SELECT DISTINCT value_slot_path_id\n    FROM ranked\n    WHERE visibility = 'expose'\n)\nSELECT\n    co.value_slot_id AS \"value_slot_id!\",\n    co.source_path AS \"source_path!\",\n    co.value_slot_name AS \"value_slot_name!\",\n    co.value_kind_key AS \"value_kind_key!\",\n    co.cardinality AS \"cardinality!\"\nFROM computed_outputs co\nJOIN exposed_paths ep ON ep.value_slot_path_id = co.value_slot_path_id\nORDER BY co.value_slot_id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "value_slot_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_outputs",
+            "name": "value_slot_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "source_path!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_outputs",
+            "name": "source_path"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "value_slot_name!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slot_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "value_kind_key!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.value_kinds",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "cardinality!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slots",
+            "name": "cardinality"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "12253c384dad669a237f73b279e890bee05931a7af42a05ee155e8b9537f58c8"
+}

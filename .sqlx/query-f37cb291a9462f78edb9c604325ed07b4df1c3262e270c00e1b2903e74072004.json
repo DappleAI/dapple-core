@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO rev.stage_steps (stage_id, step_id, ord) VALUES ($1, $2, 1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f37cb291a9462f78edb9c604325ed07b4df1c3262e270c00e1b2903e74072004"
+}

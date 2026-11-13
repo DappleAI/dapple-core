@@ -1,0 +1,78 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::UUID[],\n        $2::UUID[],\n        $3::BIGINT[]\n    ) WITH ORDINALITY AS o(lago_transaction_id, resource_id, resource_type_id, ord)\n),\nnew_syncs AS (\n    INSERT INTO rev.lago_event_sync (resource_type_id, resource_id, lago_transaction_id)\n    SELECT args.resource_type_id, args.resource_id, args.lago_transaction_id\n    FROM args\n    ORDER BY args.ord\n    RETURNING id, resource_type_id, resource_id, lago_transaction_id, created_at\n),\nnotify AS (\n    SELECT pg_notify('lago_event_sync', ns.id::text)\n    FROM new_syncs ns\n)\nSELECT ns.id, ns.resource_type_id, ns.resource_id, ns.lago_transaction_id, ns.created_at\nFROM new_syncs ns\nORDER BY ns.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.lago_event_sync",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "resource_type_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "rev.lago_event_sync",
+            "name": "resource_type_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "resource_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.lago_event_sync",
+            "name": "resource_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "lago_transaction_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.lago_event_sync",
+            "name": "lago_transaction_id"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.lago_event_sync",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "UuidArray",
+        "Int8Array"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "fcdfb83a8a9c27cf3f5a4927501975dfb49e6cccf1bd229ad7a0377f740cf6b6"
+}

@@ -1,0 +1,36 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nWITH control_type_ref AS (\n    SELECT id FROM rev.brief_input_control_types WHERE key = $2::TEXT\n)\nINSERT INTO rev.brief_unit_input (\n    brief_unit_id,\n    control_type_id,\n    label_text,\n    label_fluent_message_id,\n    help_text,\n    help_fluent_message_id,\n    placeholder_text,\n    placeholder_fluent_message_id,\n    control_spec\n)\nSELECT\n    $1::UUID,\n    control_type_ref.id,\n    $3::TEXT,\n    $4::UUID,\n    $5::TEXT,\n    $6::UUID,\n    $7::TEXT,\n    $8::UUID,\n    COALESCE($9::JSONB, '{}'::jsonb)\nFROM control_type_ref\nRETURNING brief_unit_id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "brief_unit_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_input",
+            "name": "brief_unit_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Uuid",
+        "Text",
+        "Uuid",
+        "Text",
+        "Uuid",
+        "Jsonb"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "7943224a608977964e1398c64a32cc630a3bd12516d2ea0a6755e6f5e3f2038a"
+}

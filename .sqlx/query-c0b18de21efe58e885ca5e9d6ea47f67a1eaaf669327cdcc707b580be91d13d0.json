@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO rev.brief_unit_input_choices (brief_unit_id, label_text, value_text) VALUES ($1, $2, $3), ($1, $4, $5)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c0b18de21efe58e885ca5e9d6ea47f67a1eaaf669327cdcc707b580be91d13d0"
+}

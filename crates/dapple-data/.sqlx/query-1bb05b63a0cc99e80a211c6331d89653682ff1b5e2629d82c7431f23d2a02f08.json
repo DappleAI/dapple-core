@@ -1,0 +1,101 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH journey_dispatches AS (\n    SELECT d.id AS dispatch_id\n    FROM rev.dispatches d\n    WHERE d.journey_id = (SELECT id FROM rev.journeys WHERE id = $1)\n      AND d.id != $2      ORDER BY d.id ASC\n),\nok_events AS (\n    SELECT DISTINCT ON (a.task_id)\n        a.task_id,\n        a.dispatch_step_id,\n        ev.context_data,\n        ev.created_at AS event_created_at\n    FROM rev.dispatch_task_attempts a\n    JOIN rev.dispatch_steps ds ON a.dispatch_step_id = ds.id\n    JOIN rev.dispatch_stages dst ON ds.dispatch_stage_id = dst.id\n    JOIN journey_dispatches jd ON dst.dispatch_id = jd.dispatch_id\n    JOIN rev.dispatch_task_attempt_events ev ON ev.attempt_id = a.id\n    WHERE ev.phase_code = 'ok'\n      AND ev.context_data IS NOT NULL\n    ORDER BY a.task_id, ev.created_at DESC, ev.id DESC\n)\nSELECT\n    d.id AS dispatch_id,\n    t.id AS task_id,\n    tpd.name AS task_name,\n    t.function,\n    t.function_input,\n    oe.context_data,\n    oe.event_created_at AS created_at\nFROM ok_events oe\nJOIN rev.tasks t ON oe.task_id = t.id\nJOIN rev.versioned_objects vo ON vo.id = t.versioned_object_id\nJOIN rev.object_paths op ON op.id = vo.path_id\nJOIN rev.task_path_details tpd ON tpd.path_id = op.id\nJOIN rev.dispatch_steps ds ON oe.dispatch_step_id = ds.id\nJOIN rev.dispatch_stages dst ON ds.dispatch_stage_id = dst.id\nJOIN rev.dispatches d ON dst.dispatch_id = d.id\nORDER BY oe.event_created_at ASC;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "dispatch_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatches",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "task_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.tasks",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "task_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.task_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "function",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.tasks",
+            "name": "function"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "function_input",
+        "type_info": "Json",
+        "origin": {
+          "Table": {
+            "table": "rev.tasks",
+            "name": "function_input"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "context_data",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_task_attempt_events",
+            "name": "context_data"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_task_attempt_events",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "1bb05b63a0cc99e80a211c6331d89653682ff1b5e2629d82c7431f23d2a02f08"
+}

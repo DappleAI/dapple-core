@@ -1,0 +1,19 @@
+-- Insert dispatch intent binding value meta
+-- Parameters:
+--   $1: binding_ids (UUID[])
+--   $2: ui_specs (JSONB[])
+--   $3: producers (TEXT[]) -- nullable elements
+
+WITH args AS (
+    SELECT *
+    FROM UNNEST(
+        $1::UUID[],
+        $2::JSONB[],
+        $3::TEXT[]
+    ) WITH ORDINALITY AS o(binding_id, ui_spec, producer, ord)
+)
+INSERT INTO rev.dispatch_intent_binding_value_meta (dispatch_intent_binding_id, ui_spec, producer)
+SELECT args.binding_id, args.ui_spec, args.producer
+FROM args
+ORDER BY args.ord
+RETURNING id, dispatch_intent_binding_id, ui_spec, producer, created_at;

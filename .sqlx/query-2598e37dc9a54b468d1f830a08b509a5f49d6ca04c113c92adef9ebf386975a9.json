@@ -1,0 +1,107 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n    est.id AS \"id!\",\n    est.service_id,\n    est.company_id,\n    est.name,\n    est.description,\n    est.created_at,\n    (\n        SELECT MIN(r.revoked_at)\n        FROM rev.external_service_token_revocations r\n        WHERE r.external_service_token_id = est.id\n    ) AS revoked_at,\n    esp.principal_id AS \"principal_id!\"\nFROM rev.external_service_tokens est\nJOIN rev.external_service_principals esp ON esp.external_service_token_id = est.id\nWHERE est.company_id = $1::UUID\nORDER BY est.id DESC;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.external_service_tokens",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "service_id",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.external_service_tokens",
+            "name": "service_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "company_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.external_service_tokens",
+            "name": "company_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.external_service_tokens",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "description",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.external_service_tokens",
+            "name": "description"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.external_service_tokens",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "revoked_at",
+        "type_info": "Timestamptz",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 7,
+        "name": "principal_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.external_service_principals",
+            "name": "principal_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      null,
+      false
+    ]
+  },
+  "hash": "2598e37dc9a54b468d1f830a08b509a5f49d6ca04c113c92adef9ebf386975a9"
+}

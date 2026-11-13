@@ -1,0 +1,39 @@
+# Flagsmith Ingress - External access via wildcard cert
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: flagsmith-ingress
+  namespace: flagsmith
+  annotations:
+    # Allow larger request bodies for file uploads
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+spec:
+  ingressClassName: public
+  tls:
+    - hosts:
+        - flagsmith.kube.dappleai.dev
+        - flagsmith-api.kube.dappleai.dev
+      secretName: wildcard-kube.dappleai.dev
+  rules:
+    # Frontend UI (served from same container as API)
+    - host: flagsmith.kube.dappleai.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: flagsmith-api
+                port:
+                  number: 8000
+    # API backend (same service, different hostname for clarity)
+    - host: flagsmith-api.kube.dappleai.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: flagsmith-api
+                port:
+                  number: 8000

@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST($1::UUID[], $2::UUID[])\n    WITH ORDINALITY AS o(poster_id, value_slot_id, ord)\n)\nINSERT INTO rev.brief_unit_media_item_poster_value_slot_sources (poster_id, value_slot_id)\nSELECT args.poster_id, args.value_slot_id\nFROM args\nORDER BY args.ord\nRETURNING poster_id, value_slot_id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "poster_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_media_item_poster_value_slot_sources",
+            "name": "poster_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "value_slot_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_media_item_poster_value_slot_sources",
+            "name": "value_slot_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "ea6091eac7fdd2aa68af32b89bf82426f9266cf1d921ddaddf6eee93a884a4fa"
+}

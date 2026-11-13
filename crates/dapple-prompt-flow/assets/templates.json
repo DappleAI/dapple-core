@@ -1,0 +1,43 @@
+{
+  "instruction": "Set the role or persona of the model. $input_instruction",
+  "context": "$input_context.",
+  "task": "What the model should produce. $input_task",
+  "constraints": "Tone, style, length, exclusions. $input_constraints",
+  "stages": [
+	  {
+		  type: "prompt-text",
+		  "id": "generate_outline",
+		  "description": "Create a structural plan or outline in a bullet point format.",
+		  "model_preferences": {
+			  "preferred": "gpt-4o",
+			  "fallback": ["claude-opus", "gemini-pro"]
+		  },
+		  "output_format": "E.g., bullet points, Markdown table, JSON. $input_output_format",
+		  "prompt": { ... }
+	  },
+	  {
+		  "type": "review",
+		  "id": "review_outline",
+		  "description": "Review the generated outline for completeness and relevance $output_generate_outline.",
+		  "depends_on": "generate_outline",
+		  "model_preferences": {
+			  "preferred": "gpt-4o",
+			  "fallback": ["claude-opus", "gemini-pro"]
+		  },
+		  "prompt": { ... }
+	  },
+	  {
+		  "type": "prompt-text",
+		  "id": "generate_draft",
+		  "description": "Write the content based on the outline",
+		  "model_preferences": {
+			  "preferred": "gpt-4o",
+			  "fallback": ["claude-opus", "gemini-pro"]
+		  },
+		  "depends_on": "generate_outline",
+		  "prompt": { ... }
+	  }
+  ]
+}
+
+

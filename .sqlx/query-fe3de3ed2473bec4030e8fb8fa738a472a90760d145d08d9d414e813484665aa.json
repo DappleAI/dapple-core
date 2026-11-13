@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO rev.brief_outputs (brief_id, value_slot_id, unit_key, source_kind_id, source_path) VALUES ($1, $2, $3, (SELECT id FROM rev.brief_output_source_kinds WHERE key = 'computed'), '.')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "fe3de3ed2473bec4030e8fb8fa738a472a90760d145d08d9d414e813484665aa"
+}

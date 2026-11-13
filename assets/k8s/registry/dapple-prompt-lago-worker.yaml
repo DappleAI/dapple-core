@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dapple-sandbox
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dapple-prompt-lago-worker
+  namespace: dapple-sandbox
+  labels:
+    app: dapple-prompt-lago-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dapple-prompt-lago-worker
+  template:
+    metadata:
+      labels:
+        app: dapple-prompt-lago-worker
+    spec:
+      containers:
+        - name: dapple-prompt-lago-worker
+          image: localhost:32000/dapple-prompt-lago-worker:dapple-latest
+          imagePullPolicy: Always
+          env:
+            - name: DAPPLE_PROMPT_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: prompt-db
+                  key: DAPPLE_PROMPT_DATABASE_URL
+            - name: LAGO_API_URL
+              value: "http://lago-api.lago:3000"
+            - name: LAGO_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: lago-api
+                  key: LAGO_API_KEY
+            - name: RUST_LOG
+              value: "warn,dapple_prompt_lago_worker=debug,dapple_data=debug"
+          resources:
+            requests: { cpu: "50m", memory: "64Mi" }
+            limits:   { cpu: "200m", memory: "256Mi" }
+          # No health probes — background worker (engine template pattern)

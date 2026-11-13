@@ -1,0 +1,60 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nWITH target_prompt AS (\n    SELECT p.id, ppd.name AS prompt_name, p.description AS prompt_description\n    FROM rev.prompts p\n    JOIN rev.versioned_objects vo ON vo.id = p.versioned_object_id\n    JOIN rev.object_paths op ON op.id = vo.path_id\n    JOIN rev.prompt_path_details ppd ON ppd.path_id = op.id\n    WHERE p.id = $1\n),\nrelease_candidates AS (\n    SELECT\n        mr.id AS release_id,\n                '@' || p.key || ':' || l.key || '/' || mr.tier ||\n            COALESCE(':' || mr.release, '') AS provider_key,\n                l.key || '/' || mr.tier ||\n            COALESCE(':' || mr.release, '') AS release_key,\n                l.key AS lineage_key,\n                array_position($3::text[], '@' || p.key || ':' || l.key || '/' || mr.tier ||\n            COALESCE(':' || mr.release, '')) AS provider_priority,\n        array_position($3::text[], l.key || '/' || mr.tier ||\n            COALESCE(':' || mr.release, '')) AS release_priority,\n        array_position($3::text[], l.key) AS lineage_priority\n    FROM rev.model_releases mr\n    JOIN rev.lineages l ON l.id = mr.lineage_id\n    JOIN rev.providers p ON p.id = mr.provider_id\n    WHERE\n                '@' || p.key || ':' || l.key || '/' || mr.tier || COALESCE(':' || mr.release, '') = ANY($3::text[])\n        OR l.key || '/' || mr.tier || COALESCE(':' || mr.release, '') = ANY($3::text[])\n        OR l.key = ANY($3::text[])\n),\nprompt_messages AS (\n    SELECT\n        pfm.id AS pfm_id,\n        pfm.fluent_message_id,\n        pfm.role,\n        ROW_NUMBER() OVER (ORDER BY pfm.id) AS ordinal\n    FROM target_prompt tp\n    JOIN rev.prompt_fluent_messages pfm ON pfm.prompt_id = tp.id\n),\nlocale_candidates AS (\n    SELECT\n        pm.ordinal,\n        pm.role,\n        pm.fluent_message_id,\n        fmb.id AS body_id,\n        fmb.body,\n        l.tag AS locale_tag,\n        array_position($2::text[], l.tag) AS locale_priority,\n        NULL::UUID AS release_id,\n        NULL::integer AS provider_priority,\n        NULL::integer AS release_priority,\n        NULL::integer AS lineage_priority\n    FROM prompt_messages pm\n    JOIN rev.fluent_message_bodies fmb ON fmb.fluent_message_id = pm.fluent_message_id\n    JOIN rev.fluent_message_locales l ON l.id = fmb.locale_id\n    WHERE l.tag = ANY($2::text[])\n),\nengine_body_candidates AS (\n    SELECT\n        pm.ordinal,\n        pm.role,\n        pm.fluent_message_id,\n        fmeb.id AS body_id,\n        fmeb.body,\n        NULL::text AS locale_tag,\n        NULL::integer AS locale_priority,\n        rc.release_id,\n        rc.provider_priority,\n        rc.release_priority,\n        rc.lineage_priority\n    FROM prompt_messages pm\n    JOIN rev.fluent_message_engine_bodies fmeb ON fmeb.fluent_message_id = pm.fluent_message_id\n    JOIN release_candidates rc ON rc.release_id = fmeb.model_release_id\n),\nall_candidates AS (\n    SELECT * FROM locale_candidates\n    UNION ALL\n    SELECT * FROM engine_body_candidates\n),\nranked_candidates AS (\n    SELECT\n        ordinal,\n        role,\n        body,\n                CASE\n            WHEN release_id IS NOT NULL THEN 0\n            ELSE 1\n        END AS source_priority,\n        COALESCE(provider_priority, 999999) AS provider_rank,\n        COALESCE(release_priority, 999999) AS release_rank,\n        COALESCE(lineage_priority, 999999) AS lineage_rank,\n        COALESCE(locale_priority, 999999) AS locale_rank\n    FROM all_candidates\n)\nSELECT DISTINCT ON (ordinal)\n    (SELECT id FROM target_prompt) AS prompt_id,\n    (SELECT prompt_name FROM target_prompt) AS prompt_name,\n    (SELECT prompt_description FROM target_prompt) AS prompt_description,\n    ordinal,\n    role,\n    body\nFROM ranked_candidates\nORDER BY\n    ordinal,\n    source_priority,          provider_rank,            release_rank,             lineage_rank,             locale_rank;          ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "prompt_id",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "prompt_name",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "prompt_description",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "ordinal",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 4,
+        "name": "role",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 5,
+        "name": "body",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "TextArray",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "82687ebdad40388508e454f8e0f98ac6231230d0b1bc2e618c7e341d612d5d98"
+}

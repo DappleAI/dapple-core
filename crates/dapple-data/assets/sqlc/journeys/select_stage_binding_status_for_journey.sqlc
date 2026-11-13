@@ -1,0 +1,174 @@
+# Per-stage binding status for a journey: one row per playbook_stage of the
+# journey's playbook, with `done` = true iff every value slot the stage needs
+# (overlay-exposed, cascade-resolved) is bound somewhere in the journey chain.
+#
+# This is `is_stage_fully_bound` evaluated for every stage of the journey's
+# playbook in a single pass. Strict default: a stage with no overlays has no
+# required slots, so it is never `unbound` and reports `done = true`.
+#
+# Ordering is by `playbook_stages.ord` (the stored authored ordinal), which is
+# the stage order the author declared and is resilient to a repair-in-place that
+# re-mints a restored stage link with a fresh out-of-band id.
+#
+# Parameters:
+#   starting_journey_id (UUID)
+
+WITH RECURSIVE
+:compose(shared/journey_chain.sqlc)
+,
+journey_scope AS (
+    SELECT :bind(starting_journey_id)::UUID AS journey_id
+),
+# The journey's PINNED brief_packs (shared/select/journey_pinned_packs.sqlc):
+# matches /brief-form and /steps so optionality is read off the SAME version
+# the operator sees. Pinned reads never consult deprecation — see the
+# fragment's doctrine comment.
+:compose(shared/select/journey_pinned_packs.sqlc)
+,
+journey_operator_inputs AS (
+    # Per exposed value-slot PATH, whether the journey-pinned brief input that
+    # pins it is REQUIRED (not optional, not a min_selections = 0 multi-select).
+    # Journey-scoped so a stale older brief version missing the `optional` key
+    # can't make an optional slot look required. Computed-output slots have no
+    # brief input -> absent here -> a LEFT JOIN keeps them required (counted).
+    SELECT DISTINCT ON (vo.path_id)
+        vo.path_id AS value_slot_path_id,
+        (NOT COALESCE((bui.control_spec ->> 'optional')::boolean, false)
+            AND COALESCE(vs.min_selections, 1) > 0) AS required,
+        # PATH of the computed slot supplying this pick's runtime tiles, NULL for
+        # static / free-input controls. Resolved to the path (not the pinned id
+        # in control_spec) because that id is frozen at ingest and every gate
+        # here resolves through versioned_objects.path_id. Feeds `blocked_stages`.
+        cs_vo.path_id AS candidate_source_path_id
+    FROM journey_packs jp
+    JOIN rev.brief_pack_groups bpg ON bpg.brief_pack_id = jp.brief_pack_id
+    JOIN rev.brief_groups bg ON bg.id = bpg.brief_group_id
+    JOIN rev.brief_group_briefs bgb ON bgb.brief_group_id = bg.id
+    JOIN rev.briefs b ON b.id = bgb.brief_id
+    JOIN rev.brief_units bu ON bu.brief_id = b.id
+    JOIN rev.brief_unit_input bui ON bui.brief_unit_id = bu.id
+    JOIN rev.value_slots vs
+        ON bui.control_spec ? 'value_slot_id'
+       AND vs.id = (bui.control_spec ->> 'value_slot_id')::UUID
+    JOIN rev.versioned_objects vo ON vo.id = vs.versioned_object_id
+    LEFT JOIN rev.value_slots cs_vs
+        ON bui.control_spec ? 'candidate_source_value_slot_id'
+       AND cs_vs.id = (bui.control_spec ->> 'candidate_source_value_slot_id')::UUID
+    LEFT JOIN rev.versioned_objects cs_vo ON cs_vo.id = cs_vs.versioned_object_id
+    ORDER BY vo.path_id, vs.id DESC
+),
+journey_stages AS (
+    # Stage identity for the client: authored name (path-level), fluent-resolved
+    # description, the authored closed-vocabulary kind (NULL when unauthored),
+    # and the authored open-vocabulary icon-name array (NULL when unauthored —
+    # the client falls back to the kind glyph). Join shape mirrors
+    # select_task_position_for_dispatch_task.
+    SELECT ps.id AS playbook_stage_id, ps.ord AS stage_ord,
+           spd.name,
+           COALESCE(rev.fluent_body(s.description_fluent_message_id, 'en'), s.description, spd.name) AS description,
+           sk.key AS kind,
+           s.icons AS icon
+    FROM rev.journeys j
+    JOIN rev.playbook_stages ps ON ps.playbook_id = j.playbook_id
+    JOIN rev.stages s ON s.id = ps.stage_id
+    JOIN rev.versioned_objects vo_s ON vo_s.id = s.versioned_object_id
+    JOIN rev.stage_path_details spd ON spd.path_id = vo_s.path_id
+    LEFT JOIN rev.stage_kinds sk ON sk.id = s.kind_id
+    WHERE j.id = :bind(starting_journey_id)::UUID
+),
+stage_tasks AS (
+    SELECT
+        js.playbook_stage_id,
+        stk.id AS step_task_id,
+        ss.id AS stage_step_id
+    FROM journey_stages js
+    JOIN rev.playbook_stages pstage ON pstage.id = js.playbook_stage_id
+    JOIN rev.stage_steps ss ON ss.stage_id = pstage.stage_id
+    JOIN rev.step_tasks stk ON stk.step_id = ss.step_id
+),
+all_overlays AS (
+    SELECT st.playbook_stage_id, st.step_task_id, o.value_slot_path_id, o.visibility, 1 AS priority
+    FROM rev.playbook_stage_overlays o
+    JOIN stage_tasks st ON st.playbook_stage_id = o.playbook_stage_id
+    UNION ALL
+    SELECT st.playbook_stage_id, st.step_task_id, o.value_slot_path_id, o.visibility, 2 AS priority
+    FROM rev.stage_step_overlays o
+    JOIN stage_tasks st ON st.stage_step_id = o.stage_step_id
+    UNION ALL
+    SELECT st.playbook_stage_id, st.step_task_id, o.value_slot_path_id, o.visibility, 3 AS priority
+    FROM rev.step_task_overlays o
+    JOIN stage_tasks st ON st.step_task_id = o.step_task_id
+),
+ranked AS (
+    SELECT DISTINCT ON (playbook_stage_id, step_task_id, value_slot_path_id)
+        playbook_stage_id, value_slot_path_id, visibility
+    FROM all_overlays
+    ORDER BY playbook_stage_id, step_task_id, value_slot_path_id, priority DESC
+),
+required AS (
+    # Keep computed outputs (no journey-pinned brief input -> LEFT JOIN NULL ->
+    # COALESCE true) and REQUIRED operator inputs; drop OPTIONAL operator inputs
+    # (author flag, or a min_selections = 0 multi-select) so an unbound optional
+    # slot doesn't keep the stage from `done`. Mirrors is_stage_fully_bound.
+    SELECT DISTINCT r.playbook_stage_id, r.value_slot_path_id
+    FROM ranked r
+    LEFT JOIN journey_operator_inputs joi
+        ON joi.value_slot_path_id = r.value_slot_path_id
+    WHERE r.visibility = 'expose'
+      AND COALESCE(joi.required, true)
+),
+unbound AS (
+    SELECT DISTINCT req.playbook_stage_id
+    FROM required req
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM rev.value_slots vs
+        JOIN rev.versioned_objects vo ON vo.id = vs.versioned_object_id
+        JOIN rev.dispatch_intent_bindings dib ON dib.value_slot_id = vs.id
+        JOIN rev.dispatches d ON d.id = dib.dispatch_id
+        JOIN journey_chain jc ON jc.journey_id = d.journey_id
+        WHERE vo.path_id = req.value_slot_path_id
+          AND :compose(shared/fork_cutoff_filter.sqlc)
+    )
+),
+blocked_stages AS (
+    # Stages that can NEVER finish, as opposed to stages merely waiting on the
+    # operator. The case: a required pick whose candidate source produced a value
+    # that was present and empty, so there are no tiles to choose and no operator
+    # action resolves it. See migration 92 and the `blocked?` column of
+    # select_step_binding_status_for_journey, which computes the same verdict per
+    # slot; this is its stage-level roll-up.
+    #
+    # Scoped to `unbound` stages so a stage whose pick was already made (an empty
+    # regenerate arriving after a good pick) is never reported blocked. The
+    # LATEST candidate binding decides, so a successful re-run clears the block.
+    SELECT DISTINCT req.playbook_stage_id
+    FROM required req
+    JOIN journey_operator_inputs joi
+        ON joi.value_slot_path_id = req.value_slot_path_id
+    WHERE joi.candidate_source_path_id IS NOT NULL
+      AND joi.required
+      AND req.playbook_stage_id IN (SELECT playbook_stage_id FROM unbound)
+      AND COALESCE((
+          SELECT dib.produced_empty
+          FROM rev.value_slots cvs
+          JOIN rev.versioned_objects cvo ON cvo.id = cvs.versioned_object_id
+          JOIN rev.dispatch_intent_bindings dib ON dib.value_slot_id = cvs.id
+          JOIN rev.dispatches d ON d.id = dib.dispatch_id
+          JOIN journey_chain jc ON jc.journey_id = d.journey_id
+          WHERE cvo.path_id = joi.candidate_source_path_id
+            AND :compose(shared/fork_cutoff_filter.sqlc)
+          ORDER BY dib.id DESC
+          LIMIT 1
+      ), false)
+)
+SELECT
+    js.playbook_stage_id AS "playbook_stage_id!",
+    js.name AS "name!",
+    js.description AS "description!",
+    js.kind AS "kind?",
+    js.icon AS "icon?",
+    (js.playbook_stage_id NOT IN (SELECT playbook_stage_id FROM unbound)) AS "done!",
+    (js.playbook_stage_id IN (SELECT playbook_stage_id FROM blocked_stages)) AS "blocked!"
+FROM journey_stages js
+ORDER BY js.stage_ord;

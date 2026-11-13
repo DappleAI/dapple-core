@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO rev.insider_transactions_ingest (issuer_cik, accession)\nVALUES ($1, $2)\nON CONFLICT (issuer_cik, accession) DO UPDATE SET ingested_at = now();\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c97e451dad4cb184e4d99da4619ca676960972b30733e147bfd73b435bd4bee4"
+}

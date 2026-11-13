@@ -1,0 +1,102 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::TEXT[],\n        $2::TEXT[],\n        $3::TEXT[]\n    ) WITH ORDINALITY AS o(\n        content_hash,\n        description,\n        name,\n        ord\n    )\n),\nentity_type AS (\n    SELECT id FROM rev.entity_types WHERE key = 'inference_profile'\n),\nnew_paths AS (\n    INSERT INTO rev.object_paths (entity_type_id, namespace_company_id, scope)\n    SELECT\n        (SELECT id FROM entity_type),\n        COALESCE(\n            NULLIF(current_setting('dapple.namespace_company_id', true), ''),\n            '019e132e-2610-7a4a-b64a-77a49e286ac0'\n        )::UUID,\n        COALESCE(\n            NULLIF(current_setting('dapple.scope', true), ''),\n            'public'\n        )::TEXT\n    FROM args\n    ORDER BY args.ord\n                    RETURNING id, namespace_company_id\n),\nnumbered_paths AS (\n    SELECT np.id, np.namespace_company_id, row_number() OVER (ORDER BY np.id) AS ord\n    FROM new_paths np\n),\n\npath_details AS (\n    INSERT INTO rev.inference_profile_path_details (path_id, name, namespace_company_id)\n    SELECT\n        np.id,\n        args.name,\n        np.namespace_company_id\n    FROM args\n    JOIN numbered_paths np ON np.ord = args.ord\n    RETURNING path_id, name, namespace_company_id\n),\nnumbered_path_details AS (\n    SELECT pd.*, row_number() OVER (ORDER BY pd.path_id) AS ord\n    FROM path_details pd\n),\n\nnew_versions AS (\n    INSERT INTO rev.versioned_objects (path_id, content_hash)\n    SELECT np.id, args.content_hash\n    FROM numbered_paths np\n    JOIN args ON args.ord = np.ord\n    ORDER BY np.id\n    RETURNING id, path_id, content_hash, created_at\n),\nnumbered_versions AS (\n    SELECT nv.*, row_number() OVER (ORDER BY nv.id) AS ord\n    FROM new_versions nv\n),\n\nnew_profiles AS (\n    INSERT INTO rev.inference_profiles (versioned_object_id, name, description)\n    SELECT\n        nuv.id,\n        args.name,\n        args.description\n    FROM args\n    JOIN numbered_versions nuv ON nuv.ord = args.ord\n    ORDER BY args.ord\n    RETURNING id, versioned_object_id, name, description, created_at\n),\nnumbered_profiles AS (\n    SELECT np.*, row_number() OVER (ORDER BY np.id) AS ord\n    FROM new_profiles np\n)\nSELECT\n    nup.id AS \"id!\",\n    nup.versioned_object_id AS \"versioned_object_id!\",\n    nuv.path_id AS \"path_id!\",\n    npd.name AS \"name!\",\n    nuv.content_hash AS \"content_hash!\",\n    nup.description,\n    nup.created_at AS \"created_at!\"\nFROM numbered_profiles nup\nJOIN numbered_versions nuv ON nuv.ord = nup.ord\nJOIN numbered_paths nupa ON nupa.ord = nup.ord\nJOIN numbered_path_details npd ON npd.ord = nup.ord\nORDER BY nup.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.inference_profiles",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "versioned_object_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.inference_profiles",
+            "name": "versioned_object_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "path_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "path_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "name!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.inference_profile_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "content_hash!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "content_hash"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "description",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.inference_profiles",
+            "name": "description"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at!",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.inference_profiles",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "TextArray",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "954a42145290e6744bcd36514a87cb03620b2f6be26a27a10dd114a0fbbc1268"
+}

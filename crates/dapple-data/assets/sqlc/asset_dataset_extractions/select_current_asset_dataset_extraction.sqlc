@@ -1,0 +1,21 @@
+# The "current" dataset extraction for an asset = the LATEST row per asset.
+# UUIDv7 id is creation-ordered, so ORDER BY id DESC LIMIT 1 is the newest
+# extraction (append-only; no is_current flag). Used by the operator bind
+# handlers, the computed-output producer, and `dataset schema`.
+# Parameters:
+#   $1: asset_id (UUID)
+SELECT
+    id,
+    asset_id,
+    extractor_version,
+    status,
+    envelope,
+    table_count,
+    row_count,
+    error_message,
+    created_at,
+    completed_at
+FROM rev.asset_dataset_extractions
+WHERE asset_id = $1
+ORDER BY id DESC
+LIMIT 1;

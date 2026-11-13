@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT * FROM UNNEST($1::TEXT[])\n    WITH ORDINALITY AS o(name, ord)\n),\nlatest_versions AS (\n    SELECT DISTINCT ON (bppd.name)\n        bp.id,\n        op.id AS path_id,\n        bppd.name,\n        vo.content_hash\n    FROM rev.brief_pack_path_details bppd\n    JOIN rev.object_paths op ON op.id = bppd.path_id\n    JOIN rev.versioned_objects vo ON vo.path_id = op.id\n    JOIN rev.brief_packs bp ON bp.versioned_object_id = vo.id\n    WHERE bppd.name = ANY($1::TEXT[])\n      AND bppd.namespace_company_id = COALESCE(\n          NULLIF(current_setting('dapple.namespace_company_id', true), ''),\n          '019e132e-2610-7a4a-b64a-77a49e286ac0'\n      )::UUID\n    ORDER BY bppd.name, vo.created_at DESC\n)\nSELECT\n    lv.id,\n    lv.path_id,\n    lv.name,\n    lv.content_hash\nFROM latest_versions lv\nJOIN args ON args.name = lv.name\nORDER BY args.ord;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_packs",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "path_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.object_paths",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_pack_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "content_hash",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "content_hash"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "decfc2634ce20650a3dc5f50dec8c1b12eedda558498b15a5f83a163cf85e907"
+}

@@ -1,0 +1,109 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::TEXT[],\n        $2::TEXT[],\n        $3::TEXT[],\n        $4::TEXT[],\n        $5::TEXT[],\n        $6::UUID[],\n        $7::TEXT[]\n    ) WITH ORDINALITY AS o(\n        author,\n        classification,\n        conduits_md,\n        content_hash,\n        description,\n        path_id,\n        source_path,\n        ord\n    )\n),\npaths AS (\n    SELECT\n        op.id AS path_id,\n        gpd.title,\n        gpd.slug,\n        args.ord\n    FROM args\n    JOIN rev.object_paths op ON op.id = args.path_id\n    JOIN rev.guide_path_details gpd ON gpd.path_id = op.id\n),\nnew_versions_inserted AS (\n    INSERT INTO rev.versioned_objects (path_id, content_hash)\n    SELECT paths.path_id, args.content_hash\n    FROM args\n    JOIN paths ON paths.ord = args.ord\n    ORDER BY paths.ord\n    ON CONFLICT (path_id, content_hash) DO NOTHING\n    RETURNING id, path_id, content_hash, created_at\n),\nnew_versions AS (\n            SELECT nvi.id, nvi.path_id, nvi.content_hash, nvi.created_at, p.ord\n    FROM new_versions_inserted nvi\n    JOIN paths p ON p.path_id = nvi.path_id\n    UNION ALL\n        SELECT vo.id, paths.path_id, vo.content_hash, vo.created_at, args.ord\n    FROM args\n    JOIN paths ON paths.ord = args.ord\n    JOIN rev.versioned_objects vo ON vo.path_id = paths.path_id AND vo.content_hash = args.content_hash\n    WHERE NOT EXISTS (\n        SELECT 1 FROM new_versions_inserted nvi\n        WHERE nvi.path_id = paths.path_id AND nvi.content_hash = args.content_hash\n    )\n),\nnumbered_versions AS (\n    SELECT nv.id, nv.path_id, nv.content_hash, nv.created_at, nv.ord\n    FROM new_versions nv\n),\n\nnew_guides AS (\n    INSERT INTO rev.guides (versioned_object_id, description, author, classification, source_path, conduits_md)\n    SELECT\n        nuv.id,\n        args.description,\n        args.author,\n        args.classification,\n        args.source_path,\n                args.conduits_md\n    FROM args\n    JOIN numbered_versions nuv ON nuv.ord = args.ord\n    WHERE NOT EXISTS (SELECT 1 FROM rev.guides g WHERE g.versioned_object_id = nuv.id)\n    ORDER BY args.ord\n    RETURNING id, versioned_object_id, description, author, classification, source_path, created_at\n),\nall_guides AS (\n            SELECT ng.id, ng.versioned_object_id, ng.description, ng.author, ng.classification, ng.source_path, ng.created_at, nuv.ord\n    FROM new_guides ng\n    JOIN numbered_versions nuv ON nuv.id = ng.versioned_object_id\n    UNION ALL\n    SELECT g.id, g.versioned_object_id, g.description, g.author, g.classification, g.source_path, g.created_at, nuv.ord\n    FROM rev.guides g\n    JOIN numbered_versions nuv ON g.versioned_object_id = nuv.id\n    WHERE NOT EXISTS (SELECT 1 FROM new_guides ng WHERE ng.versioned_object_id = nuv.id)\n),\nnumbered_guides AS (\n    SELECT ag.* FROM all_guides ag\n)\nSELECT\n    nug.id AS \"id!\",\n    nug.versioned_object_id AS \"versioned_object_id!\",\n    nuv.path_id AS \"path_id!\",\n    paths.title AS \"title!\",\n    paths.slug AS \"slug!\",\n    nuv.content_hash AS \"content_hash!\",\n    nug.description,\n    nug.author,\n    nug.classification,\n    nug.source_path,\n    nug.created_at AS \"created_at!\"\nFROM numbered_guides nug\nJOIN numbered_versions nuv ON nuv.ord = nug.ord\nJOIN paths ON paths.ord = nug.ord\nORDER BY nug.ord;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "versioned_object_id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "path_id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "title!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_path_details",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "slug!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_path_details",
+            "name": "slug"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "content_hash!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 6,
+        "name": "description",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 7,
+        "name": "author",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 8,
+        "name": "classification",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 9,
+        "name": "source_path",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 10,
+        "name": "created_at!",
+        "type_info": "Timestamptz",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "TextArray",
+        "TextArray",
+        "TextArray",
+        "TextArray",
+        "UuidArray",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      false,
+      false,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "893b859520d7d69cccb03646131c179ea912564a28a403fe964b18613e4d9a4a"
+}

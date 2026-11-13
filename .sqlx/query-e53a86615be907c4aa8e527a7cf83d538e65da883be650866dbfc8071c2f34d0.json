@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH\nsubject_pbe AS (\n    SELECT pbe.billable_entity_id\n    FROM rev.principal_billable_entities pbe\n    WHERE pbe.principal_id = $2::UUID\n),\nsubject_cbe AS (\n    SELECT cbe.billable_entity_id\n    FROM rev.principals p\n    JOIN rev.company_billable_entities cbe ON cbe.company_id = p.owner_company_id\n    WHERE p.id = $2::UUID\n),\nprincipal_pbe AS (\n    SELECT pbe.billable_entity_id\n    FROM rev.principal_billable_entities pbe\n    WHERE pbe.principal_id = $1::UUID\n),\nprincipal_cbe AS (\n    SELECT cbe.billable_entity_id\n    FROM rev.principals p\n    JOIN rev.company_billable_entities cbe ON cbe.company_id = p.owner_company_id\n    WHERE p.id = $1::UUID\n)\nSELECT COALESCE(\n    (SELECT billable_entity_id FROM subject_pbe),\n    (SELECT billable_entity_id FROM subject_cbe),\n    (SELECT billable_entity_id FROM principal_pbe),\n    (SELECT billable_entity_id FROM principal_cbe)\n) AS billable_entity_id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "billable_entity_id",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "e53a86615be907c4aa8e527a7cf83d538e65da883be650866dbfc8071c2f34d0"
+}

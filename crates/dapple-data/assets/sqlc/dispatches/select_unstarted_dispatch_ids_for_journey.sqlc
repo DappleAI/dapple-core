@@ -1,0 +1,18 @@
+# Dispatch ids for a journey that have NOT started executing — i.e. have no
+# task attempts yet. Used by the computed-output re-trigger
+# (`spawn_ready_dispatches`) to find dispatches that may have become ready now
+# that an upstream step published its computed binding, without re-running
+# dispatches that already executed (or are mid-flight).
+#
+# Parameters (alphabetical bind order): journey_id
+SELECT d.id
+FROM rev.dispatches d
+WHERE d.journey_id = :bind(journey_id)::UUID
+  AND NOT EXISTS (
+      SELECT 1
+      FROM rev.dispatch_stages dst
+      JOIN rev.dispatch_steps ds ON ds.dispatch_stage_id = dst.id
+      JOIN rev.dispatch_task_attempts a ON a.dispatch_step_id = ds.id
+      WHERE dst.dispatch_id = d.id
+  )
+ORDER BY d.created_at;

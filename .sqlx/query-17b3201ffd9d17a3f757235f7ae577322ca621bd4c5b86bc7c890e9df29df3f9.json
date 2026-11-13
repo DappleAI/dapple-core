@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nSELECT\n    ps.id AS \"playbook_stage_id!\",\n    spd_stage.name AS \"stage_name!\",\n    ss.id AS \"stage_step_id!\",\n    spd_step.name AS \"step_name!\"\nFROM rev.playbook_stages ps\nJOIN rev.stages s ON s.id = ps.stage_id\nJOIN rev.versioned_objects vo_s ON vo_s.id = s.versioned_object_id\nJOIN rev.stage_path_details spd_stage ON spd_stage.path_id = vo_s.path_id\nJOIN rev.stage_steps ss ON ss.stage_id = ps.stage_id\nJOIN rev.steps st ON st.id = ss.step_id\nJOIN rev.versioned_objects vo_st ON vo_st.id = st.versioned_object_id\nJOIN rev.step_path_details spd_step ON spd_step.path_id = vo_st.path_id\nWHERE ps.playbook_id = $1\nORDER BY ps.ord, ss.ord;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "playbook_stage_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.playbook_stages",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "stage_name!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.stage_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "stage_step_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.stage_steps",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "step_name!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.step_path_details",
+            "name": "name"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "17b3201ffd9d17a3f757235f7ae577322ca621bd4c5b86bc7c890e9df29df3f9"
+}

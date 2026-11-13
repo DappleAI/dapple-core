@@ -1,0 +1,88 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n    id,\n    extraction_id,\n    byte_offset,\n    byte_length,\n    source_position,\n    created_at\nFROM rev.asset_extraction_positions\nWHERE extraction_id = $1\nORDER BY byte_offset;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.asset_extraction_positions",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "extraction_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.asset_extraction_positions",
+            "name": "extraction_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "byte_offset",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "rev.asset_extraction_positions",
+            "name": "byte_offset"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "byte_length",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "rev.asset_extraction_positions",
+            "name": "byte_length"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "source_position",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "rev.asset_extraction_positions",
+            "name": "source_position"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.asset_extraction_positions",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "95c17faeb4fe93a1950d7549d6039847732bed957bc20b9ad7920b9be4015694"
+}

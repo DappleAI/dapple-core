@@ -1,0 +1,14 @@
+-- Select draft chunks by draft ID (for streaming reads during draft phase)
+-- Joins through chunks table to get data since draft_chunks stores references
+SELECT
+    dc.id,
+    dc.draft_id,
+    dc.chunk_id,
+    c.data,
+    dc.ordinal,
+    dc.created_at
+FROM rev.draft_chunks dc
+JOIN rev.drafts d ON d.id = dc.draft_id
+JOIN rev.chunks c ON c.id = dc.chunk_id
+WHERE d.id = $1
+ORDER BY dc.ordinal;

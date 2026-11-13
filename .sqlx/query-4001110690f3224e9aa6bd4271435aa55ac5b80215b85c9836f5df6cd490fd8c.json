@@ -1,0 +1,76 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST($1::UUID[]) WITH ORDINALITY AS o(id, ord)\n)\nSELECT\n    d.id,\n    d.asset_kind_id,\n    ak.key as asset_kind_key,\n    d.mime_type,\n    d.created_at\nFROM args\nJOIN rev.drafts d ON d.id = args.id\nJOIN rev.asset_kinds ak ON ak.id = d.asset_kind_id\nORDER BY d.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.drafts",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "asset_kind_id",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "rev.drafts",
+            "name": "asset_kind_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "asset_kind_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.asset_kinds",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "mime_type",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.drafts",
+            "name": "mime_type"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.drafts",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "4001110690f3224e9aa6bd4271435aa55ac5b80215b85c9836f5df6cd490fd8c"
+}

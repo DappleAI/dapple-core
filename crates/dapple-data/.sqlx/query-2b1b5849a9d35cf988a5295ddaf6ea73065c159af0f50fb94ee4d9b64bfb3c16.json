@@ -1,0 +1,120 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH latest_deprecation AS (\n    SELECT DISTINCT ON (versioned_object_id)\n        versioned_object_id,\n        to_level_id\n    FROM rev.deprecation_events\n    ORDER BY versioned_object_id, created_at DESC\n),\n\nstage_page AS (\n    SELECT st.id\n    FROM rev.stages st\n    JOIN rev.versioned_objects vo ON vo.id = st.versioned_object_id\n    JOIN rev.object_paths op ON op.id = vo.path_id\n    JOIN rev.stage_path_details spd ON spd.path_id = op.id\n    ORDER BY st.id\n    LIMIT $1::BIGINT OFFSET $2::BIGINT\n)\n\nSELECT\n    st.id,\n    st.versioned_object_id,\n    vo.path_id,\n    spd.name,\n    spd.slug,\n    vo.content_hash,\n    dl.key AS \"deprecation_level_key?\",\n    COALESCE(rev.fluent_body(st.description_fluent_message_id, 'en'), st.description, spd.name) AS \"description!\",\n    st.created_at\nFROM stage_page stp\nJOIN rev.stages st ON st.id = stp.id\nJOIN rev.versioned_objects vo ON vo.id = st.versioned_object_id\nJOIN rev.object_paths op ON op.id = vo.path_id\nJOIN rev.stage_path_details spd ON spd.path_id = op.id\nLEFT JOIN latest_deprecation ld ON ld.versioned_object_id = vo.id\nLEFT JOIN rev.deprecation_levels dl ON dl.id = ld.to_level_id\nORDER BY st.id;\n\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.stages",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "versioned_object_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.stages",
+            "name": "versioned_object_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "path_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "path_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.stage_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "slug",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.stage_path_details",
+            "name": "slug"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "content_hash",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "content_hash"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "deprecation_level_key?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.deprecation_levels",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "description!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.stages",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      false
+    ]
+  },
+  "hash": "2b1b5849a9d35cf988a5295ddaf6ea73065c159af0f50fb94ee4d9b64bfb3c16"
+}

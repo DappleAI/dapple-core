@@ -1,0 +1,50 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT code, terminal, created_at\nFROM rev.dispatch_phases\nORDER BY created_at ASC;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "code",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_phases",
+            "name": "code"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "terminal",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_phases",
+            "name": "terminal"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_phases",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "34b228043b28811d35fe3526e7f1f16ffecf846cf6b700416024b8ab91ca1156"
+}

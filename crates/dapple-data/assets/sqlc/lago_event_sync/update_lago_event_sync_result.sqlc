@@ -1,0 +1,11 @@
+# Update a Lago event sync record after attempting to send
+# This is one of the rare justified UPDATEs (operational sync state, not domain data)
+UPDATE rev.lago_event_sync
+SET
+    sent_at = CASE WHEN :bind(success)::BOOLEAN THEN now() ELSE sent_at END,
+    lago_response_status = :bind(lago_response_status)::INTEGER,
+    lago_response_body = :bind(lago_response_body)::JSONB,
+    retry_count = CASE WHEN :bind(success)::BOOLEAN THEN retry_count ELSE retry_count + 1 END,
+    next_retry_at = :bind(next_retry_at)::TIMESTAMPTZ
+WHERE id = :bind(id)::UUID
+RETURNING id;

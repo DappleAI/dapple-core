@@ -1,0 +1,50 @@
+-- Select prompts by IDs using unified versioning
+-- Shared body template for prompt SELECT queries.
+-- Callers provide a @page slot defining one or more CTEs
+-- that produce a `prompt_page` CTE with at minimum `prompt_page.id`.
+WITH latest_deprecation AS (
+    SELECT DISTINCT ON (versioned_object_id)
+        versioned_object_id,
+        to_level_id
+    FROM rev.deprecation_events
+    ORDER BY versioned_object_id, created_at DESC
+),
+
+args AS (
+    SELECT *
+    FROM UNNEST($1::UUID[]) WITH ORDINALITY AS o(id, ord)
+),
+prompt_page AS (
+    SELECT p.id
+    FROM args
+    JOIN rev.prompts p ON p.id = args.id
+)
+
+SELECT
+    p.id,
+    p.versioned_object_id,
+    op.id AS path_id,
+    ppd.name,
+    vo.content_hash,
+    dl.key AS "deprecation_level_key?",
+    p.description,
+    p.created_at,
+    -- Fluent message association fields (nullable due to LEFT JOIN —
+    -- sqlx's nullability inference treats `pfm.id` as NOT NULL because the
+    -- column is a primary key, but the LEFT JOIN can produce NULL rows. The
+    -- `?` suffix on the alias forces sqlx to decode as Option<_>).
+    pfm.id as "prompt_fluent_message_id?",
+    pfm.fluent_message_id as "fluent_message_id?",
+    pfm.role as fluent_message_role,
+    -- Use pfm.id as implicit ordinal since table lacks ordinal column
+    ROW_NUMBER() OVER (PARTITION BY p.id ORDER BY pfm.id) - 1 as "fluent_message_ordinal?"
+FROM prompt_page prp
+JOIN rev.prompts p ON p.id = prp.id
+JOIN rev.versioned_objects vo ON vo.id = p.versioned_object_id
+JOIN rev.object_paths op ON op.id = vo.path_id
+JOIN rev.prompt_path_details ppd ON ppd.path_id = op.id
+LEFT JOIN latest_deprecation ld ON ld.versioned_object_id = vo.id
+LEFT JOIN rev.deprecation_levels dl ON dl.id = ld.to_level_id
+LEFT JOIN rev.prompt_fluent_messages pfm ON pfm.prompt_id = p.id
+ORDER BY p.id, pfm.id;
+

@@ -1,0 +1,160 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE rev.background_jobs\nSET status = 'running',\n    claimed_at = now(),\n    attempts = attempts + 1\nWHERE id = (\n    SELECT id\n    FROM rev.background_jobs\n    WHERE status = 'queued'\n      AND scheduled_at <= now()\n      AND (\n          job_kind = ANY($1::TEXT[])\n          OR $1::TEXT[] IS NULL\n          OR array_length($1::TEXT[], 1) IS NULL\n      )\n    ORDER BY scheduled_at\n    FOR UPDATE SKIP LOCKED\n    LIMIT 1\n)\nRETURNING\n    id,\n    job_kind,\n    target_id,\n    payload,\n    status,\n    attempts,\n    max_attempts,\n    error_message,\n    scheduled_at,\n    claimed_at,\n    completed_at,\n    created_at;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.background_jobs",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "job_kind",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.background_jobs",
+            "name": "job_kind"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "target_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.background_jobs",
+            "name": "target_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "payload",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "rev.background_jobs",
+            "name": "payload"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "status",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.background_jobs",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "attempts",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "rev.background_jobs",
+            "name": "attempts"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "max_attempts",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "rev.background_jobs",
+            "name": "max_attempts"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "error_message",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.background_jobs",
+            "name": "error_message"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "scheduled_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.background_jobs",
+            "name": "scheduled_at"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "claimed_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.background_jobs",
+            "name": "claimed_at"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "completed_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.background_jobs",
+            "name": "completed_at"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.background_jobs",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "30445f4ad231f5e364e6122663418406cdc038bc9346e3f82c213e3f51cb10cb"
+}

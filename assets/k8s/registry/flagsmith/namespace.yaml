@@ -1,0 +1,11 @@
+# Flagsmith Feature Flag Platform - Namespace
+# Third-party feature flag management deployed locally
+# See: https://docs.flagsmith.com/deployment/docker
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: flagsmith
+  labels:
+    app.kubernetes.io/name: flagsmith
+    app.kubernetes.io/component: feature-flags

@@ -1,0 +1,50 @@
+-- Insert fluent message paths using unified versioning
+-- Creates: object_path → fluent_message_path_details
+WITH args AS (
+    SELECT *
+    FROM UNNEST(
+        $1::TEXT[],  -- names
+        $2::TEXT[]   -- descriptions (nullable)
+    ) WITH ORDINALITY AS o(name, description, ord)
+),
+-- Get the entity type ID for fluent_messages
+entity_type AS (
+    SELECT id FROM rev.entity_types WHERE key = 'fluent_message'
+),
+-- Create object paths (ORDER BY ensures sequential id assignment)
+new_paths AS (
+    INSERT INTO rev.object_paths (entity_type_id)
+    SELECT (SELECT id FROM entity_type)
+    FROM args
+    ORDER BY args.ord
+    RETURNING id, created_at
+),
+-- Number the paths by id to correlate with args.ord
+numbered_paths AS (
+    SELECT np.*, row_number() OVER (ORDER BY np.id) AS ord
+    FROM new_paths np
+),
+-- Create path details
+path_details AS (
+    INSERT INTO rev.fluent_message_path_details (path_id, name, description)
+    SELECT
+        np.id,
+        args.name,
+        args.description
+    FROM args
+    JOIN numbered_paths np ON np.ord = args.ord
+    RETURNING path_id, name, description
+),
+-- Number path details to preserve ordinality
+numbered_path_details AS (
+    SELECT pd.*, row_number() OVER (ORDER BY pd.path_id) AS ord
+    FROM path_details pd
+)
+SELECT
+    nup.id,
+    npd.name,
+    npd.description,
+    nup.created_at
+FROM numbered_paths nup
+JOIN numbered_path_details npd ON npd.ord = nup.ord
+ORDER BY nup.id;

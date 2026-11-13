@@ -1,0 +1,139 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $2::UUID[],\n        $3::TEXT[]\n    ) WITH ORDINALITY AS o(\n        path_id,\n        reason,\n        ord\n    )\n),\nlatest_deprecation AS (\n    SELECT DISTINCT ON (versioned_object_id)\n        versioned_object_id,\n        to_level_id\n    FROM rev.deprecation_events\n    ORDER BY versioned_object_id, created_at DESC\n),\nlatest_versions AS (\n    SELECT DISTINCT ON (op.id)\n        op.id AS path_id,\n        vo.id AS versioned_object_id,\n        ld.to_level_id AS from_level_id\n    FROM args\n    JOIN rev.object_paths op ON op.id = args.path_id\n    JOIN rev.versioned_objects vo ON vo.path_id = op.id\n    LEFT JOIN latest_deprecation ld ON ld.versioned_object_id = vo.id\n    ORDER BY op.id, vo.created_at DESC\n),\nresolved AS (\n    SELECT lv.versioned_object_id, lv.from_level_id, lv.path_id, args.reason\n    FROM args\n    JOIN latest_versions lv ON lv.path_id = args.path_id\n),\n\nevents AS (\n    INSERT INTO rev.deprecation_events (\n        versioned_object_id, from_level_id, to_level_id, reason, deprecated_by_user_id\n    )\n    SELECT\n        resolved.versioned_object_id,\n        resolved.from_level_id,\n        $4::SMALLINT,\n        resolved.reason,\n        $1::UUID\n    FROM resolved\n    RETURNING *\n)\n\nSELECT\n    a.id,\n    a.versioned_object_id,\n    vo.path_id,\n    ak.key as asset_kind_key,\n    vo.content_hash,\n    dl.key AS \"deprecation_level_key?\",\n    a.draft_id,\n    a.content_length,\n    a.mime_type,\n    a.created_at\nFROM resolved\nJOIN rev.versioned_objects vo ON vo.id = resolved.versioned_object_id\nJOIN rev.assets a ON a.versioned_object_id = vo.id\nJOIN rev.object_paths op ON op.id = vo.path_id\nJOIN rev.asset_path_details apd ON apd.path_id = op.id\nJOIN rev.asset_kinds ak ON ak.id = apd.asset_kind_id\nLEFT JOIN rev.deprecation_levels dl ON dl.id = $4::SMALLINT\nLEFT JOIN rev.drafts d ON d.id = a.draft_id\nORDER BY a.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.assets",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "versioned_object_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.assets",
+            "name": "versioned_object_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "path_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "path_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "asset_kind_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.asset_kinds",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "content_hash",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "content_hash"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "deprecation_level_key?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.deprecation_levels",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "draft_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.assets",
+            "name": "draft_id"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "content_length",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "rev.assets",
+            "name": "content_length"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "mime_type",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.assets",
+            "name": "mime_type"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.assets",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "UuidArray",
+        "TextArray",
+        "Int2"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "beb67b16589f0a90dedeb26a5f5399a1934407ca7794af5db3f4e64b91199662"
+}

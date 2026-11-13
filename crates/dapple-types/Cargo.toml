@@ -1,0 +1,15 @@
+[package]
+name = "dapple-types"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+description = "Public DTO types for the Dapple Prompt API"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.18.1", features = ["serde", "v4", "v7"] }
+time = { version = "0.3.41", features = ["serde", "formatting", "parsing"] }
+schemars = { version = "0.9.0", features = ["uuid1"] }
+dapple-hash = { path = "../dapple-hash", features = ["schema"] }
+rust_decimal = { version = "1", features = ["serde-with-str"] }

@@ -1,0 +1,70 @@
+# Stage 1: Build documentation
+FROM rust:1-bookworm AS builder
+
+# Install pandoc and LaTeX for PDF generation (xelatex for Unicode support)
+RUN apt-get update && apt-get install -y \
+    pandoc \
+    texlive-xetex \
+    texlive-fonts-recommended \
+    texlive-latex-extra \
+    fonts-dejavu \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install mdbook and plugins
+RUN cargo install mdbook mdbook-mermaid mdbook-pandoc
+
+WORKDIR /app
+COPY . .
+
+# Build rustdocs with custom header
+ENV SQLX_OFFLINE=true
+ENV RUSTDOCFLAGS="--html-in-header /app/docs/service/rustdoc-header.html"
+RUN cargo doc --workspace --no-deps
+
+# Copy shared theme CSS into each guide directory for mdbook
+# Use --remove-destination because the repo has symlinks that Docker preserves
+RUN cp --remove-destination docs/books/_foundation/theme/dapple.css docs/books/api-consumer-guide/dapple.css && \
+    cp --remove-destination docs/books/_foundation/theme/dapple.css docs/books/journey-planner-guide/dapple.css && \
+    cp --remove-destination docs/books/_foundation/theme/dapple.css docs/books/journey-builder-guide/dapple.css && \
+    cp --remove-destination docs/books/_foundation/theme/dapple.css docs/books/journey-auditor-guide/dapple.css
+
+# Build mdbook guides (HTML + PDF via pandoc)
+RUN cd docs/books/api-consumer-guide && mdbook build
+RUN cd docs/books/journey-planner-guide && mdbook build
+RUN cd docs/books/journey-builder-guide && mdbook build
+RUN cd docs/books/journey-auditor-guide && mdbook build
+
+# Collect PDFs into downloads directory
+RUN mkdir -p /app/downloads && \
+    cp docs/books/api-consumer-guide/book/pandoc/pdf/api-consumer-guide.pdf /app/downloads/ && \
+    cp docs/books/journey-planner-guide/book/pandoc/pdf/journey-planner-guide.pdf /app/downloads/ && \
+    cp docs/books/journey-builder-guide/book/pandoc/pdf/journey-builder-guide.pdf /app/downloads/ && \
+    cp docs/books/journey-auditor-guide/book/pandoc/pdf/journey-auditor-guide.pdf /app/downloads/
+
+# Stage 2: Runtime
+FROM caddy:2-alpine
+
+WORKDIR /srv
+
+# Landing page and logo
+COPY docs/service/landing/index.html /srv/index.html
+COPY docs/service/landing/logo.svg /srv/logo.svg
+
+# Rustdocs
+COPY --from=builder /app/target/doc /srv/rustdoc
+COPY docs/service/landing/logo.svg /srv/rustdoc/logo.svg
+
+# mdbook guides (HTML - mdbook outputs to book/html/)
+COPY --from=builder /app/docs/books/api-consumer-guide/book/html /srv/guides/api-consumer
+COPY --from=builder /app/docs/books/journey-planner-guide/book/html /srv/guides/journey-planner
+COPY --from=builder /app/docs/books/journey-builder-guide/book/html /srv/guides/journey-builder
+COPY --from=builder /app/docs/books/journey-auditor-guide/book/html /srv/guides/journey-auditor
+
+# PDF downloads
+COPY --from=builder /app/downloads /srv/downloads
+
+# Caddy config
+COPY docs/service/Caddyfile /etc/caddy/Caddyfile
+
+EXPOSE 8080
+CMD ["caddy", "run", "--config", "/etc/caddy/Caddyfile"]

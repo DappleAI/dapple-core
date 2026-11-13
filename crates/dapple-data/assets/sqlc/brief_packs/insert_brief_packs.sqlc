@@ -1,0 +1,96 @@
+# Insert brief packs using the unified versioning infrastructure
+# Creates: object_path -> brief_pack_path_details -> versioned_object -> brief_pack
+# Note: This creates the pack but NOT the group associations.
+# Use insert_brief_pack_groups.sql to add groups to the pack after creation.
+# Display title/description: guide-ingest supplies the *_fluent_message_id
+# reference (text NULL); direct POST supplies the text (ref NULL). The final
+# SELECT resolves COALESCE(rev.fluent_body(ref), text, name).
+WITH args AS (
+    SELECT *
+    FROM UNNEST(
+        :bind(content_hashes)::TEXT[],
+        :bind(description_fluent_message_ids)::UUID[],
+        :bind(descriptions)::TEXT[],
+        :bind(names)::TEXT[],
+        :bind(pack_specs)::JSONB[],
+        :bind(title_fluent_message_ids)::UUID[],
+        :bind(titles)::TEXT[]
+    ) WITH ORDINALITY AS o(
+        content_hash,
+        description_fluent_message_id,
+        description,
+        name,
+        pack_spec,
+        title_fluent_message_id,
+        title,
+        ord
+    )
+),
+# Get the entity type ID for brief_packs
+entity_type AS (
+    SELECT id FROM rev.entity_types WHERE key = 'brief_pack'
+),
+:compose(shared/insert_object_paths.sqlc)
+# Create path details (name, namespace_company_id) — see migration 41.
+path_details AS (
+    INSERT INTO rev.brief_pack_path_details (path_id, name, namespace_company_id)
+    SELECT
+        np.id,
+        args.name,
+        np.namespace_company_id
+    FROM args
+    JOIN numbered_paths np ON np.ord = args.ord
+    RETURNING path_id, name, namespace_company_id
+),
+:compose(shared/numbered_path_details.sqlc)
+:compose(shared/insert_versioned_objects.sqlc)
+# Create brief packs
+new_packs AS (
+    INSERT INTO rev.brief_packs (
+        versioned_object_id,
+        title,
+        description,
+        pack_spec,
+        title_fluent_message_id,
+        description_fluent_message_id
+    )
+    SELECT
+        nuv.id,
+        args.title,
+        args.description,
+        COALESCE(args.pack_spec, '{}'::jsonb),
+        args.title_fluent_message_id,
+        args.description_fluent_message_id
+    FROM args
+    JOIN numbered_versions nuv ON nuv.ord = args.ord
+    ORDER BY args.ord
+    RETURNING
+        id,
+        versioned_object_id,
+        title,
+        description,
+        pack_spec,
+        title_fluent_message_id,
+        description_fluent_message_id,
+        created_at
+),
+# Number packs to preserve ordinality
+numbered_packs AS (
+    SELECT np.*, row_number() OVER (ORDER BY np.id) AS ord
+    FROM new_packs np
+)
+SELECT
+    nup.id,
+    nup.versioned_object_id,
+    nupp.id AS path_id,
+    npd.name,
+    nuv.content_hash,
+    COALESCE(rev.fluent_body(nup.title_fluent_message_id, 'en'), nup.title, npd.name) AS "title!",
+    COALESCE(rev.fluent_body(nup.description_fluent_message_id, 'en'), nup.description) AS description,
+    nup.pack_spec,
+    nup.created_at
+FROM numbered_packs nup
+JOIN numbered_versions nuv ON nuv.ord = nup.ord
+JOIN numbered_paths nupp ON nupp.ord = nup.ord
+JOIN numbered_path_details npd ON npd.ord = nup.ord
+ORDER BY nup.id;

@@ -1,0 +1,2 @@
+# Select stages by slugs using path_details lookup
+:compose(stages/select_stages_body.sqlc, @page = stages/pages/by_slugs.sqlc)

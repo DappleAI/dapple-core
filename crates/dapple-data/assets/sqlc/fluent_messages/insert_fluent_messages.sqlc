@@ -1,0 +1,62 @@
+# Insert fluent messages using the unified versioning infrastructure
+# Creates: object_path → fluent_message_path_details → versioned_object → fluent_message
+WITH args AS (
+    SELECT *
+    FROM UNNEST(
+        :bind(content_hashes)::TEXT[],
+        :bind(descriptions)::TEXT[],
+        :bind(names)::TEXT[]
+    ) WITH ORDINALITY AS o(
+        content_hash,
+        description,
+        name,
+        ord
+    )
+),
+# Get the entity type ID for fluent_messages
+entity_type AS (
+    SELECT id FROM rev.entity_types WHERE key = 'fluent_message'
+),
+:compose(shared/insert_object_paths.sqlc)
+# Create path details (name, description, namespace_company_id).
+# Migration 41 made UNIQUE(name) composite over namespace.
+path_details AS (
+    INSERT INTO rev.fluent_message_path_details (path_id, name, description, namespace_company_id)
+    SELECT
+        np.id,
+        args.name,
+        args.description,
+        np.namespace_company_id
+    FROM args
+    JOIN numbered_paths np ON np.ord = args.ord
+    RETURNING path_id, name, description, namespace_company_id
+),
+:compose(shared/numbered_path_details.sqlc)
+:compose(shared/insert_versioned_objects.sqlc)
+# Create fluent messages
+new_messages AS (
+    INSERT INTO rev.fluent_messages (versioned_object_id)
+    SELECT nuv.id
+    FROM args
+    JOIN numbered_versions nuv ON nuv.ord = args.ord
+    ORDER BY args.ord
+    RETURNING id, versioned_object_id, created_at
+),
+# Number messages to preserve ordinality
+numbered_messages AS (
+    SELECT nm.*, row_number() OVER (ORDER BY nm.id) AS ord
+    FROM new_messages nm
+)
+SELECT
+    num.id,
+    num.versioned_object_id,
+    nup.id AS path_id,
+    npd.name,
+    npd.description,
+    nuv.content_hash,
+    num.created_at
+FROM numbered_messages num
+JOIN numbered_versions nuv ON nuv.ord = num.ord
+JOIN numbered_paths nup ON nup.ord = num.ord
+JOIN numbered_path_details npd ON npd.ord = num.ord
+ORDER BY num.id;

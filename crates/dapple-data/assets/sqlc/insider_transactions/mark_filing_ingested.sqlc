@@ -1,0 +1,11 @@
+# Record that a Form 4 accession has been parsed, so a repeat review refetches
+# nothing and a widened window fetches only the filings it has not seen. Written
+# for EVERY parsed filing including one that carried no transactions, which would
+# otherwise be refetched on every run. Idempotent: re-ingesting refreshes
+# ingested_at rather than erroring.
+# Parameters:
+#   $1: issuer_cik (BIGINT)
+#   $2: accession (TEXT)
+INSERT INTO rev.insider_transactions_ingest (issuer_cik, accession)
+VALUES ($1, $2)
+ON CONFLICT (issuer_cik, accession) DO UPDATE SET ingested_at = now();

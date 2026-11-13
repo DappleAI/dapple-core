@@ -1,0 +1,2 @@
+# Select all hats using unified versioning
+:compose(hats/select_hats_body.sqlc, @page = hats/pages/all.sqlc)

@@ -1,0 +1,15 @@
+# True iff the given rev.playbook_stages row belongs to the given playbook.
+# The journey POST handlers call this to validate a stage-level fork point
+# (Migration 74): a caller-supplied `fork_stage_id` must be a stage of the
+# PREDECESSOR's playbook, or the fork's ord comparison would be meaningless.
+# The DB fork-coherence trigger enforces the same rule; this pre-check exists
+# for clean 4xx errors.
+#
+# Parameters (alphabetical bind order → $1=playbook_id, $2=playbook_stage_id):
+#   playbook_id (UUID), playbook_stage_id (UUID)
+SELECT EXISTS (
+    SELECT 1
+    FROM rev.playbook_stages ps
+    WHERE ps.id = :bind(playbook_stage_id)::UUID
+      AND ps.playbook_id = :bind(playbook_id)::UUID
+) AS "belongs!";

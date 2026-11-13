@@ -1,0 +1,137 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n    crp.id,\n    crp.scope,\n    crp.environment,\n    crp.object_type,\n    crp.ref_key,\n    crp.content_hash,\n    crp.versioned_object_id,\n    crp.resolved_at,\n    crp.supersedes_id,\n    crp.created_at\nFROM rev.canonical_release_pins crp\nLEFT JOIN rev.canonical_release_pins newer ON newer.supersedes_id = crp.id\nWHERE newer.id IS NULL\nORDER BY crp.scope, crp.environment, crp.object_type, crp.ref_key\nLIMIT $1 OFFSET $2;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.canonical_release_pins",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "scope",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.canonical_release_pins",
+            "name": "scope"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "environment",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.canonical_release_pins",
+            "name": "environment"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "object_type",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.canonical_release_pins",
+            "name": "object_type"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "ref_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.canonical_release_pins",
+            "name": "ref_key"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "content_hash",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.canonical_release_pins",
+            "name": "content_hash"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "versioned_object_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.canonical_release_pins",
+            "name": "versioned_object_id"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "resolved_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.canonical_release_pins",
+            "name": "resolved_at"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "supersedes_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.canonical_release_pins",
+            "name": "supersedes_id"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.canonical_release_pins",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "e66eefb3787c3167f1ded480fb2f8811791aefceb6148d9033bf17f2d9be0b0a"
+}

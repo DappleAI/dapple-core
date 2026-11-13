@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO rev.brief_group_path_details (path_id, name, namespace_company_id) VALUES ($1, $2, $3)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c5c80d1920227dfd0941a25a8a572e366e9db044fd2503fd49b1d2bbe4bd7fbc"
+}

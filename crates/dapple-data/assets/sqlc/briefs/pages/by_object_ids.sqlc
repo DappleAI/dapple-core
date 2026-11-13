@@ -1,0 +1,9 @@
+args AS (
+    SELECT *
+    FROM UNNEST(:bind(object_ids)::UUID[]) WITH ORDINALITY AS o(id, ord)
+),
+brief_page AS (
+    SELECT b.id
+    FROM args
+    JOIN rev.briefs b ON b.id = args.id
+)

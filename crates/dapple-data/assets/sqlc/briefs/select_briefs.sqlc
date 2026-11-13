@@ -1,0 +1,2 @@
+# Select all briefs using unified versioning
+:compose(briefs/select_briefs_body.sqlc, @page = briefs/pages/all.sqlc)

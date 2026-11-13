@@ -1,0 +1,180 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::TEXT[],\n        $2::JSONB[],\n        $3::TEXT[],\n        $4::TEXT[],\n        $5::INT[],\n        $6::INT[],\n        $7::TEXT[],\n        $8::TEXT[],\n        $9::TEXT[]\n    ) WITH ORDINALITY AS o(\n        cardinality,\n        constraints,\n        content_hash,\n        description,\n        max_selections,\n        min_selections,\n        name,\n        title,\n        value_kind_key,\n        ord\n    )\n),\nkinds AS (\n    SELECT\n        vk.id as kind_id,\n        vk.key as kind_key,\n        args.name,\n        args.title,\n        args.description,\n        args.constraints,\n        args.cardinality,\n        args.min_selections,\n        args.max_selections,\n        args.content_hash,\n        args.ord\n    FROM args\n    JOIN rev.value_kinds vk ON vk.key = args.value_kind_key\n),\nentity_type AS (\n    SELECT id FROM rev.entity_types WHERE key = 'value_slot'\n),\nnew_paths AS (\n    INSERT INTO rev.object_paths (entity_type_id, namespace_company_id, scope)\n    SELECT\n        (SELECT id FROM entity_type),\n        COALESCE(\n            NULLIF(current_setting('dapple.namespace_company_id', true), ''),\n            '019e132e-2610-7a4a-b64a-77a49e286ac0'\n        )::UUID,\n        COALESCE(\n            NULLIF(current_setting('dapple.scope', true), ''),\n            'public'\n        )::TEXT\n    FROM kinds\n        RETURNING id, namespace_company_id\n),\npath_details AS (\n    INSERT INTO rev.value_slot_path_details (path_id, name, value_kind_id, namespace_company_id)\n    SELECT\n        np.id,\n        kinds.name,\n        kinds.kind_id,\n        np.namespace_company_id\n    FROM kinds\n    JOIN new_paths np ON np.id = (\n        SELECT id FROM new_paths\n        ORDER BY id\n        LIMIT 1 OFFSET kinds.ord - 1\n    )\n    RETURNING path_id, name, value_kind_id, namespace_company_id\n),\nnumbered_paths AS (\n    SELECT np.*, row_number() OVER (ORDER BY np.id) AS ord\n    FROM new_paths np\n),\nnumbered_path_details AS (\n    SELECT pd.*, row_number() OVER (ORDER BY pd.path_id) AS ord\n    FROM path_details pd\n),\n\nnew_versions AS (\n    INSERT INTO rev.versioned_objects (path_id, content_hash)\n    SELECT nup.id, kinds.content_hash\n    FROM numbered_paths nup\n    JOIN kinds ON kinds.ord = nup.ord\n    ORDER BY nup.ord\n    RETURNING id, path_id, content_hash, created_at\n),\nnumbered_versions AS (\n    SELECT nv.*, row_number() OVER (ORDER BY nv.id) AS ord\n    FROM new_versions nv\n),\nnew_slots AS (\n    INSERT INTO rev.value_slots (\n        versioned_object_id, title, description, constraints,\n        cardinality, min_selections, max_selections, value_kind_id\n    )\n    SELECT\n        nuv.id,\n        kinds.title,\n        kinds.description,\n        COALESCE(kinds.constraints, '{}'::jsonb),\n        COALESCE(kinds.cardinality, 'single'),\n        kinds.min_selections,\n        kinds.max_selections,\n        kinds.kind_id\n    FROM kinds\n    JOIN numbered_versions nuv ON nuv.ord = kinds.ord\n    ORDER BY kinds.ord\n    RETURNING\n        id, versioned_object_id, title, description, constraints,\n        cardinality, min_selections, max_selections, value_kind_id, created_at\n),\nnumbered_slots AS (\n    SELECT ns.*, row_number() OVER (ORDER BY ns.id) AS ord\n    FROM new_slots ns\n)\nSELECT\n    nus.id,\n    nus.versioned_object_id,\n    nup.id AS path_id,\n    npd.name,\n    vk.key as value_kind_key,\n    nuv.content_hash,\n    nus.title,\n    nus.description,\n    nus.constraints,\n    nus.cardinality,\n    nus.min_selections,\n    nus.max_selections,\n    nus.created_at\nFROM numbered_slots nus\nJOIN numbered_versions nuv ON nuv.ord = nus.ord\nJOIN numbered_paths nup ON nup.ord = nus.ord\nJOIN numbered_path_details npd ON npd.ord = nus.ord\nJOIN rev.value_kinds vk ON vk.id = nus.value_kind_id\nORDER BY nus.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slots",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "versioned_object_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slots",
+            "name": "versioned_object_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "path_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.object_paths",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slot_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "value_kind_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.value_kinds",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "content_hash",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "content_hash"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "title",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slots",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "description",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slots",
+            "name": "description"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "constraints",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slots",
+            "name": "constraints"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "cardinality",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slots",
+            "name": "cardinality"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "min_selections",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slots",
+            "name": "min_selections"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "max_selections",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slots",
+            "name": "max_selections"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slots",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "JsonbArray",
+        "TextArray",
+        "TextArray",
+        "Int4Array",
+        "Int4Array",
+        "TextArray",
+        "TextArray",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "76809bf8beee7428b7f4b42b5581a0d888938958b61a551703e2cb8aa841e77a"
+}

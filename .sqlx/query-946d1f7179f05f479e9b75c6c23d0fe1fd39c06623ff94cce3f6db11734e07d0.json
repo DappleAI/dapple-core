@@ -1,0 +1,91 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nWITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::UUID[],\n        $2::TEXT[],\n        $3::UUID[],\n        $4::TEXT[]\n    ) WITH ORDINALITY AS o(brief_unit_id, label_text, label_fluent_message_id, value_text, ord)\n),\nobjs AS (\n    INSERT INTO rev.brief_unit_input_choices (\n        brief_unit_id,\n        label_text,\n        label_fluent_message_id,\n        value_text,\n        created_at\n    )\n    SELECT\n        args.brief_unit_id,\n        args.label_text,\n        args.label_fluent_message_id,\n        args.value_text,\n        now()\n    FROM args\n    ORDER BY args.ord\n    RETURNING id, brief_unit_id, label_text, label_fluent_message_id, value_text, created_at\n)\nSELECT\n    objs.id,\n    objs.brief_unit_id,\n    objs.label_text,\n    objs.label_fluent_message_id,\n    objs.value_text,\n    objs.created_at\nFROM objs\nORDER BY objs.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_input_choices",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "brief_unit_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_input_choices",
+            "name": "brief_unit_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "label_text",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_input_choices",
+            "name": "label_text"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "label_fluent_message_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_input_choices",
+            "name": "label_fluent_message_id"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "value_text",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_input_choices",
+            "name": "value_text"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_input_choices",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "TextArray",
+        "UuidArray",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "946d1f7179f05f479e9b75c6c23d0fe1fd39c06623ff94cce3f6db11734e07d0"
+}

@@ -1,0 +1,6 @@
+# Select all fluent messages using unified versioning
+#
+# LIMIT/OFFSET apply to distinct fluent messages (not flat rows) via a page CTE.
+# The flat join (fluent_message x bodies x engine_bodies) produces many rows
+# per fluent message, so limiting flat rows would silently truncate results.
+:compose(fluent_messages/select_fluent_messages_body.sqlc, @page = fluent_messages/pages/all.sqlc)

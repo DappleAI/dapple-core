@@ -1,0 +1,13 @@
+-- Resolve a `rev.user_details.object_id` (UUID) to the corresponding
+-- `human_principal.principal_id` (UUID). Used by internal-API handlers that
+-- have the user's `object_id` from the auth extractor (RegisteredUser.user_id)
+-- and need the actor principal to stamp onto a new journey or dispatch.
+--
+-- Returns NULL if no human_principal exists for the given user — which
+-- shouldn't happen after Mig 37 (every user_details row got a human_principal
+-- in the backfill) but is treated as a soft error by callers.
+SELECT
+    hp.principal_id AS "principal_id!"
+FROM rev.user_details ud
+JOIN rev.human_principals hp ON hp.user_id = ud.user_id
+WHERE ud.object_id = $1::UUID;

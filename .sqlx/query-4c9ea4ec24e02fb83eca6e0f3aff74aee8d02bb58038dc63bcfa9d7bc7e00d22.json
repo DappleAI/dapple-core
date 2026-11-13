@@ -1,0 +1,112 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n    bo.brief_id,\n    bo.id AS unit_id,\n    bo.unit_key,\n    bosk.key AS source_kind_key,\n    vs.id AS slot_id,\n    vspd.name AS slot_name,\n    vs.title AS slot_title,\n    vk.key AS slot_value_kind\nFROM rev.brief_outputs bo\nJOIN rev.brief_output_source_kinds bosk ON bosk.id = bo.source_kind_id\nJOIN rev.value_slots vs ON vs.id = bo.value_slot_id\nJOIN rev.versioned_objects vo ON vo.id = vs.versioned_object_id\nJOIN rev.value_slot_path_details vspd ON vspd.path_id = vo.path_id\nJOIN rev.value_kinds vk ON vk.id = vs.value_kind_id\nWHERE bo.brief_id = ANY($1::UUID[])\nORDER BY bo.brief_id, bo.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "brief_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_outputs",
+            "name": "brief_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "unit_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_outputs",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "unit_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_outputs",
+            "name": "unit_key"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "source_kind_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_output_source_kinds",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "slot_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slots",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "slot_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slot_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "slot_title",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slots",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "slot_value_kind",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.value_kinds",
+            "name": "key"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "4c9ea4ec24e02fb83eca6e0f3aff74aee8d02bb58038dc63bcfa9d7bc7e00d22"
+}

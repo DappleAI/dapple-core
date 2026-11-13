@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT (\n    SELECT count(DISTINCT ip.id)\n    FROM UNNEST($2::UUID[]) AS requested(id)\n    JOIN rev.inference_profiles ip ON ip.id = requested.id\n    JOIN rev.versioned_objects vo ON vo.id = ip.versioned_object_id\n    JOIN rev.object_paths op ON op.id = vo.path_id\n    WHERE op.namespace_company_id = $1::UUID\n) = COALESCE(array_length($2::UUID[], 1), 0)\nAS all_in_namespace;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "all_in_namespace",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "1c94a8f54f07023c2e723867a9a8217779ce3ad0cf268e27122da6df703e0f54"
+}

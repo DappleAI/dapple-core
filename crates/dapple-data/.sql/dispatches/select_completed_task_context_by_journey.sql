@@ -1,0 +1,45 @@
+-- Load completed task outputs from prior dispatches in a journey.
+-- For each (task_id) that has a successful attempt, return the most recent "ok" event's
+-- context_data. Excludes the current dispatch (identified by $2) so we only seed
+-- from *prior* dispatches.
+--
+-- Returns one row per unique task that has completed successfully.
+WITH journey_dispatches AS (
+    SELECT d.id AS dispatch_id
+    FROM rev.dispatches d
+    WHERE d.journey_id = (SELECT id FROM rev.journeys WHERE id = $1)
+      AND d.id != $2  -- exclude current dispatch
+    ORDER BY d.id ASC
+),
+ok_events AS (
+    SELECT DISTINCT ON (a.task_id)
+        a.task_id,
+        a.dispatch_step_id,
+        ev.context_data,
+        ev.created_at AS event_created_at
+    FROM rev.dispatch_task_attempts a
+    JOIN rev.dispatch_steps ds ON a.dispatch_step_id = ds.id
+    JOIN rev.dispatch_stages dst ON ds.dispatch_stage_id = dst.id
+    JOIN journey_dispatches jd ON dst.dispatch_id = jd.dispatch_id
+    JOIN rev.dispatch_task_attempt_events ev ON ev.attempt_id = a.id
+    WHERE ev.phase_code = 'ok'
+      AND ev.context_data IS NOT NULL
+    ORDER BY a.task_id, ev.created_at DESC, ev.id DESC
+)
+SELECT
+    d.id AS dispatch_id,
+    t.id AS task_id,
+    tpd.name AS task_name,
+    t.function,
+    t.function_input,
+    oe.context_data,
+    oe.event_created_at AS created_at
+FROM ok_events oe
+JOIN rev.tasks t ON oe.task_id = t.id
+JOIN rev.versioned_objects vo ON vo.id = t.versioned_object_id
+JOIN rev.object_paths op ON op.id = vo.path_id
+JOIN rev.task_path_details tpd ON tpd.path_id = op.id
+JOIN rev.dispatch_steps ds ON oe.dispatch_step_id = ds.id
+JOIN rev.dispatch_stages dst ON ds.dispatch_stage_id = dst.id
+JOIN rev.dispatches d ON dst.dispatch_id = d.id
+ORDER BY oe.event_created_at ASC;

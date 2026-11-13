@@ -1,0 +1,6 @@
+# The Form 4 accessions already parsed for an issuer, so the fetch skips them.
+# Parameters:
+#   $1: issuer_cik (BIGINT)
+SELECT accession
+FROM rev.insider_transactions_ingest
+WHERE issuer_cik = $1;

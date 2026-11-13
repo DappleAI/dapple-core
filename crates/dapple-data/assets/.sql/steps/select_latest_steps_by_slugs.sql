@@ -1,0 +1,29 @@
+WITH args AS (
+    SELECT * FROM UNNEST($1::TEXT[])
+    WITH ORDINALITY AS o(slug, ord)
+),
+latest_versions AS (
+    SELECT DISTINCT ON (spd.slug)
+        s.id,
+        op.id AS path_id,
+        spd.slug,
+        vo.content_hash
+    FROM rev.step_path_details spd
+    JOIN rev.object_paths op ON op.id = spd.path_id
+    JOIN rev.versioned_objects vo ON vo.path_id = op.id
+    JOIN rev.steps s ON s.versioned_object_id = vo.id
+    WHERE spd.slug = ANY($1::TEXT[])
+      AND spd.namespace_company_id = COALESCE(
+          NULLIF(current_setting('dapple.namespace_company_id', true), ''),
+          '019e132e-2610-7a4a-b64a-77a49e286ac0'
+      )::UUID
+    ORDER BY spd.slug, vo.created_at DESC
+)
+SELECT
+    lv.id,
+    lv.path_id,
+    lv.slug,
+    lv.content_hash
+FROM latest_versions lv
+JOIN args ON args.slug = lv.slug
+ORDER BY args.ord;

@@ -1,0 +1,19 @@
+# External-API value_slot page CTE: select value_slots by object IDs but
+# only return those whose path lives in the caller's company namespace.
+# Combines the `by_object_ids` pattern with the namespace gate from
+# `by_external_caller`. Used by GET /api/value-slots?query=by_ids on the
+# external surface; downstream callers (e.g. third-party form renderers
+# following brief-form value_slot_id references) must not see slots from
+# another namespace even if they guess the UUID.
+args AS (
+    SELECT *
+    FROM UNNEST(:bind(object_ids)::UUID[]) WITH ORDINALITY AS o(id, ord)
+),
+value_slot_page AS (
+    SELECT vs.id
+    FROM args
+    JOIN rev.value_slots vs ON vs.id = args.id
+    JOIN rev.versioned_objects vo ON vo.id = vs.versioned_object_id
+    JOIN rev.object_paths op ON op.id = vo.path_id
+    WHERE op.namespace_company_id = :bind(caller_company_id)::UUID
+)

@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n    cc.checksum,\n    COUNT(DISTINCT cc.chunk_id)::BIGINT as chunk_count,\n    array_agg(cc.chunk_id ORDER BY cc.chunk_id) as chunk_ids\nFROM rev.chunk_checksums cc\nJOIN rev.chunks c ON c.id = cc.chunk_id\nGROUP BY cc.checksum\nHAVING COUNT(DISTINCT cc.chunk_id) > 1\nORDER BY chunk_count DESC;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "checksum",
+        "type_info": "Bytea",
+        "origin": {
+          "Table": {
+            "table": "rev.chunk_checksums",
+            "name": "checksum"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "chunk_count",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "chunk_ids",
+        "type_info": "UuidArray",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "b356bf0f5de697d474c410ee0fa580b575d83459597894a16fac4e99d5dc235c"
+}

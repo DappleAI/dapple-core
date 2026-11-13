@@ -1,0 +1,19 @@
+-- Repair fluent_message_id on guide blocks that have NULL fluent_message_id.
+-- Batch UPDATE via UNNEST, guarded by AND gb.fluent_message_id IS NULL
+-- for idempotency. This is the one permitted UPDATE in the system (repair-only).
+WITH args AS (
+    SELECT *
+    FROM UNNEST(
+        $1::UUID[],    -- block_id[]
+        $2::UUID[]     -- fluent_message_id[]
+    ) WITH ORDINALITY AS o(
+        block_id,
+        fluent_message_id,
+        ord
+    )
+)
+UPDATE rev.guide_blocks gb
+SET fluent_message_id = args.fluent_message_id
+FROM args
+WHERE gb.id = args.block_id
+  AND gb.fluent_message_id IS NULL;

@@ -1,0 +1,2 @@
+# Select categories by slugs using path_details lookup
+:compose(categories/select_categories_body.sqlc, @page = categories/pages/by_slugs.sqlc)

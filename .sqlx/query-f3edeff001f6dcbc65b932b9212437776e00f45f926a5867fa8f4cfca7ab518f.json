@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT quarter_end\nFROM rev.institutional_holdings_ingest\nWHERE cusip = $1\nORDER BY quarter_end;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "quarter_end",
+        "type_info": "Date",
+        "origin": {
+          "Table": {
+            "table": "rev.institutional_holdings_ingest",
+            "name": "quarter_end"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "f3edeff001f6dcbc65b932b9212437776e00f45f926a5867fa8f4cfca7ab518f"
+}

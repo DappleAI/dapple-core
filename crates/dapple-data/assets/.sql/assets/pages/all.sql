@@ -1,0 +1,9 @@
+asset_page AS (
+    SELECT a.id
+    FROM rev.assets a
+    JOIN rev.versioned_objects vo ON vo.id = a.versioned_object_id
+    JOIN rev.object_paths op ON op.id = vo.path_id
+    JOIN rev.asset_path_details apd ON apd.path_id = op.id
+    ORDER BY a.id
+    LIMIT $1::BIGINT OFFSET $2::BIGINT
+)

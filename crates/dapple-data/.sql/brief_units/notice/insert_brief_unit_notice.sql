@@ -1,0 +1,26 @@
+-- Insert brief unit notice subtype
+-- Parameters:
+--   $1: brief_unit_id (UUID)
+--   $2: level (TEXT)
+--   $3: title_text (TEXT) - nullable
+--   $4: title_fluent_message_id (UUID) - nullable
+--   $5: detail_text (TEXT) - nullable
+--   $6: detail_fluent_message_id (UUID) - nullable
+
+INSERT INTO rev.brief_unit_notice (
+    brief_unit_id,
+    level,
+    title_text,
+    title_fluent_message_id,
+    detail_text,
+    detail_fluent_message_id
+)
+VALUES (
+    $1::UUID,
+    $2::TEXT,
+    $3::TEXT,
+    $4::UUID,
+    $5::TEXT,
+    $6::UUID
+)
+RETURNING brief_unit_id;

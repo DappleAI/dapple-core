@@ -1,0 +1,23 @@
+# Latest-deprecation probe: the newest deprecation event's to_level_id for one
+# versioned object — zero rows == never deprecated (to_level_id itself is
+# NOT NULL). This is the correlated form deprecation_events_latest_idx was
+# built for (Migration 19): one index-only tuple probe per outer row, instead
+# of the old uncorrelated DISTINCT ON map over the entire event history.
+#
+# COMPLETE QUERY — no wrapper syntax lives here. The call site owns its parens
+# and join form, e.g.:
+#     LEFT JOIN LATERAL (
+#         :compose(shared/select/latest_deprecation_probe.sqlc)
+#     ) ld ON TRUE
+# Correlation contract: references alias `vo` (rev.versioned_objects) from the
+# enclosing query. Sites keyed on another alias (ranked.id, ipvo.id) inline
+# this SELECT verbatim with their alias instead.
+#
+# MUST stay bind-free: sql-composer numbers $N by alphabetically sorting bind
+# names across the whole composed query — a bind here would renumber every
+# composing query's arguments and silently break the Rust call sites.
+SELECT de.to_level_id
+FROM rev.deprecation_events de
+WHERE de.versioned_object_id = vo.id
+ORDER BY de.created_at DESC
+LIMIT 1

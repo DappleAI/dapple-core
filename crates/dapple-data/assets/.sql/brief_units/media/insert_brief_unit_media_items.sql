@@ -1,0 +1,43 @@
+WITH args AS (
+    SELECT *
+    FROM UNNEST(
+        $1::UUID[],
+        $2::TEXT[],
+        $3::TEXT[]
+    ) WITH ORDINALITY AS o(brief_unit_id, media_kind_key, source_type_key, ord)
+),
+kinds AS (
+    SELECT mk.id, mk.key, args.ord
+    FROM args
+    JOIN rev.brief_media_kinds mk ON mk.key = args.media_kind_key
+),
+source_types AS (
+    SELECT st.id, st.key, args.ord
+    FROM args
+    JOIN rev.brief_media_source_types st ON st.key = args.source_type_key
+),
+objs AS (
+    INSERT INTO rev.brief_unit_media_items (
+        brief_unit_id,
+        media_kind_id,
+        source_type_id
+    )
+    SELECT
+        args.brief_unit_id,
+        k.id,
+        st.id
+    FROM args
+    JOIN kinds k ON k.ord = args.ord
+    JOIN source_types st ON st.ord = args.ord
+    ORDER BY args.ord
+    RETURNING id, brief_unit_id, media_kind_id, source_type_id, created_at
+)
+SELECT
+    objs.id,
+    objs.brief_unit_id,
+    mk.key as media_kind_key,
+    st.key as source_type_key
+FROM objs
+JOIN rev.brief_media_kinds mk ON mk.id = objs.media_kind_id
+JOIN rev.brief_media_source_types st ON st.id = objs.source_type_id
+ORDER BY objs.id;

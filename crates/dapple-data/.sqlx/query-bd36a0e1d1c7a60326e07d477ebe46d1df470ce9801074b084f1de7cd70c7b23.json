@@ -1,0 +1,53 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST($1::UUID[], $2::TEXT[])\n    WITH ORDINALITY AS o(media_item_id, source_type_key, ord)\n),\nsource_types AS (\n    SELECT st.id, st.key, args.media_item_id, args.ord\n    FROM args\n    JOIN rev.brief_media_source_types st ON st.key = args.source_type_key\n),\nobjs AS (\n    INSERT INTO rev.brief_unit_media_item_posters (media_item_id, source_type_id)\n    SELECT st.media_item_id, st.id\n    FROM source_types st\n    ORDER BY st.ord\n    RETURNING id, media_item_id, source_type_id, created_at\n)\nSELECT\n    objs.id,\n    objs.media_item_id,\n    st.key as source_type_key\nFROM objs\nJOIN rev.brief_media_source_types st ON st.id = objs.source_type_id\nORDER BY objs.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_media_item_posters",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "media_item_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_media_item_posters",
+            "name": "media_item_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "source_type_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_media_source_types",
+            "name": "key"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "bd36a0e1d1c7a60326e07d477ebe46d1df470ce9801074b084f1de7cd70c7b23"
+}

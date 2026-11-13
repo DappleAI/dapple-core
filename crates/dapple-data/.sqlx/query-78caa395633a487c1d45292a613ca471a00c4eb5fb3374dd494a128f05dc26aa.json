@@ -1,0 +1,53 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT * FROM UNNEST($1::TEXT[], $2::TEXT[])\n    WITH ORDINALITY AS o(slug, content_hash, ord)\n)\nSELECT\n    p.id,\n    ppd.slug,\n    vo.content_hash\nFROM args\nJOIN rev.playbook_path_details ppd\n    ON ppd.slug = args.slug\n    AND ppd.namespace_company_id = COALESCE(\n        NULLIF(current_setting('dapple.namespace_company_id', true), ''),\n        '019e132e-2610-7a4a-b64a-77a49e286ac0'\n    )::UUID\nJOIN rev.object_paths op ON op.id = ppd.path_id\nJOIN rev.versioned_objects vo ON vo.path_id = op.id\n    AND vo.content_hash = args.content_hash\nJOIN rev.playbooks p ON p.versioned_object_id = vo.id\nORDER BY args.ord;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.playbooks",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "slug",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.playbook_path_details",
+            "name": "slug"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "content_hash",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "content_hash"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "78caa395633a487c1d45292a613ca471a00c4eb5fb3374dd494a128f05dc26aa"
+}

@@ -1,0 +1,250 @@
+# Steps of a journey's playbook the runtime should AUTO-dispatch: they PRODUCE a
+# computed output, need NO operator input, and have no dispatch that is still live
+# or already succeeded (see `dispatched_steps` -- an all-`failed` step is eligible
+# again, capped). Without this their task never runs, their computed output never
+# binds, and their stage never reaches DONE -> the journey can't complete.
+# `drain_ready_dispatches` builds one dispatch per returned row (one stage / one
+# step / its tasks).
+#
+# THE RUNTIME OWNS COMPUTED PRODUCTION. Every step matching the predicate below is
+# returned, INCLUDING a picker-feed generate (one whose computed output is some
+# brief input's candidate_source). That is the contract we publish to consumers:
+# `/journeys/{id}/steps` marks such a slot `producer: "computed"`, and
+# `dapple-prompt-external-api/AGENTS.md` tells callers "the server produces it once
+# the producing step coheres -- show a waiting state, don't bind". A consumer that
+# merely waits, exactly as documented, must therefore see the generate run.
+#
+# HISTORY (do not re-add the exclusion). Picker-feed steps used to be excluded here
+# on the rationale that the consumer dispatches them itself on pane open, because
+# auto-dispatching them TOO double-ran the step -- and LLM generates are
+# non-deterministic, so the two dispatches bound two DIFFERENT candidate arrays to
+# one slot and the picker's feed flapped under latest-wins (seen live: run-the-10k
+# "Lay Out the Business", two arrays 1s apart). That flap was real, but its cause
+# was TWO OWNERS, and the fix is a single owner -- not opting the runtime out.
+# Opting out made the runtime depend on every consumer advancing the journey, and
+# a consumer that doesn't (or can't) stalls it with no runtime-side recovery:
+# dapple-ui's only advancement path was its `/dialogue/reply` poll loop, bounded by
+# a 20s deadline, so a step slower than that returned before advancing and nothing
+# created the successor until the operator happened to re-enter that submit path.
+# Seen live: run-the-10k on a 238s EDGAR pull sat for 20 minutes with the backend
+# correctly reporting stage 1 done and the generate pending, and only advanced when
+# the operator poked it again -- by which time they had already given up. The pane
+# gives them nothing to submit, so nothing prompts the poke. (Every historical run
+# that advanced unaided had a stage 1 under 20s.) Deleting the exclusion trades an
+# open-ended stall for the ordinary duplicate-work risk, which SINGLE-OWNER covers.
+#
+# COROLLARY FOR CONSUMERS: a consumer must NOT dispatch a step whose exposed slots
+# are all `producer: "computed"` -- that is now double-running it. dapple-ui's
+# auto-run advancement was removed from `/dialogue/reply` for this reason. A
+# consumer still POSTs dispatches for operator-input steps (the exposing step its
+# bindings land on, and the refine step after a pick); those never appear here,
+# because `operator_steps` below excludes them.
+#
+# TIMING IS THE CALLER'S JOB. A no-input step's START gate (is_step_fully_bound) is
+# trivially true (it exposes no operator slot), so this query does NOT decide when
+# the step is ready -- it lists every such step regardless of journey progress. The
+# caller (`ensure_pending_autodispatches`) gates each returned step on all EARLIER
+# stages being done via select_stage_binding_status_for_journey (which is
+# optional-aware), so a step is not created before the data its task reads via
+# $in.bindings is bound.
+#
+# A step qualifies iff, over its overlay-exposed slots (cascade stage->step->task,
+# mask over expose), it: exposes >= 1 COMPUTED brief-output, exposes NO
+# operator-input (no brief_unit_input pins an exposed path -- mirrors required_paths
+# in is_step_fully_bound), and is not blocked by an existing dispatch in this
+# journey (`dispatched_steps`: any live/ok/unsafe/deterministic-failed dispatch
+# blocks; an all-transiently-`failed` step becomes eligible again, up to a
+# 3-dispatch cap).
+#
+# Parameters: journey_id
+
+WITH
+journey_steps AS (
+    SELECT ps.id AS playbook_stage_id, ss.id AS stage_step_id, ss.step_id,
+           ps.ord AS stage_ord, ss.ord AS step_ord
+    FROM rev.journeys j
+    JOIN rev.playbook_stages ps ON ps.playbook_id = j.playbook_id
+    JOIN rev.stage_steps ss ON ss.stage_id = ps.stage_id
+    WHERE j.id = :bind(journey_id)::UUID
+),
+step_tasks AS (
+    SELECT jst.playbook_stage_id, jst.stage_step_id, jst.stage_ord, jst.step_ord,
+           stk.id AS step_task_id, stk.ord AS task_ord
+    FROM journey_steps jst
+    JOIN rev.step_tasks stk ON stk.step_id = jst.step_id
+),
+all_overlays AS (
+    SELECT st.stage_step_id, o.value_slot_path_id, o.visibility, 1 AS priority
+    FROM rev.playbook_stage_overlays o
+    JOIN step_tasks st ON st.playbook_stage_id = o.playbook_stage_id
+    UNION ALL
+    SELECT st.stage_step_id, o.value_slot_path_id, o.visibility, 2 AS priority
+    FROM rev.stage_step_overlays o
+    JOIN step_tasks st ON st.stage_step_id = o.stage_step_id
+    UNION ALL
+    SELECT st.stage_step_id, o.value_slot_path_id, o.visibility, 3 AS priority
+    FROM rev.step_task_overlays o
+    JOIN step_tasks st ON st.step_task_id = o.step_task_id
+),
+ranked AS (
+    SELECT DISTINCT ON (stage_step_id, value_slot_path_id)
+        stage_step_id, value_slot_path_id, visibility
+    FROM all_overlays
+    ORDER BY stage_step_id, value_slot_path_id, priority DESC
+),
+exposed AS (
+    SELECT stage_step_id, value_slot_path_id
+    FROM ranked
+    WHERE visibility = 'expose'
+),
+operator_steps AS (
+    # Steps exposing >= 1 operator-bindable slot (some brief_unit_input pins it).
+    SELECT DISTINCT e.stage_step_id
+    FROM exposed e
+    WHERE EXISTS (
+        SELECT 1
+        FROM rev.brief_unit_input bui
+        JOIN rev.value_slots vs
+            ON bui.control_spec ? 'value_slot_id'
+           AND vs.id = (bui.control_spec ->> 'value_slot_id')::UUID
+        JOIN rev.versioned_objects vo ON vo.id = vs.versioned_object_id
+        WHERE vo.path_id = e.value_slot_path_id
+    )
+),
+computed_steps AS (
+    # Steps exposing >= 1 computed brief-output slot.
+    SELECT DISTINCT e.stage_step_id
+    FROM exposed e
+    WHERE EXISTS (
+        SELECT 1
+        FROM rev.brief_outputs bo
+        JOIN rev.brief_output_source_kinds bosk
+            ON bosk.id = bo.source_kind_id AND bosk.key = 'computed'
+        JOIN rev.value_slots vs ON vs.id = bo.value_slot_id
+        JOIN rev.versioned_objects vo ON vo.id = vs.versioned_object_id
+        WHERE vo.path_id = e.value_slot_path_id
+    )
+),
+attempt_latest AS (
+    # Latest event per attempt = that attempt's current phase. Same DISTINCT ON
+    # shape as dispatch_task_attempts/select_orphaned_nonterminal.sqlc.
+    # `error_class` rides the failed event's context_metadata root ("deterministic"
+    # | "transient", written by the dispatch runner's failure arm from the nu
+    # engine's ShellError classification). NULL on legacy events, orphan-sweep
+    # events, and non-nu failure paths -- all of which stay retryable.
+    SELECT DISTINCT ON (ev.attempt_id)
+        ev.attempt_id,
+        ev.phase_code,
+        ev.context_metadata ->> 'error_class' AS error_class
+    FROM rev.dispatch_task_attempt_events ev
+    ORDER BY ev.attempt_id, ev.id DESC
+),
+step_dispatches AS (
+    # Every (step, dispatch) pair in THIS journey, carrying the dispatch_step so
+    # the verdict below can reach that step's OWN attempts within the dispatch.
+    SELECT ds.stage_step_id, d.id AS dispatch_id, ds.id AS dispatch_step_id
+    FROM rev.dispatches d
+    JOIN rev.dispatch_stages dst ON dst.dispatch_id = d.id
+    JOIN rev.dispatch_steps ds ON ds.dispatch_stage_id = dst.id
+    WHERE d.journey_id = :bind(journey_id)::UUID
+),
+step_dispatch_verdicts AS (
+    # Worst-wins verdict per (step, dispatch), mirroring the step verdict in
+    # dapple-prompt-flow/AGENTS.md:
+    #   no attempts yet, or any non-terminal -> NULL     (live / about to run)
+    #   any unsafe                           -> 'unsafe' (poisoned, NEVER retry)
+    #   any deterministic failed             -> 'failed_deterministic' (blocks
+    #                                           auto-redispatch: a script error
+    #                                           re-runs to the identical failure)
+    #   else any failed                      -> 'failed' (retryable)
+    #   else                                 -> 'ok'
+    # An attempt row with no events yet counts as no attempt: it is about to emit
+    # queued/running, so NULL (blocking) is the correct read.
+    SELECT
+        sd.stage_step_id,
+        sd.dispatch_id,
+        CASE
+            WHEN count(al.attempt_id) = 0          THEN NULL
+            WHEN bool_or(NOT dp.terminal)          THEN NULL
+            WHEN bool_or(al.phase_code = 'unsafe') THEN 'unsafe'
+            WHEN bool_or(al.phase_code = 'failed'
+                     AND al.error_class = 'deterministic')
+                                                   THEN 'failed_deterministic'
+            WHEN bool_or(al.phase_code = 'failed') THEN 'failed'
+            ELSE 'ok'
+        END AS verdict
+    FROM step_dispatches sd
+    LEFT JOIN rev.dispatch_task_attempts a ON a.dispatch_step_id = sd.dispatch_step_id
+    LEFT JOIN attempt_latest al ON al.attempt_id = a.id
+    LEFT JOIN rev.dispatch_phases dp ON dp.code = al.phase_code
+    GROUP BY sd.stage_step_id, sd.dispatch_id
+),
+dispatched_steps AS (
+    # Steps whose existing dispatches BLOCK a fresh auto-dispatch.
+    #
+    # This used to be "has any dispatch at all", which was phase-blind and made a
+    # restart-stranded step a PERMANENT dead-end. The startup orphan sweep
+    # (fail_orphaned_attempts) marks a process-killed attempt `failed` precisely so
+    # "the operator can re-dispatch" -- but a pure-compute step has no operator
+    # path (nothing to submit, and the single-owner rule forbids consumers from
+    # dispatching it), and the other recovery sweep
+    # (select_unstarted_dispatch_ids_for_journey) skips any dispatch that already
+    # has an attempt. So nothing re-created it and the journey stalled forever.
+    # Seen live: a flow OOMKill mid-generate left run-the-10k unable to advance,
+    # with "Try Again" and a page reload both powerless.
+    #
+    # Now: blocked while ANY dispatch is not terminally `failed`; eligible again
+    # once EVERY dispatch this step owns ended `failed`, up to the retry cap.
+    #   - `unsafe` blocks forever ('unsafe' IS DISTINCT FROM 'failed'), honoring
+    #     the phase model's "poisoned, do NOT re-dispatch".
+    #   - `failed_deterministic` blocks like `unsafe`: the failure was a nushell
+    #     script/shape error that re-runs to the identical failure, so retrying
+    #     burns a full journey-context seed + tokens for nothing (a 3x tight
+    #     retry loop of exactly this shape OOMed the flow pod, 2026-08-02).
+    #     RECOVERY: fix the guide script, re-ingest, then manually POST a new
+    #     dispatch -- POST /dispatches never consults this gate. NOTE a re-ingest
+    #     alone does NOT reset the block for an existing journey (grouping is by
+    #     stage_step_id under the journey-pinned playbook); the manual dispatch
+    #     is the documented un-stick. Transient failures (conduit/network --
+    #     error_class NULL or 'transient') keep the full retry budget.
+    #   - `ok` blocks forever (the step already produced).
+    #   - NULL blocks, which is ALSO what keeps the runtime from racing a consumer:
+    #     a dispatch a consumer just POSTed has no attempts yet, so the runtime
+    #     will not create a second one alongside it (the double-owner condition
+    #     that once made the candidate feed flap).
+    #   - The cap bounds a transiently-failing step to 3 dispatches rather
+    #     than an unbounded retry loop. Recovery INSERTs a new dispatch and leaves
+    #     the failed one as history -- retry is a re-dispatch, append-only.
+    SELECT stage_step_id
+    FROM step_dispatch_verdicts
+    GROUP BY stage_step_id
+    HAVING bool_or(verdict IS DISTINCT FROM 'failed')
+        OR count(*) >= 3
+),
+fork_cutoff AS (
+    # This journey's stage-level fork point (Migration 74), if any. Steps in
+    # stages strictly BEFORE the fork stage are inherited from the predecessor
+    # chain ("fork AT stage N" = redo N; inherit ord < N) and must NOT be
+    # auto-dispatched; otherwise a stage-N fork wastefully re-runs the already-
+    # inherited pre-fork analysis (and leaves picks pointing at stale candidate
+    # lists). NULL (no fork_stage_id) leaves every stage eligible, exactly as
+    # the pre-fork behavior.
+    SELECT ps.ord AS fork_ord
+    FROM rev.journeys j
+    LEFT JOIN rev.playbook_stages ps ON ps.id = j.fork_stage_id
+    WHERE j.id = :bind(journey_id)::UUID
+)
+SELECT
+    st.playbook_stage_id AS "playbook_stage_id!",
+    st.stage_step_id AS "stage_step_id!",
+    array_agg(st.step_task_id ORDER BY st.task_ord) AS "step_task_ids!"
+FROM step_tasks st
+WHERE st.stage_step_id IN (SELECT stage_step_id FROM computed_steps)
+  AND st.stage_step_id NOT IN (SELECT stage_step_id FROM operator_steps)
+  AND st.stage_step_id NOT IN (SELECT stage_step_id FROM dispatched_steps)
+  AND (
+      (SELECT fork_ord FROM fork_cutoff) IS NULL
+      OR st.stage_ord >= (SELECT fork_ord FROM fork_cutoff)
+  )
+GROUP BY st.playbook_stage_id, st.stage_step_id, st.stage_ord, st.step_ord
+ORDER BY st.stage_ord, st.step_ord;

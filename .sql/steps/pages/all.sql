@@ -1,0 +1,9 @@
+step_page AS (
+    SELECT s.id
+    FROM rev.steps s
+    JOIN rev.versioned_objects vo ON vo.id = s.versioned_object_id
+    JOIN rev.object_paths op ON op.id = vo.path_id
+    JOIN rev.step_path_details spd ON spd.path_id = op.id
+    ORDER BY s.id
+    LIMIT $1::BIGINT OFFSET $2::BIGINT
+)

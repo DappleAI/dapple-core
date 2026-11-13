@@ -1,0 +1,9 @@
+hat_page AS (
+    SELECT h.id
+    FROM rev.hats h
+    JOIN rev.versioned_objects vo ON vo.id = h.versioned_object_id
+    JOIN rev.object_paths op ON op.id = vo.path_id
+    JOIN rev.hat_path_details hpd ON hpd.path_id = op.id
+    ORDER BY h.id
+    LIMIT $1::BIGINT OFFSET $2::BIGINT
+)

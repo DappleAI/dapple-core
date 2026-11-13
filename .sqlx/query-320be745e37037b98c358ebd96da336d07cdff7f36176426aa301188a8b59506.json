@@ -1,0 +1,57 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nWITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::UUID[],\n        $2::UUID[]\n    ) WITH ORDINALITY\n    AS o(\n        task_id,\n        prompt_id,\n        ord\n    )\n),\nresolved AS (\n    SELECT\n        t.id AS task_id,\n        p.id AS prompt_id,\n        ppd.name AS prompt_name,\n        args.ord\n    FROM args\n    JOIN rev.tasks t ON args.task_id = t.id\n    JOIN rev.prompts p ON args.prompt_id = p.id\n    JOIN rev.versioned_objects vo ON vo.id = p.versioned_object_id\n    JOIN rev.object_paths op ON op.id = vo.path_id\n    JOIN rev.prompt_path_details ppd ON ppd.path_id = op.id\n),\n_inserted AS (\n    INSERT INTO rev.task_prompts (task_id, prompt_id)\n    SELECT resolved.task_id, resolved.prompt_id\n    FROM resolved\n    ORDER BY resolved.ord\n    ON CONFLICT (task_id, prompt_id) DO NOTHING\n    RETURNING id, task_id, prompt_id, created_at\n),\nall_links AS (\n    SELECT id, task_id, prompt_id, created_at FROM _inserted\n    UNION ALL\n    SELECT tp.id, tp.task_id, tp.prompt_id, tp.created_at\n    FROM resolved r\n    JOIN rev.task_prompts tp ON tp.task_id = r.task_id AND tp.prompt_id = r.prompt_id\n    WHERE NOT EXISTS (\n        SELECT 1 FROM _inserted i\n        WHERE i.task_id = r.task_id AND i.prompt_id = r.prompt_id\n    )\n)\nSELECT\n    al.id AS \"id!\",\n    al.task_id AS \"task_id!\",\n    al.prompt_id AS \"prompt_id!\",\n    r.prompt_name AS \"prompt_name!\",\n    al.created_at AS \"created_at!\"\nFROM all_links al\nJOIN resolved r ON r.task_id = al.task_id AND r.prompt_id = al.prompt_id\nORDER BY al.task_id, al.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "task_id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "prompt_id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "prompt_name!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.prompt_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at!",
+        "type_info": "Timestamptz",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      false,
+      null
+    ]
+  },
+  "hash": "320be745e37037b98c358ebd96da336d07cdff7f36176426aa301188a8b59506"
+}

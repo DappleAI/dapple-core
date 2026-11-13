@@ -1,0 +1,55 @@
+# Insert dispatch intent bindings
+# Parameters:
+#   $1: dispatch_ids (UUID[])
+#   $2: value_slot_ids (UUID[])
+#   $3: produced_empty (BOOLEAN[]) - the computed producer's "present but empty"
+#       verdict per binding. Operator writes pass all-false; see migration 92.
+
+WITH args AS (
+    SELECT *
+    FROM UNNEST(
+        $1::UUID[],
+        $2::UUID[],
+        $3::BOOLEAN[]
+    ) WITH ORDINALITY AS o(dispatch_id, value_slot_id, produced_empty, ord)
+),
+# Resolve internal IDs with ordinality preserved
+resolved AS (
+    SELECT
+        args.ord,
+        args.dispatch_id,
+        args.value_slot_id,
+        args.produced_empty,
+        vspd.name AS value_slot_name,
+        vk.key AS value_slot_value_kind
+    FROM args
+    JOIN rev.dispatches d ON d.id = args.dispatch_id
+    JOIN rev.value_slots vs ON vs.id = args.value_slot_id
+    JOIN rev.versioned_objects vo ON vo.id = vs.versioned_object_id
+    JOIN rev.object_paths op ON op.id = vo.path_id
+    JOIN rev.value_slot_path_details vspd ON vspd.path_id = op.id
+    JOIN rev.value_kinds vk ON vk.id = vs.value_kind_id
+),
+objs AS (
+    INSERT INTO rev.dispatch_intent_bindings
+        (dispatch_id, value_slot_id, produced_empty, created_at)
+    SELECT r.dispatch_id, r.value_slot_id, r.produced_empty, now()
+    FROM resolved r
+    ORDER BY r.ord
+    RETURNING *
+),
+# Number objs to preserve ordinality
+numbered_objs AS (
+    SELECT o.*, row_number() OVER (ORDER BY o.id) AS ord
+    FROM objs o
+)
+SELECT
+    no.id,
+    no.dispatch_id,
+    no.value_slot_id,
+    r.value_slot_name,
+    r.value_slot_value_kind,
+    no.created_at
+FROM numbered_objs no
+JOIN resolved r ON r.ord = no.ord
+ORDER BY no.id;

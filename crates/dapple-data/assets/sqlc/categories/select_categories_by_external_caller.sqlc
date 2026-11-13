@@ -1,0 +1,3 @@
+# External-API category listing: scoped to the caller's company namespace.
+# Used by GET /api/categories on external-api.dapple.x.
+:compose(categories/select_categories_body.sqlc, @page = categories/pages/by_external_caller.sqlc)

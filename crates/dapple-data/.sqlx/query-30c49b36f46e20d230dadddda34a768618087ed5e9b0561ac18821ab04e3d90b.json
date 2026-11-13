@@ -1,0 +1,65 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::UUID[],          $2::UUID[]       ) WITH ORDINALITY AS t(step_id, directive_versioned_object_id, ord)\n),\nstep_refs AS (\n    SELECT a.ord, ss.id AS step_id\n    FROM args a\n    JOIN rev.stage_steps ss ON ss.id = a.step_id\n),\ndirective_refs AS (\n    SELECT a.ord, d.id AS directive_id\n    FROM args a\n    JOIN rev.versioned_objects vo ON vo.id = a.directive_versioned_object_id\n    JOIN rev.directives d ON d.versioned_object_id = vo.id\n),\nnew_attachments AS (\n    INSERT INTO rev.stage_step_directives (stage_step_id, directive_id)\n    SELECT str.step_id, dr.directive_id\n    FROM step_refs str\n    JOIN directive_refs dr ON str.ord = dr.ord\n    ORDER BY str.ord\n    RETURNING id, stage_step_id, directive_id, created_at\n)\nSELECT\n    na.id,\n    na.stage_step_id,\n    na.directive_id,\n    na.created_at\nFROM new_attachments na\nORDER BY na.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.stage_step_directives",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "stage_step_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.stage_step_directives",
+            "name": "stage_step_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "directive_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.stage_step_directives",
+            "name": "directive_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.stage_step_directives",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "30c49b36f46e20d230dadddda34a768618087ed5e9b0561ac18821ab04e3d90b"
+}

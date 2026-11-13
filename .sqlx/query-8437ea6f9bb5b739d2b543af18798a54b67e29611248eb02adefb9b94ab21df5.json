@@ -1,0 +1,136 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n    u.id,\n    u.journey_id,\n    u.asset_id,\n    u.input_key,\n    u.value_slot_id,\n    u.file_name,\n    a.mime_type,\n    a.content_length,\n    vo.content_hash,\n    u.created_at\nFROM rev.journey_asset_uploads u\nJOIN rev.assets a ON a.id = u.asset_id\nJOIN rev.versioned_objects vo ON vo.id = a.versioned_object_id\nLEFT JOIN rev.journey_asset_uploads_removed r\n    ON r.journey_asset_upload_id = u.id\nWHERE u.journey_id = $1::UUID\n  AND r.journey_asset_upload_id IS NULL\nORDER BY u.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.journey_asset_uploads",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "journey_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.journey_asset_uploads",
+            "name": "journey_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "asset_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.journey_asset_uploads",
+            "name": "asset_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "input_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.journey_asset_uploads",
+            "name": "input_key"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "value_slot_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.journey_asset_uploads",
+            "name": "value_slot_id"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "file_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.journey_asset_uploads",
+            "name": "file_name"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "mime_type",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.assets",
+            "name": "mime_type"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "content_length",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "rev.assets",
+            "name": "content_length"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "content_hash",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "content_hash"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.journey_asset_uploads",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "8437ea6f9bb5b739d2b543af18798a54b67e29611248eb02adefb9b94ab21df5"
+}

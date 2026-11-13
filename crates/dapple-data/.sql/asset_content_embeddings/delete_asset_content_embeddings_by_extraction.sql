@@ -1,0 +1,5 @@
+-- Delete all embeddings for a given extraction.
+-- Parameters:
+--   $1: extraction_id (UUID)
+DELETE FROM rev.asset_content_embeddings
+WHERE extraction_id = $1;

@@ -1,0 +1,3 @@
+# External-API guide listing: scoped to the caller's company namespace and
+# to scope = 'external'. Used by GET /api/guides on external-api.dapple.x.
+:compose(guides/select_guides_body.sqlc, @page = guides/pages/by_external_caller.sqlc)

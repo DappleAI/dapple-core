@@ -1,0 +1,14 @@
+-- Get IDs for fluent messages by IDs
+-- Used for foreign key lookups when creating Prompts
+-- Parameters:
+--   $1: ids (UUID[])
+
+WITH args AS (
+    SELECT *
+    FROM UNNEST($1::UUID[]) WITH ORDINALITY AS o(id, ord)
+)
+SELECT
+    fm.id
+FROM args
+JOIN rev.fluent_messages fm ON fm.id = args.id
+ORDER BY args.ord;

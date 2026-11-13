@@ -1,0 +1,241 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH input AS (\n    SELECT pc.playbook_id,\n           array_agg(pc.category_id ORDER BY pc.id) AS category_ids\n    FROM rev.playbook_categories pc\n    JOIN rev.categories c ON pc.category_id = c.id\n    GROUP BY pc.playbook_id\n),\nplaybook_latest AS (\n    SELECT DISTINCT ON (op.id)\n        p.id\n    FROM rev.playbooks p\n    JOIN rev.versioned_objects vo ON vo.id = p.versioned_object_id\n    JOIN rev.object_paths op ON op.id = vo.path_id\n    LEFT JOIN LATERAL (\n        SELECT de.to_level_id\nFROM rev.deprecation_events de\nWHERE de.versioned_object_id = vo.id\nORDER BY de.created_at DESC\nLIMIT 1\n\n    ) ld ON TRUE\n    LEFT JOIN rev.deprecation_levels dl ON dl.id = ld.to_level_id\n    WHERE dl.id IS NULL\n      AND op.namespace_company_id = $1::UUID\n    ORDER BY op.id, vo.created_at DESC\n),\nplaybook_page AS (\n    SELECT id FROM playbook_latest\n    ORDER BY id\n    LIMIT $2::BIGINT OFFSET $3::BIGINT\n)\n\nSELECT\n    p.id,\n    p.versioned_object_id,\n    vo.path_id,\n    ppd.name,\n    ppd.slug,\n    vo.content_hash,\n    dl.key AS \"deprecation_level_key?\",\n    p.description,\n    p.created_at,\n        pst.id AS \"playbook_stage_id?\",\n    pst.created_at AS \"playbook_stage_created_at?\",\n    s.id AS \"playbook_stage_stage_id?\",\n        ss.id AS \"stage_step_id?\",\n    ss.created_at AS \"stage_step_created_at?\",\n    st.id AS \"stage_step_step_id?\",\n        stk.id AS \"step_task_id?\",\n    t.id AS \"step_task_task_id?\",\n    stk.created_at AS \"step_task_created_at?\",\n    COALESCE(input.category_ids, '{}'::uuid[]) AS category_ids\nFROM playbook_page pp\nJOIN rev.playbooks p ON p.id = pp.id\nJOIN rev.versioned_objects vo ON vo.id = p.versioned_object_id\nJOIN rev.object_paths op ON op.id = vo.path_id\nJOIN rev.playbook_path_details ppd ON ppd.path_id = op.id\nLEFT JOIN LATERAL (\n    SELECT de.to_level_id\nFROM rev.deprecation_events de\nWHERE de.versioned_object_id = vo.id\nORDER BY de.created_at DESC\nLIMIT 1\n\n) ld ON TRUE\nLEFT JOIN rev.deprecation_levels dl ON dl.id = ld.to_level_id\nLEFT JOIN rev.playbook_stages pst ON p.id = pst.playbook_id\nLEFT JOIN rev.stages s ON pst.stage_id = s.id\nLEFT JOIN rev.stage_steps ss ON s.id = ss.stage_id\nLEFT JOIN rev.steps st ON ss.step_id = st.id\nLEFT JOIN rev.step_tasks stk ON stk.step_id = st.id\nLEFT JOIN rev.tasks t ON t.id = stk.task_id\nLEFT JOIN input ON p.id = input.playbook_id\nORDER BY p.id, pst.ord NULLS FIRST, ss.ord NULLS FIRST, stk.ord NULLS FIRST;\n\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.playbooks",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "versioned_object_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.playbooks",
+            "name": "versioned_object_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "path_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "path_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.playbook_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "slug",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.playbook_path_details",
+            "name": "slug"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "content_hash",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "content_hash"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "deprecation_level_key?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.deprecation_levels",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "description",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.playbooks",
+            "name": "description"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.playbooks",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "playbook_stage_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.playbook_stages",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "playbook_stage_created_at?",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.playbook_stages",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "playbook_stage_stage_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.stages",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "stage_step_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.stage_steps",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "stage_step_created_at?",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.stage_steps",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "stage_step_step_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.steps",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 15,
+        "name": "step_task_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.step_tasks",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 16,
+        "name": "step_task_task_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.tasks",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 17,
+        "name": "step_task_created_at?",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.step_tasks",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 18,
+        "name": "category_ids",
+        "type_info": "UuidArray",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "6034890dfdc87bda652837a6e243818134d5ae554aa22554b64d41ea2a3bd2df"
+}

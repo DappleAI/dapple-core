@@ -1,0 +1,8 @@
+# Drop one (cusip, quarter) slice of cached 13F holdings. The ingest replaces a
+# slice wholesale — DELETE then INSERT — so a re-ingest is idempotent and the
+# insert needs no upsert conflict handling.
+# Parameters:
+#   $1: cusip (TEXT)
+#   $2: quarter_end (DATE)
+DELETE FROM rev.institutional_holdings
+WHERE cusip = $1 AND quarter_end = $2;

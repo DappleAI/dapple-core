@@ -1,0 +1,62 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::TEXT[],            $2::TEXT[]         ) WITH ORDINALITY AS o(ref_key, content_hash, ord)\n)\nSELECT\n    args.ref_key AS \"ref_key!\",\n    args.content_hash AS \"content_hash!\",\n    vo.id AS \"versioned_object_id?\",\n    vo.content_hash AS \"resolved_content_hash?\",\n    args.ord AS \"ord!\"\nFROM args\nLEFT JOIN rev.guides g ON g.source_path = args.ref_key\nLEFT JOIN rev.versioned_objects vo\n    ON vo.id = g.versioned_object_id\n   AND vo.content_hash LIKE (args.content_hash || '%')\nORDER BY args.ord;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "ref_key!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "content_hash!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "versioned_object_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "resolved_content_hash?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "content_hash"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "ord!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      true,
+      true,
+      null
+    ]
+  },
+  "hash": "288f2a95be4ce4c3d5cc329bfd06d4cfef93ba429297eea9822738f2d88d563a"
+}

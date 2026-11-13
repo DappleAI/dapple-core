@@ -1,0 +1,327 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH latest_deprecation AS (\n    SELECT DISTINCT ON (versioned_object_id)\n        versioned_object_id,\n        to_level_id\n    FROM rev.deprecation_events\n    ORDER BY versioned_object_id, created_at DESC\n),\n\ncurrent_pins AS (\n    SELECT crp.ref_key, crp.versioned_object_id, crp.id AS pin_id\n    FROM rev.canonical_release_pins crp\n    LEFT JOIN rev.canonical_release_pins newer ON newer.supersedes_id = crp.id\n    WHERE newer.id IS NULL\n      AND crp.scope = $5::TEXT\n      AND crp.environment = $2::TEXT\n      AND crp.object_type = 'guides'\n      AND crp.resolved_at IS NOT NULL\n),\nguide_latest AS (\n    SELECT DISTINCT ON (op.id)\n        g.id\n    FROM rev.guides g\n    JOIN rev.versioned_objects vo ON vo.id = g.versioned_object_id\n    JOIN rev.object_paths op ON op.id = vo.path_id\n    JOIN rev.guide_path_details gpd ON gpd.path_id = op.id\n    LEFT JOIN latest_deprecation ld ON ld.versioned_object_id = vo.id\n    LEFT JOIN rev.deprecation_levels dl ON dl.id = ld.to_level_id\n    LEFT JOIN current_pins cp\n        ON cp.ref_key = g.source_path\n       AND cp.versioned_object_id = vo.id\n    WHERE dl.id IS NULL\n      AND g.classification = $1::TEXT\n    ORDER BY op.id,\n        cp.pin_id NULLS LAST,\n        vo.created_at DESC\n),\nguide_page AS (\n    SELECT id FROM guide_latest\n    ORDER BY id\n    LIMIT $3::BIGINT OFFSET $4::BIGINT\n)\n\nSELECT\n    g.id,\n    g.versioned_object_id,\n    vo.path_id,\n    gpd.title,\n    gpd.slug,\n    vo.content_hash,\n    dl.key AS \"deprecation_level_key?\",\n    g.description,\n    g.author,\n    g.classification,\n    g.source_path,\n    g.created_at,\n    gc.id AS \"chapter_id?\",\n    gc.parent_chapter_id AS \"chapter_parent_chapter_id?\",\n    gc.title AS \"chapter_title?\",\n    gc.subtitle AS \"chapter_subtitle?\",\n    gc.source_file AS \"chapter_source_file?\",\n    gc.created_at AS \"chapter_created_at?\",\n    gb.id AS \"block_id?\",\n    bdt.key AS \"block_directive_type_key?\",\n    gb.name AS \"block_name?\",\n    gb.content AS \"block_content?\",\n    gb.attributes AS \"block_attributes?\",\n    gb.fluent_message_id AS \"block_fluent_message_id?\",\n    gb.created_at AS \"block_created_at?\",\n    ARRAY_REMOVE(ARRAY_AGG(DISTINCT gt.key), NULL) AS \"block_tag_keys?\"\nFROM guide_page gp\nJOIN rev.guides g ON g.id = gp.id\nJOIN rev.versioned_objects vo ON vo.id = g.versioned_object_id\nJOIN rev.object_paths op ON op.id = vo.path_id\nJOIN rev.guide_path_details gpd ON gpd.path_id = op.id\nLEFT JOIN latest_deprecation ld ON ld.versioned_object_id = vo.id\nLEFT JOIN rev.deprecation_levels dl ON dl.id = ld.to_level_id\nLEFT JOIN rev.guide_chapters gc ON gc.guide_id = g.id\nLEFT JOIN rev.guide_blocks gb ON gb.chapter_id = gc.id\nLEFT JOIN rev.guide_block_directive_types bdt ON bdt.id = gb.directive_type_id\nLEFT JOIN rev.guide_block_tags gbt ON gbt.block_id = gb.id\nLEFT JOIN rev.guide_tags gt ON gt.id = gbt.tag_id\nGROUP BY\n    g.id, g.versioned_object_id, vo.path_id,\n    gpd.title, gpd.slug, vo.content_hash,\n    dl.key, g.description, g.author, g.classification, g.source_path,\n    g.created_at,\n    gc.id, gc.parent_chapter_id, gc.title, gc.subtitle,\n    gc.source_file, gc.created_at,\n    gb.id, bdt.key, gb.name, gb.content, gb.attributes,\n    gb.fluent_message_id,\n    gb.created_at\nORDER BY g.id, gc.id, gb.id;\n\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.guides",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "versioned_object_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.guides",
+            "name": "versioned_object_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "path_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "path_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "title",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_path_details",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "slug",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_path_details",
+            "name": "slug"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "content_hash",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "content_hash"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "deprecation_level_key?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.deprecation_levels",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "description",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.guides",
+            "name": "description"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "author",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.guides",
+            "name": "author"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "classification",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.guides",
+            "name": "classification"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "source_path",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.guides",
+            "name": "source_path"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.guides",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "chapter_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_chapters",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "chapter_parent_chapter_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_chapters",
+            "name": "parent_chapter_id"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "chapter_title?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_chapters",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "ordinal": 15,
+        "name": "chapter_subtitle?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_chapters",
+            "name": "subtitle"
+          }
+        }
+      },
+      {
+        "ordinal": 16,
+        "name": "chapter_source_file?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_chapters",
+            "name": "source_file"
+          }
+        }
+      },
+      {
+        "ordinal": 17,
+        "name": "chapter_created_at?",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_chapters",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 18,
+        "name": "block_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_blocks",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 19,
+        "name": "block_directive_type_key?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_block_directive_types",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 20,
+        "name": "block_name?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_blocks",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 21,
+        "name": "block_content?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_blocks",
+            "name": "content"
+          }
+        }
+      },
+      {
+        "ordinal": 22,
+        "name": "block_attributes?",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_blocks",
+            "name": "attributes"
+          }
+        }
+      },
+      {
+        "ordinal": 23,
+        "name": "block_fluent_message_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_blocks",
+            "name": "fluent_message_id"
+          }
+        }
+      },
+      {
+        "ordinal": 24,
+        "name": "block_created_at?",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_blocks",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 25,
+        "name": "block_tag_keys?",
+        "type_info": "TextArray",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Int8",
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      true,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      true,
+      false,
+      null
+    ]
+  },
+  "hash": "d58e875a04af90ec92fafcc1f2da21d4ab6d5153caa9339f63904f1feb5828b4"
+}

@@ -1,0 +1,69 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::TEXT[],                 $2::TEXT[],                 $3::TEXT[],                 $4::TEXT[],                 $5::TEXT[],                 $6::UUID[]              ) WITH ORDINALITY AS o(\n        service_id,\n        name,\n        description,\n        public_key_pem,\n        key_algorithm,\n        created_by_user_object_id,\n        ord\n    )\n),\nobjs AS (\n    INSERT INTO web.service_tokens (\n        service_id,\n        name,\n        description,\n        public_key_pem,\n        key_algorithm,\n        created_by_user_id\n    )\n    SELECT\n        args.service_id,\n        args.name,\n        args.description,\n        args.public_key_pem,\n        args.key_algorithm,\n        ud.user_id\n    FROM args\n    LEFT JOIN rev.user_details ud ON ud.object_id = args.created_by_user_object_id\n    ORDER BY args.ord\n    RETURNING *\n)\nSELECT\n    objs.id,\n    objs.service_id,\n    objs.name,\n    objs.created_at\nFROM objs\nORDER BY objs.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "web.service_tokens",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "service_id",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "web.service_tokens",
+            "name": "service_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "web.service_tokens",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "web.service_tokens",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "TextArray",
+        "TextArray",
+        "TextArray",
+        "TextArray",
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "abf1da0cb050ef0d3fa071da86e47a0d9fea52daa007e404a7c513555133900a"
+}

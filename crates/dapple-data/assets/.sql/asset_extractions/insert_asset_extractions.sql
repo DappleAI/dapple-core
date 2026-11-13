@@ -1,0 +1,49 @@
+WITH args AS (
+    SELECT *
+    FROM UNNEST(
+        $1::UUID[],
+        $2::TEXT[],
+        $3::INTEGER[]
+    ) WITH ORDINALITY AS o(asset_id, extractor_kind, extractor_version, ord)
+),
+objs AS (
+    INSERT INTO rev.asset_extractions (
+        asset_id, extractor_kind, extractor_version, status, is_current
+    )
+    SELECT
+        args.asset_id,
+        args.extractor_kind,
+        args.extractor_version,
+        'pending',
+        TRUE
+    FROM args
+    ORDER BY args.ord
+    RETURNING
+        id,
+        asset_id,
+        extractor_kind,
+        extractor_version,
+        status,
+        text_length,
+        page_count,
+        metadata,
+        error_message,
+        is_current,
+        created_at,
+        completed_at
+)
+SELECT
+    id,
+    asset_id,
+    extractor_kind,
+    extractor_version,
+    status,
+    text_length,
+    page_count,
+    metadata,
+    error_message,
+    is_current,
+    created_at,
+    completed_at
+FROM objs
+ORDER BY id;

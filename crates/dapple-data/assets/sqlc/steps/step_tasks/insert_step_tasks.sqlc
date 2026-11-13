@@ -1,0 +1,65 @@
+# Insert step_tasks (associative table entries)
+# Uses ON CONFLICT DO NOTHING to skip duplicates when patched steps
+# already have an existing task link.
+WITH args AS (
+    SELECT *
+    FROM UNNEST(
+        $1::UUID[],
+        $2::UUID[]
+    ) WITH ORDINALITY
+    AS o(
+        step_id,
+        task_id,
+        ord
+    )
+),
+# Resolve IDs with ordinality preserved. `pos` is the PER-PARENT authored
+# position (1..k within each step), stable under a partial-parent repair batch
+# -- a raw global ordinality would mis-position a single-step re-insert.
+resolved AS (
+    SELECT
+        args.ord,
+        ROW_NUMBER() OVER (PARTITION BY s.id ORDER BY args.ord) AS pos,
+        s.id AS step_id,
+        t.id AS task_id
+    FROM args
+    JOIN rev.steps s ON args.step_id = s.id
+    JOIN rev.tasks t ON args.task_id = t.id
+),
+inserted AS (
+    INSERT INTO rev.step_tasks (step_id, task_id, ord)
+    SELECT r.step_id, r.task_id, r.pos
+    FROM resolved r
+    ORDER BY r.ord
+    ON CONFLICT (step_id, task_id) DO NOTHING
+    RETURNING id, step_id, task_id, ord, created_at
+),
+# Collect the links to return. NEWLY-inserted rows MUST come from the INSERT's
+# RETURNING, not a re-SELECT of rev.step_tasks: a data-modifying CTE's inserts
+# are invisible to other references to the same table in the same statement
+# (the statement snapshot predates them), so re-selecting the base table
+# silently dropped every freshly-created link and returned zero rows.
+# Pre-existing links hit by ON CONFLICT DO NOTHING are NOT in RETURNING, so
+# union them from the table (they ARE in the snapshot). Mirrors patch_briefs.sql.
+all_links AS (
+    SELECT id, step_id, task_id, ord, created_at
+    FROM inserted
+    UNION ALL
+    SELECT st.id, st.step_id, st.task_id, st.ord, st.created_at
+    FROM resolved r
+    JOIN rev.step_tasks st ON st.step_id = r.step_id AND st.task_id = r.task_id
+    WHERE NOT EXISTS (
+        SELECT 1 FROM inserted i
+        WHERE i.step_id = r.step_id AND i.task_id = r.task_id
+    )
+)
+SELECT
+    al.id AS "id!",
+    al.step_id AS "step_id!",
+    al.task_id AS "task_id!",
+    al.created_at AS "created_at!"
+FROM all_links al
+# Group by the parent FK (step_id) so StepModel::merge_ordered folds each step's
+# full task set; order within a step by stored authored ord (was al.id, which a
+# repair-in-place re-mint scrambled).
+ORDER BY al.step_id, al.ord;

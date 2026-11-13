@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO rev.inference_profile_configs (inference_profile_id, prompt_path_object_id, model_release_id, priority) VALUES ($1, $2, $3, $4)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c96f0e449e242e0fbf4df003e67f35058f0f192d0f55e40da5c97e5aa9e1c589"
+}

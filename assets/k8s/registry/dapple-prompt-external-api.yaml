@@ -1,0 +1,140 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dapple-sandbox
+---
+# Deployment for the customer-facing external API surface.
+#
+# Hard separation from `dapple-prompt-api`:
+#   - separate binary (built from `crates/dapple-prompt-external-api`)
+#   - separate port (8081 vs 8001)
+#   - separate signing-key secret (`dapple-prompt-external-auth` vs
+#     `dapple-prompt-auth`) — a JWT minted on one surface cannot be verified
+#     by the other (signature fails before any claim is read)
+#   - separate Ingress hostname (`external-api.kube.dappleai.dev`)
+#   - separate Service (different selector)
+#
+# This is the only K8s surface that should ever face public ingress. The
+# internal `dapple-prompt-api` Deployment is cluster-internal by deployment
+# topology; if you ever expose it publicly you defeat the purpose of having
+# two surfaces.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dapple-prompt-external-api
+  namespace: dapple-sandbox
+  labels:
+    app: dapple-prompt-external-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dapple-prompt-external-api
+  template:
+    metadata:
+      labels:
+        app: dapple-prompt-external-api
+    spec:
+      containers:
+        - name: dapple-prompt-external-api
+          image: registry.kube.dappleai.dev/dapple-prompt-external-api:dapple-latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8081
+          env:
+            - name: DAPPLE_PROMPT_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: prompt-db
+                  key: DAPPLE_PROMPT_DATABASE_URL
+            # MUST NOT be the same value as DAPPLE_PROMPT_API_SIGNING_KEY.
+            # The whole point of the two-surface model is that JWTs minted
+            # under this key are cryptographically un-verifiable on the
+            # internal surface and vice versa. Stored in a SEPARATE secret
+            # (`dapple-prompt-external-auth`) so accidental copy/paste from
+            # the internal secret doesn't silently collapse the isolation.
+            - name: DAPPLE_PROMPT_EXTERNAL_API_SIGNING_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: dapple-prompt-external-auth
+                  key: DAPPLE_PROMPT_EXTERNAL_API_SIGNING_KEY
+            - name: DAPPLE_PROMPT_EXTERNAL_API_PORT
+              value: "8081"
+            # Customer-side ingest spawns async embedding generation against
+            # conduit; without this URL embeddings are silently skipped (same
+            # behavior as the internal API).
+            - name: DAPPLE_PROMPT_CONDUIT_URL
+              value: "http://dapple-prompt-conduit:8081"
+            # This surface always runs dispatches in-process (no flow-url branch),
+            # so a customer journey's `av mix` executes here — it needs the media
+            # URL and the X-Internal-Key auth secret just like the flow pod.
+            - name: DAPPLE_PROMPT_CONDUIT_MEDIA_URL
+              value: "http://conduit-oximedia:8085"
+            - name: CONDUIT_INTERNAL_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: conduit-internal-auth
+                  key: internal-key
+                  optional: true
+            - name: RUST_LOG
+              value: "warn,dapple_prompt_external_api=debug,dapple_prompt_api=info,dapple_data=info"
+            # Cap glibc malloc arenas — same rationale as dapple-prompt-api.yaml.
+            - name: MALLOC_ARENA_MAX
+              value: "2"
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits:   { cpu: "500m", memory: "1Gi" }
+          # No HTTP health endpoint on this surface yet — every route requires
+          # an Authorization header, so probing GET / would return 401 and the
+          # pod would never go Ready. TCP-level probes are sufficient: if the
+          # listener has bound port 8081 the binary survived its startup
+          # signing-key check (it exits(1) on missing key) and is accepting
+          # connections.
+          readinessProbe:
+            tcpSocket: { port: 8081 }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket: { port: 8081 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dapple-prompt-external-api
+  namespace: dapple-sandbox
+spec:
+  type: ClusterIP
+  selector:
+    app: dapple-prompt-external-api
+  ports:
+    - name: http
+      port: 8081
+      targetPort: 8081
+---
+# Public-facing Ingress. This is the ONLY Ingress in this manifest set that
+# represents a third-party-customer surface. `external-api.kube.dappleai.dev`
+# in the dev cluster maps to `external-api.dapple.x` in production.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: "dapple-prompt-external-api"
+  namespace: dapple-sandbox
+spec:
+  ingressClassName: public        # or 'nginx' (kubectl get ingressclass)
+  tls:
+    - hosts: [ "dapple-prompt-external-api.kube.dappleai.dev" ]
+      secretName: wildcard-kube.dappleai.dev  # managed by issuer.yaml Certificate
+  rules:
+    - host: "dapple-prompt-external-api.kube.dappleai.dev"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: "dapple-prompt-external-api"
+                port:
+                  number: 8081

@@ -1,0 +1,123 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: conduit-onnx
+  namespace: dapple-sandbox
+  labels:
+    app: conduit-onnx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: conduit-onnx
+  template:
+    metadata:
+      labels:
+        app: conduit-onnx
+    spec:
+      containers:
+        - name: conduit-onnx
+          image: registry.kube.dappleai.dev/conduit-onnx:dapple-latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8083
+              name: http
+          env:
+            - name: ONNX_PORT
+              value: "8083"
+            - name: RUST_LOG
+              value: "warn,conduit_onnx=debug"
+            - name: ONNX_MODEL_PATH
+              value: /models
+            - name: ONNX_EXECUTION_PROVIDER
+              value: CPUExecutionProvider
+            - name: ORT_DYLIB_PATH
+              value: /models/onnxruntime/libonnxruntime.so
+            - name: LD_LIBRARY_PATH
+              value: /models/onnxruntime
+            # Embedding is required — core infrastructure for search and RAG
+            - name: EMBEDDING_ENABLED
+              value: "true"
+            - name: EMBEDDING_REQUIRED
+              value: "true"
+            - name: TTS_ENABLED
+              value: "true"
+            - name: TTS_REQUIRED
+              value: "false"
+            - name: SUMMARIZATION_ENABLED
+              value: "true"
+            - name: SUMMARIZATION_REQUIRED
+              value: "false"
+            - name: MLM_ENABLED
+              value: "true"
+            - name: MLM_REQUIRED
+              value: "false"
+            - name: CONDUIT_INTERNAL_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: conduit-internal-auth
+                  key: internal-key
+                  optional: true
+          resources:
+            requests: { cpu: "100m", memory: "2Gi" }
+            limits:   { cpu: "2000m", memory: "12Gi" }  # ONNX models (embedding, MLM, TTS, T5) ~2.5Gi idle + inference overhead
+          # Probe budgets are sized for CPU-SATURATED inference, not for an
+          # idle web service. `session.run` is synchronous CPU work inside the
+          # async handler, and ONNX's intra-op threads use the full 2-core
+          # limit, so /api/health_check can go unanswered for the length of a
+          # batch. The k8s DEFAULT timeoutSeconds is 1s, which a busy pod
+          # cannot meet.
+          #
+          # Both probes matter, for different reasons (observed 2026-08-02):
+          #  - liveness  too tight => "failed liveness probe, will be
+          #    restarted" mid-batch, killing an in-progress guide sync.
+          #  - readiness too tight => the pod is pulled from the Service
+          #    endpoints while merely BUSY, so the caller's next batch hits an
+          #    endpointless Service and fails with "error sending request for
+          #    url (http://conduit-onnx:8083/embed)" — the same symptom as a
+          #    crash, with nothing actually wrong.
+          #
+          # A genuinely dead process still fails fast: it refuses the
+          # connection rather than timing out, so crash detection is retained.
+          readinessProbe:
+            httpGet:
+              path: /api/health_check
+              port: 8083
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /api/health_check
+              port: 8083
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            timeoutSeconds: 15
+            failureThreshold: 6
+          volumeMounts:
+            - name: onnx-models
+              mountPath: /models
+              readOnly: true
+      volumes:
+        - name: onnx-models
+          hostPath:
+            path: /home/placeholder/.cache/dapple-onnx
+            type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: conduit-onnx
+  namespace: dapple-sandbox
+  labels:
+    app: conduit-onnx
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8083
+      targetPort: 8083
+      protocol: TCP
+  selector:
+    app: conduit-onnx

@@ -1,0 +1,114 @@
+# True iff every value slot the stage NEEDS (its overlay-exposed slots,
+# cascade-resolved stage -> step -> task with mask overriding expose) is bound
+# by some dispatch in the journey's chain.
+#
+# This is the per-stage refinement of `is_journey_fully_bound`: where that
+# query draws the "required slots" set from the journey's brief_packs, this
+# one draws it from the stage's overlays (the playbook node's declared slot
+# needs). The binding-existence check is identical — walk the
+# `predecessor_journey_id` chain and look for a `dispatch_intent_bindings` row.
+#
+# Strict default: a stage with no overlays (or no tasks) has an empty required
+# set, so `NOT EXISTS(empty)` => the stage is trivially "done".
+#
+# Overlays reference a value-slot PATH (`value_slot_path_id`), while bindings
+# reference a value-slot VERSION (`value_slots.id`). We bridge via
+# `versioned_objects.path_id`: a path counts as bound iff ANY value_slot
+# version at that path has a binding in the chain.
+#
+# Parameters (alphabetical bind order):
+#   playbook_stage_id, starting_journey_id
+
+WITH RECURSIVE
+:compose(shared/journey_chain.sqlc)
+,
+journey_scope AS (
+    SELECT :bind(starting_journey_id)::UUID AS journey_id
+),
+# The journey's PINNED brief_packs (shared/select/journey_pinned_packs.sqlc):
+# matches /brief-form and /steps so optionality is read off the SAME version
+# the operator sees. Pinned reads never consult deprecation — see the
+# fragment's doctrine comment.
+:compose(shared/select/journey_pinned_packs.sqlc)
+,
+journey_operator_inputs AS (
+    # Per exposed value-slot PATH, whether the journey-pinned brief input that
+    # pins it is REQUIRED (not optional, not a min_selections = 0 multi-select).
+    # Journey-scoped (NOT a global brief_unit_input scan) so a stale older brief
+    # version missing the `optional` key can't make an optional slot look
+    # required. Computed-output slots have no brief input -> absent here -> a
+    # LEFT JOIN treats them as required (they still count toward DONE).
+    SELECT DISTINCT ON (vo.path_id)
+        vo.path_id AS value_slot_path_id,
+        (NOT COALESCE((bui.control_spec ->> 'optional')::boolean, false)
+            AND COALESCE(vs.min_selections, 1) > 0) AS required
+    FROM journey_packs jp
+    JOIN rev.brief_pack_groups bpg ON bpg.brief_pack_id = jp.brief_pack_id
+    JOIN rev.brief_groups bg ON bg.id = bpg.brief_group_id
+    JOIN rev.brief_group_briefs bgb ON bgb.brief_group_id = bg.id
+    JOIN rev.briefs b ON b.id = bgb.brief_id
+    JOIN rev.brief_units bu ON bu.brief_id = b.id
+    JOIN rev.brief_unit_input bui ON bui.brief_unit_id = bu.id
+    JOIN rev.value_slots vs
+        ON bui.control_spec ? 'value_slot_id'
+       AND vs.id = (bui.control_spec ->> 'value_slot_id')::UUID
+    JOIN rev.versioned_objects vo ON vo.id = vs.versioned_object_id
+    ORDER BY vo.path_id, vs.id DESC
+),
+stage_tasks AS (
+    SELECT
+        stk.id AS step_task_id,
+        ss.id AS stage_step_id,
+        pstage.id AS playbook_stage_id
+    FROM rev.playbook_stages pstage
+    JOIN rev.stage_steps ss ON ss.stage_id = pstage.stage_id
+    JOIN rev.step_tasks stk ON stk.step_id = ss.step_id
+    WHERE pstage.id = :bind(playbook_stage_id)::UUID
+),
+all_overlays AS (
+    SELECT st.step_task_id, o.value_slot_path_id, o.visibility, 1 AS priority
+    FROM rev.playbook_stage_overlays o
+    JOIN stage_tasks st ON st.playbook_stage_id = o.playbook_stage_id
+    UNION ALL
+    SELECT st.step_task_id, o.value_slot_path_id, o.visibility, 2 AS priority
+    FROM rev.stage_step_overlays o
+    JOIN stage_tasks st ON st.stage_step_id = o.stage_step_id
+    UNION ALL
+    SELECT st.step_task_id, o.value_slot_path_id, o.visibility, 3 AS priority
+    FROM rev.step_task_overlays o
+    JOIN stage_tasks st ON st.step_task_id = o.step_task_id
+),
+ranked AS (
+    SELECT DISTINCT ON (step_task_id, value_slot_path_id)
+        step_task_id, value_slot_path_id, visibility
+    FROM all_overlays
+    ORDER BY step_task_id, value_slot_path_id, priority DESC
+),
+required_paths AS (
+    # Keep computed outputs (no journey-pinned brief input -> LEFT JOIN NULL ->
+    # COALESCE true) and REQUIRED operator inputs; drop OPTIONAL operator inputs
+    # (the author flag, or a min_selections = 0 multi-select) so an unbound
+    # optional slot can't keep the stage from reaching DONE. (Unlike
+    # `is_step_fully_bound`'s start gate, this DONE helper still counts produced
+    # computed outputs, so it keeps non-operator paths.)
+    SELECT DISTINCT r.value_slot_path_id
+    FROM ranked r
+    LEFT JOIN journey_operator_inputs joi
+        ON joi.value_slot_path_id = r.value_slot_path_id
+    WHERE r.visibility = 'expose'
+      AND COALESCE(joi.required, true)
+)
+SELECT NOT EXISTS (
+    SELECT 1
+    FROM required_paths rp
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM rev.value_slots vs
+        JOIN rev.versioned_objects vo ON vo.id = vs.versioned_object_id
+        JOIN rev.dispatch_intent_bindings dib ON dib.value_slot_id = vs.id
+        JOIN rev.dispatches d ON d.id = dib.dispatch_id
+        JOIN journey_chain jc ON jc.journey_id = d.journey_id
+        WHERE vo.path_id = rp.value_slot_path_id
+          AND :compose(shared/fork_cutoff_filter.sqlc)
+    )
+) AS fully_bound;

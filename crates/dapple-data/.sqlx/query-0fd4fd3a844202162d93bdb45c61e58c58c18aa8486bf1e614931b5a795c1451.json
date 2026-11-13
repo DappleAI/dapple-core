@@ -1,0 +1,85 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n    t.id,\n    ud.object_id AS user_id,\n    t.name,\n    t.expires_at,\n        (\n        SELECT MIN(r.revoked_at)\n        FROM web.api_token_revocations r\n        WHERE r.api_token_id = t.id\n    ) AS revoked_at,\n            COALESCE(a.api_token_id IS NOT NULL, false) AS \"is_admin!\",\n        COALESCE(\n        (SELECT array_agg(ur.role) FROM web.user_roles ur WHERE ur.user_id = t.user_id),\n        ARRAY['user']::text[]\n    ) AS \"user_roles!\"\nFROM web.api_tokens t\nJOIN rev.user_details ud ON ud.user_id = t.user_id\nLEFT JOIN web.admin_api_tokens a ON a.api_token_id = t.id\nWHERE t.token_hash = $1;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "web.api_tokens",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.user_details",
+            "name": "object_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "web.api_tokens",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "expires_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "web.api_tokens",
+            "name": "expires_at"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "revoked_at",
+        "type_info": "Timestamptz",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 5,
+        "name": "is_admin!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 6,
+        "name": "user_roles!",
+        "type_info": "TextArray",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "0fd4fd3a844202162d93bdb45c61e58c58c18aa8486bf1e614931b5a795c1451"
+}

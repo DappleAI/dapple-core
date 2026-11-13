@@ -1,0 +1,157 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nWITH latest_deprecation AS (\n    SELECT DISTINCT ON (versioned_object_id)\n        versioned_object_id,\n        to_level_id\n    FROM rev.deprecation_events\n    ORDER BY versioned_object_id, created_at DESC\n),\n\njourney_packs AS (\n    SELECT DISTINCT ON (bpvo.path_id) bpack.id AS brief_pack_id\n    FROM rev.journeys j\n    JOIN rev.journey_brief_packs jbp ON jbp.journey_id = j.id\n    JOIN rev.brief_packs bpack ON bpack.id = jbp.brief_pack_id\n    JOIN rev.versioned_objects bpvo ON bpvo.id = bpack.versioned_object_id\n    LEFT JOIN latest_deprecation ld ON ld.versioned_object_id = bpvo.id\n    WHERE j.id = $1::UUID\n      AND ld.to_level_id IS NULL\n        ORDER BY bpvo.path_id, bpvo.created_at DESC, bpvo.id DESC\n)\nSELECT\n        b.id,\n    b.versioned_object_id AS brief_versioned_object_id,\n    bvo.path_id AS brief_path_id,\n    bop.id AS path_id,\n    bpd.name,\n    bvo.content_hash,\n    COALESCE(rev.fluent_body(b.title_fluent_message_id, 'en'), b.title, bpd.name) AS \"title!\",\n    COALESCE(rev.fluent_body(b.description_fluent_message_id, 'en'), b.description) AS description,\n    b.created_at,\n        bpack.id AS brief_pack_id,\n        bg.id AS brief_group_id,\n    bgpd.name AS brief_group_name,\n    COALESCE(rev.fluent_body(bg.title_fluent_message_id, 'en'), bg.title, bgpd.name) AS \"brief_group_title!\"\nFROM journey_packs jp\nJOIN rev.brief_packs bpack ON bpack.id = jp.brief_pack_id\nJOIN rev.brief_pack_groups bpg ON bpg.brief_pack_id = bpack.id\nJOIN rev.brief_groups bg ON bg.id = bpg.brief_group_id\nJOIN rev.versioned_objects bgvo ON bgvo.id = bg.versioned_object_id\nJOIN rev.object_paths bgop ON bgop.id = bgvo.path_id\nJOIN rev.brief_group_path_details bgpd ON bgpd.path_id = bgop.id\nJOIN rev.brief_group_briefs bgb ON bgb.brief_group_id = bg.id\nJOIN rev.briefs b ON b.id = bgb.brief_id\nJOIN rev.versioned_objects bvo ON bvo.id = b.versioned_object_id\nJOIN rev.object_paths bop ON bop.id = bvo.path_id\nJOIN rev.brief_path_details bpd ON bpd.path_id = bop.id\nORDER BY bg.id, b.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.briefs",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "brief_versioned_object_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.briefs",
+            "name": "versioned_object_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "brief_path_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "path_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "path_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.object_paths",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "content_hash",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "content_hash"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "title!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 7,
+        "name": "description",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.briefs",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "brief_pack_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_packs",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "brief_group_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_groups",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "brief_group_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_group_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "brief_group_title!",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      null,
+      false,
+      false,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "fa72831da2b481d13b6d65283441ab6f9f615361f1d5a56a000aac992ef4a3a5"
+}

@@ -1,0 +1,126 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::UUID[],             $2::UUID[],             $3::JSONB[]         ) WITH ORDINALITY AS o(dispatch_stage_id, stage_step_id, params, ord)\n),\ninput AS (\n    SELECT\n        a.*,\n        ss.id AS resolved_stage_step_id\n    FROM args a\n    LEFT JOIN rev.stage_steps ss ON ss.id = a.stage_step_id\n),\nobjs AS (\n    INSERT INTO rev.dispatch_steps (dispatch_stage_id, stage_step_id, params)\n    SELECT input.dispatch_stage_id, input.resolved_stage_step_id, input.params\n    FROM input\n    ORDER BY input.ord\n    RETURNING *\n)\nSELECT\n    objs.*,\n    pst.id AS playbook_stage_id,\n    d.id AS dispatch_id,\n    ss.step_id AS step_id,\n    pst.playbook_id AS playbook_id\nFROM objs\nJOIN rev.stage_steps ss ON objs.stage_step_id = ss.id\nJOIN rev.dispatch_stages dst ON objs.dispatch_stage_id = dst.id\nJOIN rev.dispatches d ON dst.dispatch_id = d.id\nJOIN rev.playbook_stages pst ON ss.stage_id = pst.stage_id\n    AND dst.playbook_stage_id = pst.id\nJOIN input ON objs.dispatch_stage_id = input.dispatch_stage_id\n    AND objs.stage_step_id = input.resolved_stage_step_id\n    AND objs.params = input.params\nORDER BY objs.dispatch_stage_id, objs.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_steps",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "dispatch_stage_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_steps",
+            "name": "dispatch_stage_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "params",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_steps",
+            "name": "params"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_steps",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "stage_step_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatch_steps",
+            "name": "stage_step_id"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "playbook_stage_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.playbook_stages",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "dispatch_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatches",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "step_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.stage_steps",
+            "name": "step_id"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "playbook_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.playbook_stages",
+            "name": "playbook_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "UuidArray",
+        "JsonbArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "fb58599d002812572bad002d39d8252b390cb577a825698cda20e797534c4359"
+}

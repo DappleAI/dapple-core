@@ -1,0 +1,68 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH asset_info AS (\n    SELECT a.id, a.content_length\n    FROM rev.assets a\n    WHERE a.id = $1\n),\nchunk_positions AS (\n    SELECT\n        c.id,\n        c.data,\n        c.created_at,\n        ac.ordinal,\n                COALESCE(\n            SUM(octet_length(c.data)) OVER (\n                PARTITION BY ac.asset_id\n                ORDER BY ac.ordinal\n                ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING\n            ),\n            0\n        )::BIGINT as start_byte,\n                (COALESCE(\n            SUM(octet_length(c.data)) OVER (\n                PARTITION BY ac.asset_id\n                ORDER BY ac.ordinal\n                ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING\n            ),\n            0\n        ) + octet_length(c.data) - 1)::BIGINT as end_byte\n    FROM asset_info ai\n    JOIN rev.asset_chunks ac ON ac.asset_id = ai.id\n    JOIN rev.chunks c ON c.id = ac.chunk_id\n)\nSELECT\n    id,\n    data,\n    start_byte,\n    end_byte,\n    created_at\nFROM chunk_positions\nWHERE end_byte >= $2      AND start_byte <= $3  ORDER BY ordinal;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.chunks",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "data",
+        "type_info": "Bytea",
+        "origin": {
+          "Table": {
+            "table": "rev.chunks",
+            "name": "data"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "start_byte",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "end_byte",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.chunks",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      null,
+      null,
+      false
+    ]
+  },
+  "hash": "85ffb60f5e1b4b538d680ee546a432ff015ac0c163d8c55e668f0ae12f89bbd0"
+}

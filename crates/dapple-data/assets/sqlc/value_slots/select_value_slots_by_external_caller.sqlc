@@ -1,0 +1,3 @@
+# External-API value_slot listing: scoped to the caller's company namespace.
+# Used by GET /api/value-slots on external-api.dapple.x.
+:compose(value_slots/select_value_slots_body.sqlc, @page = value_slots/pages/by_external_caller.sqlc)

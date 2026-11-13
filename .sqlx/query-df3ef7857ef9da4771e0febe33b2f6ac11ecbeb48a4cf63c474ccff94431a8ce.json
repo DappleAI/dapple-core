@@ -1,0 +1,65 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::UUID[],              $2::SMALLINT[]       ) WITH ORDINALITY AS o(\n        block_id,\n        tag_id,\n        ord\n    )\n)\nINSERT INTO rev.guide_block_tags (id, block_id, tag_id)\nSELECT uuidv7(), args.block_id, args.tag_id\nFROM args\nORDER BY args.ord\nRETURNING id, block_id, tag_id, created_at;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_block_tags",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "block_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_block_tags",
+            "name": "block_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "tag_id",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_block_tags",
+            "name": "tag_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_block_tags",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "Int2Array"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "df3ef7857ef9da4771e0febe33b2f6ac11ecbeb48a4cf63c474ccff94431a8ce"
+}

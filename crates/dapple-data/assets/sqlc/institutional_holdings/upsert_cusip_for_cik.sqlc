@@ -1,0 +1,8 @@
+# Cache a company's resolved CUSIP (from its SC 13D/13G cover pages) so repeat
+# reviews skip the resolution fetch. Idempotent; a re-resolution overwrites.
+# Parameters:
+#   $1: cik (BIGINT)
+#   $2: cusip (TEXT)
+INSERT INTO rev.security_cusip (cik, cusip)
+VALUES ($1, $2)
+ON CONFLICT (cik) DO UPDATE SET cusip = EXCLUDED.cusip, resolved_at = now();

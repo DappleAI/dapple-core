@@ -1,0 +1,116 @@
+# `authored_ord` ($13) is the output's 1-based position within its OWN brief's
+# authored unit sequence — NOT the array ordinality. Outputs are batched
+# separately from the brief's other units (rev.brief_units), and across several
+# briefs at once, so array position cannot express either the per-brief position
+# or the interleaving with non-output units. ORDINALITY's `ord` keeps its usual
+# job: batch-local ordering so generated UUIDv7s follow caller order.
+WITH args AS (
+    SELECT *
+    FROM UNNEST(
+        $1::UUID[],
+        $2::UUID[],
+        $3::TEXT[],
+        $4::TEXT[],
+        $5::TEXT[],
+        $6::JSONB[],
+        $7::TEXT[],
+        $8::BOOL[],
+        $9::TEXT[],
+        $10::UUID[],
+        $11::TEXT[],
+        $12::TEXT[],
+        $13::INT[]
+    ) WITH ORDINALITY AS o(
+        brief_id, value_slot_id, unit_key, source_kind_key, source_path, transform,
+        display_hint_key, reveal, title_text, title_fluent_message_id,
+        display_group, display_format, authored_ord, ord
+    )
+),
+value_slot_refs AS (
+    SELECT
+        args.ord,
+        args.authored_ord,
+        vs.id AS value_slot_id,
+        vspd.name AS value_slot_name,
+        args.brief_id,
+        args.unit_key,
+        args.source_kind_key,
+        args.source_path,
+        args.transform,
+        args.display_hint_key,
+        args.reveal,
+        args.title_text,
+        args.title_fluent_message_id,
+        args.display_group,
+        args.display_format
+    FROM args
+    JOIN rev.value_slots vs ON vs.id = args.value_slot_id
+    JOIN rev.versioned_objects vo ON vo.id = vs.versioned_object_id
+    JOIN rev.object_paths op ON op.id = vo.path_id
+    JOIN rev.value_slot_path_details vspd ON vspd.path_id = op.id
+),
+objs AS (
+    INSERT INTO rev.brief_outputs (
+        brief_id,
+        value_slot_id,
+        unit_key,
+        source_kind_id,
+        source_path,
+        transform,
+        display_hint_id,
+        reveal,
+        title_text,
+        title_fluent_message_id,
+        display_group,
+        display_format,
+        ord,
+        created_at
+    )
+    SELECT
+        vsr.brief_id,
+        vsr.value_slot_id,
+        vsr.unit_key,
+        sk.id,
+        vsr.source_path,
+        COALESCE(vsr.transform, '{}'::jsonb),
+        dh.id,
+        COALESCE(vsr.reveal, false),
+        vsr.title_text,
+        vsr.title_fluent_message_id,
+        vsr.display_group,
+        vsr.display_format,
+        COALESCE(vsr.authored_ord, 0),
+        now()
+    FROM value_slot_refs vsr
+    JOIN rev.brief_output_source_kinds sk ON sk.key = vsr.source_kind_key
+    # LEFT JOIN so an unknown display key never drops the output row — the read
+    # side COALESCEs a NULL display_hint_id back to 'text'. The materializer
+    # validates + defaults the key, so this is defense-in-depth.
+    LEFT JOIN rev.brief_output_display_hints dh ON dh.key = vsr.display_hint_key
+    ORDER BY vsr.ord
+    RETURNING
+        id, brief_id, value_slot_id, unit_key, source_kind_id, source_path,
+        transform, display_hint_id, reveal, title_text, title_fluent_message_id,
+        display_group, display_format, created_at
+)
+SELECT
+    objs.id,
+    objs.brief_id,
+    objs.unit_key,
+    objs.value_slot_id,
+    vsr.value_slot_name,
+    sk.key AS source_kind_key,
+    objs.source_path,
+    objs.transform,
+    COALESCE(dh.key, 'text') AS "display_hint!",
+    objs.reveal,
+    objs.title_text,
+    objs.title_fluent_message_id,
+    objs.display_group,
+    objs.display_format,
+    objs.created_at
+FROM objs
+JOIN value_slot_refs vsr ON vsr.brief_id = objs.brief_id AND vsr.value_slot_id = objs.value_slot_id
+JOIN rev.brief_output_source_kinds sk ON sk.id = objs.source_kind_id
+LEFT JOIN rev.brief_output_display_hints dh ON dh.id = objs.display_hint_id
+ORDER BY objs.id;

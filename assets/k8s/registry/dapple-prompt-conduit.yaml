@@ -1,0 +1,143 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dapple-sandbox
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dapple-prompt-conduit
+  namespace: dapple-sandbox
+  labels:
+    app: dapple-prompt-conduit
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dapple-prompt-conduit
+  template:
+    metadata:
+      labels:
+        app: dapple-prompt-conduit
+    spec:
+      containers:
+        - name: dapple-prompt-conduit
+          image: registry.kube.dappleai.dev/dapple-prompt-conduit:dapple-latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8081
+          env:
+            - name: DAPPLE_PROMPT_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: prompt-db
+                  key: DAPPLE_PROMPT_DATABASE_URL
+            - name: CONDUIT_PORT
+              value: "8081"
+            - name: RUST_LOG
+              value: "warn,dapple_prompt_conduit=debug,dapple_data=debug"
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: dapple-llm-keys
+                  key: ANTHROPIC_API_KEY
+                  optional: true
+            # Enables the gpt-image generation backend (handle_image_prompt). When
+            # absent, ImageConfig::from_env() returns None and image prompts fail
+            # cleanly with "image_unavailable".
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: dapple-llm-keys
+                  key: OPENAI_API_KEY
+                  optional: true
+            # Enables the Fal image + video backends (rath). When absent,
+            # provider-less imagine/animate requests fall through to the stub
+            # backend; only the OpenAI-pinned paths (gpt-image, Sora) work.
+            - name: FAL_AUTH_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: dapple-llm-keys
+                  key: FAL_AUTH_KEY
+                  optional: true
+            - name: DAPPLE_PROMPT_API_SIGNING_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: dapple-prompt-auth
+                  key: DAPPLE_PROMPT_API_SIGNING_KEY
+            # API URL for task_context injection (Phase F)
+            - name: DAPPLE_PROMPT_API_URL
+              value: "http://dapple-prompt-api"
+            # Sub-service URLs — conduit proxies all inference to these pods
+            - name: CONDUIT_ONNX_URL
+              value: "http://conduit-onnx:8083"
+            - name: CONDUIT_LLM_URL
+              value: "http://conduit-llm:8084"
+            # Shared auth key for sub-service requests
+            - name: CONDUIT_INTERNAL_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: conduit-internal-auth
+                  key: internal-key
+                  optional: true
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits:   { cpu: "1000m", memory: "1Gi" }  # Orchestrator only — no models loaded
+          readinessProbe:
+            httpGet: { path: /api/health_check, port: 8081 }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /api/health_check, port: 8081 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dapple-prompt-conduit
+  namespace: dapple-sandbox
+spec:
+  type: ClusterIP
+  selector:
+    app: dapple-prompt-conduit
+  ports:
+    - name: http
+      port: 8081
+      targetPort: 8081
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: "dapple-prompt-conduit"
+  namespace: dapple-sandbox
+  annotations:
+    # Operator asset uploads (e.g. multi-minute WAV "card audio") POST the file
+    # through this ingress. Without this, nginx's 1 MB client_max_body_size
+    # default returns a 413 HTML page that the UI reports as "Malformed server
+    # response". 256m gives headroom for large audio; the backend assets route
+    # matches this ceiling (DefaultBodyLimit in route/assets.rs).
+    nginx.ingress.kubernetes.io/proxy-body-size: "256m"
+    # /embed runs ModernBERT on CPU and is minutes-scale for a whole guide's
+    # blocks; /prompt streams an LLM completion. Both routinely exceed nginx's
+    # 60s proxy_read_timeout default. Matches the api ingress so a slow call
+    # fails with the service's own error rather than an opaque 504.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+spec:
+  ingressClassName: public        # or 'nginx' (kubectl get ingressclass)
+  tls:
+    - hosts: [ "dapple-prompt-conduit.kube.dappleai.dev" ]
+      secretName: wildcard-kube.dappleai.dev  # managed by issuer.yaml Certificate
+  rules:
+    - host: "dapple-prompt-conduit.kube.dappleai.dev"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: "dapple-prompt-conduit"
+                port:
+                  number: 8081

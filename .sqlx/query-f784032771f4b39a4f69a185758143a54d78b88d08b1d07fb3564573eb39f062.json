@@ -1,0 +1,128 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nSELECT\n    ipc.id,\n    ipc.inference_profile_id,\n    ipc.prompt_path_object_id,\n    ipc.model_release_id,\n    ipc.model_variant_id,\n    ipc.priority,\n        COALESCE(l.key, lv.key) AS lineage_key,\n    COALESCE(p.key, pv.key) AS provider_key,\n    COALESCE(mr.tier, mrv.tier) AS tier,\n    COALESCE(mr.release, mrv.release) AS release,\n        mv.key AS variant_key\nFROM rev.inference_profile_configs ipc\nLEFT JOIN rev.model_releases mr ON mr.id = ipc.model_release_id\nLEFT JOIN rev.lineages l ON l.id = mr.lineage_id\nLEFT JOIN rev.providers p ON p.id = mr.provider_id\nLEFT JOIN rev.model_variants mv ON mv.id = ipc.model_variant_id\nLEFT JOIN rev.model_releases mrv ON mrv.id = mv.base_release_id\nLEFT JOIN rev.lineages lv ON lv.id = mrv.lineage_id\nLEFT JOIN rev.providers pv ON pv.id = mrv.provider_id\nWHERE ipc.inference_profile_id = $1\nORDER BY ipc.priority;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.inference_profile_configs",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "inference_profile_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.inference_profile_configs",
+            "name": "inference_profile_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "prompt_path_object_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.inference_profile_configs",
+            "name": "prompt_path_object_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "model_release_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.inference_profile_configs",
+            "name": "model_release_id"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "model_variant_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.inference_profile_configs",
+            "name": "model_variant_id"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "priority",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "rev.inference_profile_configs",
+            "name": "priority"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "lineage_key",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 7,
+        "name": "provider_key",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 8,
+        "name": "tier",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 9,
+        "name": "release",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 10,
+        "name": "variant_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.model_variants",
+            "name": "key"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      null,
+      null,
+      null,
+      null,
+      false
+    ]
+  },
+  "hash": "f784032771f4b39a4f69a185758143a54d78b88d08b1d07fb3564573eb39f062"
+}

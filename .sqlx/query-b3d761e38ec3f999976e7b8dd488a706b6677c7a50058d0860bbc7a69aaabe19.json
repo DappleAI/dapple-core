@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE rev.briefs\n                         SET title_fluent_message_id = $2, title = NULL, description = $3\n                         WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b3d761e38ec3f999976e7b8dd488a706b6677c7a50058d0860bbc7a69aaabe19"
+}

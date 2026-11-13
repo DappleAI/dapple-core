@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT DISTINCT bgb.brief_group_id AS \"id!\"\n                   FROM rev.brief_group_briefs bgb\n                   WHERE bgb.brief_group_id = ANY($1)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_group_briefs",
+            "name": "brief_group_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "12bd6e164d4280e48390d28f5e55f6b1a5f33c88e341011a2e1b0a1d0dfcd79f"
+}

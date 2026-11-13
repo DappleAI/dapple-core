@@ -1,0 +1,117 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::UUID[],             $2::TEXT[],              $3::UUID[],             $4::TEXT[],              $5::TEXT[],              $6::TEXT[]           ) WITH ORDINALITY AS o(guide_id, subtitle, card_image_asset_id, category, color, accent, ord)\n),\nobjs AS (\n    INSERT INTO rev.guide_cards (guide_id, subtitle, card_image_asset_id, category, color, accent)\n    SELECT args.guide_id, args.subtitle, args.card_image_asset_id, args.category, args.color, args.accent\n    FROM args\n    ORDER BY args.ord\n    RETURNING id, guide_id, subtitle, card_image_asset_id, category, color, accent, created_at\n)\nSELECT * FROM objs ORDER BY objs.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_cards",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "guide_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_cards",
+            "name": "guide_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "subtitle",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_cards",
+            "name": "subtitle"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "card_image_asset_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_cards",
+            "name": "card_image_asset_id"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "category",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_cards",
+            "name": "category"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "color",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_cards",
+            "name": "color"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "accent",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_cards",
+            "name": "accent"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_cards",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "TextArray",
+        "UuidArray",
+        "TextArray",
+        "TextArray",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "c34e277f2d73404e83a36bd8488c041c2beef8577752b731d43ef7d79479055a"
+}

@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT EXISTS (\n    SELECT 1\n    FROM rev.prompts p\n    JOIN rev.versioned_objects vo ON vo.id = p.versioned_object_id\n    JOIN rev.object_paths op ON op.id = vo.path_id\n    WHERE p.id = $2::UUID\n      AND op.namespace_company_id = $1::UUID\n) AS in_namespace;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "in_namespace",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "9038d363ad077877f768daf47c84e74262428071b7bc23c1b2b0305b0d827091"
+}

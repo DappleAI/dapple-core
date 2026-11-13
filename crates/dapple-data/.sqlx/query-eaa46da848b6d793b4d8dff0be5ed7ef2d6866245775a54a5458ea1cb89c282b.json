@@ -1,0 +1,65 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nWITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::UUID[],\n        $2::UUID[]\n    ) WITH ORDINALITY AS o(brief_group_id, brief_id, ord)\n)\nINSERT INTO rev.brief_group_briefs (brief_group_id, brief_id, created_at)\nSELECT args.brief_group_id, args.brief_id, now()\nFROM args\nORDER BY args.ord\nRETURNING id, brief_group_id, brief_id, created_at;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_group_briefs",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "brief_group_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_group_briefs",
+            "name": "brief_group_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "brief_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_group_briefs",
+            "name": "brief_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_group_briefs",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "eaa46da848b6d793b4d8dff0be5ed7ef2d6866245775a54a5458ea1cb89c282b"
+}

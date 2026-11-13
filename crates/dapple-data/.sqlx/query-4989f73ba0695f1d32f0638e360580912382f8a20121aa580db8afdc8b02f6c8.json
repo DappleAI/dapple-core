@@ -1,0 +1,76 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT * FROM UNNEST($1::TEXT[])\n    WITH ORDINALITY AS o(slug, ord)\n),\nlatest_versions AS (\n    SELECT DISTINCT ON (tpd.slug)\n        t.id,\n        op.id AS path_id,\n        tpd.slug,\n        vo.content_hash,\n        t.function_input\n    FROM rev.task_path_details tpd\n    JOIN rev.object_paths op ON op.id = tpd.path_id\n    JOIN rev.versioned_objects vo ON vo.path_id = op.id\n    JOIN rev.tasks t ON t.versioned_object_id = vo.id\n    WHERE tpd.slug = ANY($1::TEXT[])\n      AND tpd.namespace_company_id = COALESCE(\n          NULLIF(current_setting('dapple.namespace_company_id', true), ''),\n          '019e132e-2610-7a4a-b64a-77a49e286ac0'\n      )::UUID\n    ORDER BY tpd.slug, vo.created_at DESC\n)\nSELECT\n    lv.id,\n    lv.path_id,\n    lv.slug,\n    lv.content_hash,\n    lv.function_input\nFROM latest_versions lv\nJOIN args ON args.slug = lv.slug\nORDER BY args.ord;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.tasks",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "path_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.object_paths",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "slug",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.task_path_details",
+            "name": "slug"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "content_hash",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "content_hash"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "function_input",
+        "type_info": "Json",
+        "origin": {
+          "Table": {
+            "table": "rev.tasks",
+            "name": "function_input"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "4989f73ba0695f1d32f0638e360580912382f8a20121aa580db8afdc8b02f6c8"
+}

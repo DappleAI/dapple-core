@@ -1,0 +1,4 @@
+# Select steps by object IDs using unified versioning
+#
+# LIMIT/OFFSET apply to distinct steps (not flat rows) via a page CTE.
+:compose(steps/select_steps_body.sqlc, @page = steps/pages/by_object_ids.sqlc)

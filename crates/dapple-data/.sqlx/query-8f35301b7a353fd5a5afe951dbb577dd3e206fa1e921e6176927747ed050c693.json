@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH latest_deprecation AS (\n    SELECT DISTINCT ON (versioned_object_id)\n        versioned_object_id,\n        to_level_id\n    FROM rev.deprecation_events\n    ORDER BY versioned_object_id, created_at DESC\n),\n\ncandidates AS (\n    SELECT bp.id AS brief_pack_id, vo.path_id, vo.created_at\n    FROM rev.guide_brief_packs gbp\n    JOIN rev.brief_packs bp ON bp.id = gbp.brief_pack_id\n    JOIN rev.versioned_objects vo ON vo.id = bp.versioned_object_id\n    LEFT JOIN latest_deprecation ld ON ld.versioned_object_id = vo.id\n    WHERE gbp.guide_id = $1::UUID\n      AND ld.to_level_id IS NULL\n),\nlatest AS (\n    SELECT DISTINCT ON (path_id) brief_pack_id\n    FROM candidates\n        ORDER BY path_id, created_at DESC, brief_pack_id DESC\n)\nSELECT brief_pack_id AS \"brief_pack_id!\"\nFROM latest\nORDER BY brief_pack_id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "brief_pack_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_packs",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "8f35301b7a353fd5a5afe951dbb577dd3e206fa1e921e6176927747ed050c693"
+}

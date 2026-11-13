@@ -1,0 +1,203 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::UUID[],\n        $2::UUID[],\n        $3::TEXT[],\n        $4::TEXT[],\n        $5::TEXT[],\n        $6::JSONB[],\n        $7::TEXT[],\n        $8::BOOL[],\n        $9::TEXT[],\n        $10::UUID[],\n        $11::TEXT[],\n        $12::TEXT[],\n        $13::INT[]\n    ) WITH ORDINALITY AS o(\n        brief_id, value_slot_id, unit_key, source_kind_key, source_path, transform,\n        display_hint_key, reveal, title_text, title_fluent_message_id,\n        display_group, display_format, authored_ord, ord\n    )\n),\nvalue_slot_refs AS (\n    SELECT\n        args.ord,\n        args.authored_ord,\n        vs.id AS value_slot_id,\n        vspd.name AS value_slot_name,\n        args.brief_id,\n        args.unit_key,\n        args.source_kind_key,\n        args.source_path,\n        args.transform,\n        args.display_hint_key,\n        args.reveal,\n        args.title_text,\n        args.title_fluent_message_id,\n        args.display_group,\n        args.display_format\n    FROM args\n    JOIN rev.value_slots vs ON vs.id = args.value_slot_id\n    JOIN rev.versioned_objects vo ON vo.id = vs.versioned_object_id\n    JOIN rev.object_paths op ON op.id = vo.path_id\n    JOIN rev.value_slot_path_details vspd ON vspd.path_id = op.id\n),\nobjs AS (\n    INSERT INTO rev.brief_outputs (\n        brief_id,\n        value_slot_id,\n        unit_key,\n        source_kind_id,\n        source_path,\n        transform,\n        display_hint_id,\n        reveal,\n        title_text,\n        title_fluent_message_id,\n        display_group,\n        display_format,\n        ord,\n        created_at\n    )\n    SELECT\n        vsr.brief_id,\n        vsr.value_slot_id,\n        vsr.unit_key,\n        sk.id,\n        vsr.source_path,\n        COALESCE(vsr.transform, '{}'::jsonb),\n        dh.id,\n        COALESCE(vsr.reveal, false),\n        vsr.title_text,\n        vsr.title_fluent_message_id,\n        vsr.display_group,\n        vsr.display_format,\n        COALESCE(vsr.authored_ord, 0),\n        now()\n    FROM value_slot_refs vsr\n    JOIN rev.brief_output_source_kinds sk ON sk.key = vsr.source_kind_key\n                LEFT JOIN rev.brief_output_display_hints dh ON dh.key = vsr.display_hint_key\n    ORDER BY vsr.ord\n    RETURNING\n        id, brief_id, value_slot_id, unit_key, source_kind_id, source_path,\n        transform, display_hint_id, reveal, title_text, title_fluent_message_id,\n        display_group, display_format, created_at\n)\nSELECT\n    objs.id,\n    objs.brief_id,\n    objs.unit_key,\n    objs.value_slot_id,\n    vsr.value_slot_name,\n    sk.key AS source_kind_key,\n    objs.source_path,\n    objs.transform,\n    COALESCE(dh.key, 'text') AS \"display_hint!\",\n    objs.reveal,\n    objs.title_text,\n    objs.title_fluent_message_id,\n    objs.display_group,\n    objs.display_format,\n    objs.created_at\nFROM objs\nJOIN value_slot_refs vsr ON vsr.brief_id = objs.brief_id AND vsr.value_slot_id = objs.value_slot_id\nJOIN rev.brief_output_source_kinds sk ON sk.id = objs.source_kind_id\nLEFT JOIN rev.brief_output_display_hints dh ON dh.id = objs.display_hint_id\nORDER BY objs.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_outputs",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "brief_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_outputs",
+            "name": "brief_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "unit_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_outputs",
+            "name": "unit_key"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "value_slot_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_outputs",
+            "name": "value_slot_id"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "value_slot_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slot_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "source_kind_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_output_source_kinds",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "source_path",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_outputs",
+            "name": "source_path"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "transform",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_outputs",
+            "name": "transform"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "display_hint!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 9,
+        "name": "reveal",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_outputs",
+            "name": "reveal"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "title_text",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_outputs",
+            "name": "title_text"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "title_fluent_message_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_outputs",
+            "name": "title_fluent_message_id"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "display_group",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_outputs",
+            "name": "display_group"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "display_format",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_outputs",
+            "name": "display_format"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_outputs",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "UuidArray",
+        "TextArray",
+        "TextArray",
+        "TextArray",
+        "JsonbArray",
+        "TextArray",
+        "BoolArray",
+        "TextArray",
+        "UuidArray",
+        "TextArray",
+        "TextArray",
+        "Int4Array"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "07e26ef8beea9639cac5c264f23b7a5923142ce93c6d31b4ee961fd56a093c41"
+}

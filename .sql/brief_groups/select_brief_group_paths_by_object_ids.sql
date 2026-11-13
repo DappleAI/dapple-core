@@ -1,0 +1,16 @@
+-- Select brief group paths by IDs using unified versioning
+-- Parameters:
+--   $1: ids (UUID[])
+
+WITH args AS (
+    SELECT *
+    FROM UNNEST($1::UUID[]) WITH ORDINALITY AS o(id, ord)
+)
+SELECT
+    op.id,
+    bgpd.name,
+    op.created_at
+FROM args
+JOIN rev.object_paths op ON op.id = args.id
+JOIN rev.brief_group_path_details bgpd ON bgpd.path_id = op.id
+ORDER BY op.id;

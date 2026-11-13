@@ -1,0 +1,117 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $2::UUID[],\n        $3::TEXT[]\n    ) WITH ORDINALITY AS o(\n        path_id,\n        reason,\n        ord\n    )\n),\nlatest_versions AS (\n    SELECT DISTINCT ON (op.id)\n        op.id AS path_id,\n        vo.id AS versioned_object_id,\n        ld.to_level_id AS from_level_id\n    FROM args\n    JOIN rev.object_paths op ON op.id = args.path_id\n    JOIN rev.versioned_objects vo ON vo.path_id = op.id\n    LEFT JOIN LATERAL (\n        SELECT de.to_level_id\nFROM rev.deprecation_events de\nWHERE de.versioned_object_id = vo.id\nORDER BY de.created_at DESC\nLIMIT 1\n\n    ) ld ON TRUE\n    ORDER BY op.id, vo.created_at DESC\n),\nresolved AS (\n    SELECT lv.versioned_object_id, lv.from_level_id, lv.path_id, args.reason\n    FROM args\n    JOIN latest_versions lv ON lv.path_id = args.path_id\n),\n\nevents AS (\n    INSERT INTO rev.deprecation_events (\n        versioned_object_id, from_level_id, to_level_id, reason, deprecated_by_user_id\n    )\n    SELECT\n        resolved.versioned_object_id,\n        resolved.from_level_id,\n        $4::SMALLINT,\n        resolved.reason,\n        $1::UUID\n    FROM resolved\n    RETURNING *\n)\n\nSELECT\n    b.id,\n    b.versioned_object_id,\n    op.id AS path_id,\n    bpd.name,\n    vo.content_hash,\n    dl.key AS \"deprecation_level_key?\",\n    COALESCE(rev.fluent_body(b.title_fluent_message_id, 'en'), b.title, bpd.name) AS \"title!\",\n    COALESCE(rev.fluent_body(b.description_fluent_message_id, 'en'), b.description) AS description,\n    b.created_at\nFROM resolved\nJOIN rev.versioned_objects vo ON vo.id = resolved.versioned_object_id\nJOIN rev.briefs b ON b.versioned_object_id = vo.id\nJOIN rev.object_paths op ON op.id = vo.path_id\nJOIN rev.brief_path_details bpd ON bpd.path_id = op.id\nLEFT JOIN rev.deprecation_levels dl ON dl.id = $4::SMALLINT\nORDER BY b.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.briefs",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "versioned_object_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.briefs",
+            "name": "versioned_object_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "path_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.object_paths",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "content_hash",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "content_hash"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "deprecation_level_key?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.deprecation_levels",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "title!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 7,
+        "name": "description",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.briefs",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "UuidArray",
+        "TextArray",
+        "Int2"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      null,
+      false
+    ]
+  },
+  "hash": "c44f86a2cb86efbdfb7ce644c3d34866448cf8df30fe0eca3e38a6781f9ee475"
+}

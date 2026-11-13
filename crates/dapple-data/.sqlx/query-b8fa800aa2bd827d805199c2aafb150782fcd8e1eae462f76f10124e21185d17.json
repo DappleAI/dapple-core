@@ -1,0 +1,90 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::TEXT[],\n        $2::TEXT[],\n        $3::BIGINT[]\n    ) WITH ORDINALITY AS o(lago_customer_external_id, lago_subscription_external_id, user_id, ord)\n),\nnew_billable_entities AS (\n    INSERT INTO rev.billable_entities (lago_customer_external_id, lago_subscription_external_id)\n    SELECT args.lago_customer_external_id, args.lago_subscription_external_id\n    FROM args\n    ORDER BY args.ord\n    RETURNING id, lago_customer_external_id, lago_subscription_external_id, created_at\n),\nnumbered_be AS (\n    SELECT nbe.*, row_number() OVER (ORDER BY nbe.id) AS ord\n    FROM new_billable_entities nbe\n),\nnew_user_billable_entities AS (\n    INSERT INTO rev.user_billable_entities (billable_entity_id, user_id)\n    SELECT nbe.id, args.user_id\n    FROM args\n    JOIN numbered_be nbe ON nbe.ord = args.ord\n    ORDER BY args.ord\n    RETURNING id, billable_entity_id, user_id, created_at\n)\nSELECT\n    nube.id,\n    nube.billable_entity_id,\n    nube.user_id,\n    nbe.lago_customer_external_id AS \"lago_customer_external_id?\",\n    nbe.lago_subscription_external_id AS \"lago_subscription_external_id?\",\n    nube.created_at\nFROM new_user_billable_entities nube\nJOIN numbered_be nbe ON nbe.id = nube.billable_entity_id\nORDER BY nube.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.user_billable_entities",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "billable_entity_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.user_billable_entities",
+            "name": "billable_entity_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "user_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "rev.user_billable_entities",
+            "name": "user_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "lago_customer_external_id?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.billable_entities",
+            "name": "lago_customer_external_id"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "lago_subscription_external_id?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.billable_entities",
+            "name": "lago_subscription_external_id"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.user_billable_entities",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "TextArray",
+        "Int8Array"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "b8fa800aa2bd827d805199c2aafb150782fcd8e1eae462f76f10124e21185d17"
+}

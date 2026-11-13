@@ -1,0 +1,10 @@
+WITH args AS (
+    SELECT *
+    FROM UNNEST($1::UUID[], $2::UUID[])
+    WITH ORDINALITY AS o(media_item_id, fluent_message_id, ord)
+)
+INSERT INTO rev.brief_unit_media_item_titles (media_item_id, fluent_message_id)
+SELECT args.media_item_id, args.fluent_message_id
+FROM args
+ORDER BY args.ord
+RETURNING media_item_id, fluent_message_id;

@@ -1,0 +1,66 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST(\n        $1::UUID[],\n        $2::TEXT[],\n        $3::TEXT[]\n    ) WITH ORDINALITY AS o(brief_unit_id, media_kind_key, source_type_key, ord)\n),\nkinds AS (\n    SELECT mk.id, mk.key, args.ord\n    FROM args\n    JOIN rev.brief_media_kinds mk ON mk.key = args.media_kind_key\n),\nsource_types AS (\n    SELECT st.id, st.key, args.ord\n    FROM args\n    JOIN rev.brief_media_source_types st ON st.key = args.source_type_key\n),\nobjs AS (\n    INSERT INTO rev.brief_unit_media_items (\n        brief_unit_id,\n        media_kind_id,\n        source_type_id\n    )\n    SELECT\n        args.brief_unit_id,\n        k.id,\n        st.id\n    FROM args\n    JOIN kinds k ON k.ord = args.ord\n    JOIN source_types st ON st.ord = args.ord\n    ORDER BY args.ord\n    RETURNING id, brief_unit_id, media_kind_id, source_type_id, created_at\n)\nSELECT\n    objs.id,\n    objs.brief_unit_id,\n    mk.key as media_kind_key,\n    st.key as source_type_key\nFROM objs\nJOIN rev.brief_media_kinds mk ON mk.id = objs.media_kind_id\nJOIN rev.brief_media_source_types st ON st.id = objs.source_type_id\nORDER BY objs.id;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_media_items",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "brief_unit_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_media_items",
+            "name": "brief_unit_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "media_kind_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_media_kinds",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "source_type_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_media_source_types",
+            "name": "key"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "TextArray",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "921686df36781d48e6d213931bae9656692c8d6a12f30a4b9d6e072a4d117857"
+}

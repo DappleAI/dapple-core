@@ -1,0 +1,218 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dapple-sandbox
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: dapple-redis-secret
+  namespace: dapple-sandbox
+type: Opaque
+stringData:
+  REDIS_PASSWORD: "ai"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dapple-redis-pvc
+  namespace: dapple-sandbox
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 2Gi
+  storageClassName: microk8s-hostpath
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dapple-redis-config
+  namespace: dapple-sandbox
+data:
+  redis.conf: |
+    # Bind to all interfaces so Kubernetes networking can reach it
+    bind 0.0.0.0
+    protected-mode yes
+
+    # Persistence
+    dir /data
+    appendonly yes
+    appendfsync everysec
+
+    # ACL file (populated by initContainer at /config/users.acl)
+    aclfile /config/users.acl
+
+    # Optional tuning
+    # maxmemory 512mb
+    # maxmemory-policy allkeys-lru
+
+    # Keep defaults for the rest
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dapple-redis
+  namespace: dapple-sandbox
+  labels: { app: dapple-redis }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: dapple-redis }
+  template:
+    metadata:
+      labels: { app: dapple-redis }
+    spec:
+      securityContext:
+        fsGroup: 999
+        fsGroupChangePolicy: OnRootMismatch
+      # Create ACL file from the secret at runtime so the password isn't in a ConfigMap
+      initContainers:
+        - name: write-acl
+          image: busybox:1.36
+          command:
+            - sh
+            - -lc
+            - |
+              set -eu
+              # Write ACL file
+              echo "user default on >${REDIS_PASSWORD} ~* +@all" > /config/users.acl
+              # Ensure Redis (via fsGroup) can read it
+              gid=$(stat -c %g /config)
+              chgrp "$gid" /config/users.acl
+              chmod 640 /config/users.acl
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: dapple-redis-secret, key: REDIS_PASSWORD }
+          volumeMounts:
+            - { name: dapple-redis-acl, mountPath: /config }
+      containers:
+        - name: dapple-redis
+          image: redis:8.2.1-bookworm
+          imagePullPolicy: IfNotPresent
+          # Run with our config
+          args: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+          ports:
+            - containerPort: 6379
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits:   { cpu: "500m", memory: "512Mi" }
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: dapple-redis-secret, key: REDIS_PASSWORD }
+          volumeMounts:
+            - { name: dapple-redis-data,  mountPath: /data }
+            - { name: dapple-redis-conf,  mountPath: /usr/local/etc/redis }
+            - { name: dapple-redis-acl,   mountPath: /config }
+          # Probes: use TCP; if you prefer an auth check, swap to exec with redis-cli -a
+          readinessProbe:
+            tcpSocket: { port: 6379 }
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket: { port: 6379 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: dapple-redis-data
+          persistentVolumeClaim:
+            claimName: dapple-redis-pvc
+        - name: dapple-redis-conf
+          configMap:
+            name: dapple-redis-config
+            items:
+              - key: redis.conf
+                path: redis.conf
+        - name: dapple-redis-acl
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dapple-redis
+  namespace: dapple-sandbox
+  labels: { app: dapple-redis }
+spec:
+  type: ClusterIP     # internal only
+  selector: { app: dapple-redis }
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: 6379
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: dapple-redis-gateway
+  namespace: dapple-sandbox
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: dapple-redis-gateway
+  namespace: dapple-sandbox
+rules:
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: dapple-redis-gateway
+  namespace: dapple-sandbox
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: dapple-redis-gateway
+subjects:
+  - kind: ServiceAccount
+    name: dapple-redis-gateway
+    namespace: dapple-sandbox
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: dapple-redis-gateway
+  namespace: dapple-sandbox
+spec:
+  selector:
+    matchLabels: { app: dapple-redis-gateway }
+  template:
+    metadata:
+      labels: { app: dapple-redis-gateway }
+    spec:
+      serviceAccountName: dapple-redis-gateway
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      # Service IP resolution is handled via Kubernetes API in init container
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534        # nobody
+        runAsGroup: 65534
+
+      containers:
+        - name: dapple-redis-gateway
+          image: alpine/socat:1.8.0.0
+          command:
+            - sh
+            - -c
+            - |
+              SERVICE_DNS="dapple-redis.dapple-sandbox.svc.cluster.local"
+              echo "Forwarding port 6379 to $SERVICE_DNS:6379"
+              exec socat tcp-listen:6379,reuseaddr,fork tcp:$SERVICE_DNS:6379
+          readinessProbe:
+            tcpSocket: { port: 6379 }
+            initialDelaySeconds: 1
+            periodSeconds: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              add: ["NET_BIND_SERVICE"]
+              drop: ["ALL"]
+          resources:
+            requests: { cpu: "10m", memory: "16Mi" }
+            limits:   { cpu: "100m", memory: "64Mi" }
+

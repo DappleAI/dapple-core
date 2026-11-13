@@ -1,0 +1,34 @@
+# Recursive walk from a starting journey back through its
+# `predecessor_journey_id` chain to the chain root. Yields one row per
+# journey in the chain with `depth` (0 = the starting journey, 1 = its
+# predecessor, etc.). Used by chain-aware binding readers to compute
+# effective values via journey-local-first walk-back.
+#
+# Hard depth cap at 50 bounds runtime against pathological updates that
+# create a cycle. Structurally cycles shouldn't occur (UUIDv7 IDs are
+# time-ordered; predecessor must already exist at INSERT time), but an
+# UPDATE could in principle re-point a journey backward into a loop —
+# the cap is belt-and-suspenders, not the primary guarantee.
+#
+# `fork_cutoff_ord` is the stage-level fork point (Migration 74): when a
+# successor forked its predecessor at stage N, the PREDECESSOR's row carries
+# N's playbook_stages.ord, and binding readers must exclude that journey's
+# bindings whose producing dispatch stage ord >= the cutoff ("fork AT N" =
+# redo N; inherit strictly before N). The filter is edge-local — it applies
+# only to the journey whose row carries it, never to deeper ancestors (each
+# edge stamps its own cutoff). NULL = plain whole-journey chain edge. The
+# starting journey (depth 0) is always NULL: a journey's own bindings are
+# never filtered.
+#
+# Composed as the first CTE inside a `WITH RECURSIVE` clause. Callers
+# append further CTEs with a leading comma after the compose call.
+journey_chain(journey_id, depth, fork_cutoff_ord) AS (
+    SELECT :bind(starting_journey_id)::UUID, 0, NULL::INTEGER
+    UNION ALL
+    SELECT j.predecessor_journey_id, jc.depth + 1, ps.ord
+    FROM journey_chain jc
+    JOIN rev.journeys j ON j.id = jc.journey_id
+    LEFT JOIN rev.playbook_stages ps ON ps.id = j.fork_stage_id
+    WHERE j.predecessor_journey_id IS NOT NULL
+      AND jc.depth < 50
+)

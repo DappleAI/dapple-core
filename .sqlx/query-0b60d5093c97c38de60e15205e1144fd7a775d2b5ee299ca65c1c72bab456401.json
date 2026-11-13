@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT conduits_md FROM rev.guides WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "conduits_md",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.guides",
+            "name": "conduits_md"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "0b60d5093c97c38de60e15205e1144fd7a775d2b5ee299ca65c1c72bab456401"
+}

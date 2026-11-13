@@ -1,0 +1,45 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nWITH latest_deprecation AS (\n    SELECT DISTINCT ON (versioned_object_id)\n        versioned_object_id,\n        to_level_id\n    FROM rev.deprecation_events\n    ORDER BY versioned_object_id, created_at DESC\n),\n\nprompt_path AS (\n    SELECT vo.path_id\n    FROM rev.prompts pmt\n    JOIN rev.versioned_objects vo ON vo.id = pmt.versioned_object_id\n    WHERE pmt.id = $2::UUID\n)\nSELECT\n    COALESCE(l.key, lv.key) AS lineage_key,\n    COALESCE(p.key, pv.key) AS provider_key,\n    COALESCE(mr.tier, mrv.tier) AS tier,\n    COALESCE(mr.release, mrv.release) AS release\nFROM rev.dispatches d\nJOIN rev.journey_inference_profiles jip ON jip.journey_id = d.journey_id\nJOIN rev.inference_profiles ip ON ip.id = jip.inference_profile_id\nJOIN rev.versioned_objects ipvo ON ipvo.id = ip.versioned_object_id\nLEFT JOIN latest_deprecation ld ON ld.versioned_object_id = ipvo.id\nJOIN rev.inference_profile_configs ipc ON ipc.inference_profile_id = ip.id\nJOIN prompt_path pp ON pp.path_id = ipc.prompt_path_object_id\nLEFT JOIN rev.model_releases mr ON mr.id = ipc.model_release_id\nLEFT JOIN rev.lineages l ON l.id = mr.lineage_id\nLEFT JOIN rev.providers p ON p.id = mr.provider_id\nLEFT JOIN rev.model_variants mv ON mv.id = ipc.model_variant_id\nLEFT JOIN rev.model_releases mrv ON mrv.id = mv.base_release_id\nLEFT JOIN rev.lineages lv ON lv.id = mrv.lineage_id\nLEFT JOIN rev.providers pv ON pv.id = mrv.provider_id\nWHERE d.id = $1::UUID\n  AND ld.to_level_id IS NULL\n  AND COALESCE(l.key, lv.key) IS NOT NULL\nORDER BY ipc.priority ASC, ipvo.created_at DESC, ipvo.id DESC\nLIMIT 1;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "lineage_key",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "provider_key",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "tier",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "release",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "863964ba7873331443505dff90a261e5b3344581663b2b0e576c27efb789310c"
+}

@@ -1,0 +1,47 @@
+-- Select chunks that overlap with a byte range
+-- Returns chunks where any part falls within [start_byte, end_byte]
+-- Application code extracts exact bytes from the returned chunks
+WITH asset_info AS (
+    SELECT a.id, a.content_length
+    FROM rev.assets a
+    WHERE a.id = $1
+),
+-- Calculate the byte position of each chunk
+chunk_positions AS (
+    SELECT
+        c.id,
+        c.data,
+        c.created_at,
+        ac.ordinal,
+        -- Calculate start_byte: sum of all previous chunks' sizes
+        COALESCE(
+            SUM(octet_length(c.data)) OVER (
+                PARTITION BY ac.asset_id
+                ORDER BY ac.ordinal
+                ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
+            ),
+            0
+        )::BIGINT as start_byte,
+        -- Calculate end_byte: start_byte + current chunk size - 1
+        (COALESCE(
+            SUM(octet_length(c.data)) OVER (
+                PARTITION BY ac.asset_id
+                ORDER BY ac.ordinal
+                ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
+            ),
+            0
+        ) + octet_length(c.data) - 1)::BIGINT as end_byte
+    FROM asset_info ai
+    JOIN rev.asset_chunks ac ON ac.asset_id = ai.id
+    JOIN rev.chunks c ON c.id = ac.chunk_id
+)
+SELECT
+    id,
+    data,
+    start_byte,
+    end_byte,
+    created_at
+FROM chunk_positions
+WHERE end_byte >= $2    -- range start
+  AND start_byte <= $3  -- range end
+ORDER BY ordinal;

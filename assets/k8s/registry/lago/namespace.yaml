@@ -1,0 +1,11 @@
+# Lago Billing Platform - Namespace
+# Third-party billing/metering system deployed locally
+# See: https://www.getlago.com/docs/guide/self-hosted/docker
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: lago
+  labels:
+    app.kubernetes.io/name: lago
+    app.kubernetes.io/component: billing

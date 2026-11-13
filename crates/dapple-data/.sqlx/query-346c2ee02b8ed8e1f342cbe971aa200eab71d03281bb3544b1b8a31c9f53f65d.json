@@ -1,0 +1,91 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO rev.principal_journey_preferences (\n    principal_id,\n    journey_id,\n    name,\n    hidden_at\n)\nVALUES (\n    $4::UUID,\n    $2::UUID,\n    $3::TEXT,\n    $1::TIMESTAMPTZ\n)\nRETURNING\n    id,\n    principal_id,\n    journey_id,\n    name,\n    hidden_at,\n    created_at;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.principal_journey_preferences",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "principal_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.principal_journey_preferences",
+            "name": "principal_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "journey_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.principal_journey_preferences",
+            "name": "journey_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.principal_journey_preferences",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "hidden_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.principal_journey_preferences",
+            "name": "hidden_at"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.principal_journey_preferences",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Uuid",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "346c2ee02b8ed8e1f342cbe971aa200eab71d03281bb3544b1b8a31c9f53f65d"
+}

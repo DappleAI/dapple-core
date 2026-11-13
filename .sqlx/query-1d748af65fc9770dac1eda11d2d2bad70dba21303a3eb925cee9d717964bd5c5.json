@@ -1,0 +1,74 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH target AS (\n    SELECT j.playbook_id\n    FROM rev.dispatches d\n    JOIN rev.journeys j ON j.id = d.journey_id\n    WHERE d.id = $1::UUID\n)\nSELECT\n    spd.name AS \"stage_name!\",\n    COALESCE(rev.fluent_body(s.description_fluent_message_id, 'en'), s.description, spd.name) AS \"stage_description!\",\n    stpd.name AS \"step_name!\",\n    COALESCE(rev.fluent_body(st.description_fluent_message_id, 'en'), st.description, stpd.name) AS \"step_description!\",\n    ps.ord AS stage_ord,\n    (SELECT COUNT(*) FROM rev.playbook_stages p2 WHERE p2.playbook_id = t.playbook_id) AS \"total_stages!\"\nFROM rev.step_tasks stk\nJOIN rev.stage_steps ss ON ss.step_id = stk.step_id\nJOIN rev.playbook_stages ps ON ps.stage_id = ss.stage_id\nJOIN target t ON t.playbook_id = ps.playbook_id\nJOIN rev.stages s ON s.id = ps.stage_id\nJOIN rev.versioned_objects vo_s ON vo_s.id = s.versioned_object_id\nJOIN rev.stage_path_details spd ON spd.path_id = vo_s.path_id\nJOIN rev.steps st ON st.id = ss.step_id\nJOIN rev.versioned_objects vo_st ON vo_st.id = st.versioned_object_id\nJOIN rev.step_path_details stpd ON stpd.path_id = vo_st.path_id\nWHERE stk.id = $2::UUID\nORDER BY ps.ord NULLS LAST, ss.ord NULLS LAST\nLIMIT 1;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "stage_name!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.stage_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "stage_description!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "step_name!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.step_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "step_description!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 4,
+        "name": "stage_ord",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "rev.playbook_stages",
+            "name": "ord"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "total_stages!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      null,
+      false,
+      null,
+      false,
+      null
+    ]
+  },
+  "hash": "1d748af65fc9770dac1eda11d2d2bad70dba21303a3eb925cee9d717964bd5c5"
+}

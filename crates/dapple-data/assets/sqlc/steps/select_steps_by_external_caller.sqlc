@@ -1,0 +1,3 @@
+# External-API step listing: scoped to the caller's company namespace.
+# Used by GET /api/steps on external-api.dapple.x.
+:compose(steps/select_steps_body.sqlc, @page = steps/pages/by_external_caller.sqlc)

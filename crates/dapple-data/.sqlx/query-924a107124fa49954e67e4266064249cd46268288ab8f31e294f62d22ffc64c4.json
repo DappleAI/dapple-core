@@ -1,0 +1,264 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nWITH RECURSIVE\njourney_chain(journey_id, depth, fork_cutoff_ord) AS (\n    SELECT $1::UUID, 0, NULL::INTEGER\n    UNION ALL\n    SELECT j.predecessor_journey_id, jc.depth + 1, ps.ord\n    FROM journey_chain jc\n    JOIN rev.journeys j ON j.id = jc.journey_id\n    LEFT JOIN rev.playbook_stages ps ON ps.id = j.fork_stage_id\n    WHERE j.predecessor_journey_id IS NOT NULL\n      AND jc.depth < 50\n)\n\n,\nlatest_deprecation AS (\n    SELECT DISTINCT ON (versioned_object_id)\n        versioned_object_id,\n        to_level_id\n    FROM rev.deprecation_events\n    ORDER BY versioned_object_id, created_at DESC\n),\n\njourney_packs AS (\n                SELECT DISTINCT ON (bpvo.path_id) bpack.id AS brief_pack_id\n    FROM rev.journeys j\n    JOIN rev.journey_brief_packs jbp ON jbp.journey_id = j.id\n    JOIN rev.brief_packs bpack ON bpack.id = jbp.brief_pack_id\n    JOIN rev.versioned_objects bpvo ON bpvo.id = bpack.versioned_object_id\n    LEFT JOIN latest_deprecation ld ON ld.versioned_object_id = bpvo.id\n    WHERE j.id = $1::UUID\n      AND ld.to_level_id IS NULL\n    ORDER BY bpvo.path_id, bpvo.created_at DESC, bpvo.id DESC\n),\noperator_slot AS (\n                        SELECT DISTINCT ON (vo.path_id)\n        vo.path_id AS value_slot_path_id,\n        vs.id AS value_slot_id,\n        bu.id AS brief_unit_id,\n        bict.key AS control_type,\n        bui.label_text,\n        bui.help_text,\n        bui.placeholder_text,\n                                (bui.control_spec ->> 'candidate_source_value_slot_id')::UUID\n            AS candidate_source_value_slot_id,\n                        (bui.control_spec ->> 'optional')::boolean AS optional,\n                                bui.control_spec -> 'item_fields' AS item_fields,\n                                (bui.control_spec ->> 'refine_input_value_slot_id')::UUID\n            AS refine_input_value_slot_id,\n                                bui.control_spec -> 'axis' AS axis\n    FROM journey_packs jp\n    JOIN rev.brief_pack_groups bpg ON bpg.brief_pack_id = jp.brief_pack_id\n    JOIN rev.brief_groups bg ON bg.id = bpg.brief_group_id\n    JOIN rev.brief_group_briefs bgb ON bgb.brief_group_id = bg.id\n    JOIN rev.briefs b ON b.id = bgb.brief_id\n    JOIN rev.brief_units bu ON bu.brief_id = b.id\n    JOIN rev.brief_unit_input bui ON bui.brief_unit_id = bu.id\n    JOIN rev.brief_input_control_types bict ON bict.id = bui.control_type_id\n    JOIN rev.value_slots vs\n        ON bui.control_spec ? 'value_slot_id'\n       AND vs.id = (bui.control_spec ->> 'value_slot_id')::UUID\n    JOIN rev.versioned_objects vo ON vo.id = vs.versioned_object_id\n    ORDER BY vo.path_id, vs.id DESC\n),\ncomputed_slot AS (\n                        SELECT DISTINCT ON (vo.path_id)\n        vo.path_id AS value_slot_path_id,\n        vs.id AS value_slot_id,\n                                dh.key AS display_kind,\n        bo.reveal AS display_reveal,\n        bo.title_text AS display_title\n    FROM journey_packs jp\n    JOIN rev.brief_pack_groups bpg ON bpg.brief_pack_id = jp.brief_pack_id\n    JOIN rev.brief_groups bg ON bg.id = bpg.brief_group_id\n    JOIN rev.brief_group_briefs bgb ON bgb.brief_group_id = bg.id\n    JOIN rev.briefs b ON b.id = bgb.brief_id\n    JOIN rev.brief_outputs bo ON bo.brief_id = b.id\n    JOIN rev.brief_output_source_kinds bosk\n        ON bosk.id = bo.source_kind_id AND bosk.key = 'computed'\n    JOIN rev.value_slots vs ON vs.id = bo.value_slot_id\n    JOIN rev.versioned_objects vo ON vo.id = vs.versioned_object_id\n    LEFT JOIN rev.brief_output_display_hints dh ON dh.id = bo.display_hint_id\n    ORDER BY vo.path_id, vs.id DESC\n),\njourney_steps AS (\n    SELECT ps.id AS playbook_stage_id, ss.id AS stage_step_id, ss.step_id,\n           ps.ord AS stage_ord, ss.ord AS step_ord\n    FROM rev.journeys j\n    JOIN rev.playbook_stages ps ON ps.playbook_id = j.playbook_id\n    JOIN rev.stage_steps ss ON ss.stage_id = ps.stage_id\n    WHERE j.id = $1::UUID\n),\nstep_tasks AS (\n    SELECT\n        jst.playbook_stage_id,\n        jst.stage_step_id,\n        stk.id AS step_task_id\n    FROM journey_steps jst\n    JOIN rev.step_tasks stk ON stk.step_id = jst.step_id\n),\nall_overlays AS (\n    SELECT st.stage_step_id, st.step_task_id, o.value_slot_path_id, o.visibility, 1 AS priority\n    FROM rev.playbook_stage_overlays o\n    JOIN step_tasks st ON st.playbook_stage_id = o.playbook_stage_id\n    UNION ALL\n    SELECT st.stage_step_id, st.step_task_id, o.value_slot_path_id, o.visibility, 2 AS priority\n    FROM rev.stage_step_overlays o\n    JOIN step_tasks st ON st.stage_step_id = o.stage_step_id\n    UNION ALL\n    SELECT st.stage_step_id, st.step_task_id, o.value_slot_path_id, o.visibility, 3 AS priority\n    FROM rev.step_task_overlays o\n    JOIN step_tasks st ON st.step_task_id = o.step_task_id\n),\nranked AS (\n    SELECT DISTINCT ON (stage_step_id, step_task_id, value_slot_path_id)\n        stage_step_id, value_slot_path_id, visibility\n    FROM all_overlays\n    ORDER BY stage_step_id, step_task_id, value_slot_path_id, priority DESC\n),\nrequired AS (\n    SELECT DISTINCT stage_step_id, value_slot_path_id\n    FROM ranked\n    WHERE visibility = 'expose'\n)\nSELECT\n    js.stage_step_id AS \"stage_step_id!\",\n    js.playbook_stage_id AS \"playbook_stage_id!\",\n    COALESCE(os.value_slot_id, cs.value_slot_id) AS \"value_slot_id?\",\n    vspd.name AS \"value_slot_name?\",\n    vk.key AS \"value_kind?\",\n    (CASE\n        WHEN req.value_slot_path_id IS NULL THEN NULL\n        WHEN os.value_slot_path_id IS NOT NULL THEN 'operator'\n        WHEN cs.value_slot_path_id IS NOT NULL THEN 'computed'\n                                ELSE 'operator'\n    END)::TEXT AS \"producer?\",\n    os.control_type AS \"control_type?\",\n    os.label_text AS \"label_text?\",\n    os.help_text AS \"help_text?\",\n    os.placeholder_text AS \"placeholder_text?\",\n    os.brief_unit_id AS \"brief_unit_id?\",\n                    rvs.cardinality AS \"cardinality?\",\n    rvs.min_selections AS \"min_selections?\",\n    rvs.max_selections AS \"max_selections?\",\n            os.candidate_source_value_slot_id AS \"candidate_source_value_slot_id?\",\n    cs_vspd.name AS \"candidate_source_name?\",\n            os.optional AS \"optional?\",\n        os.item_fields AS \"item_fields?\",\n    os.refine_input_value_slot_id AS \"refine_input_value_slot_id?\",\n        os.axis AS \"axis?\",\n                cs.display_kind AS \"display_kind?\",\n    cs.display_reveal AS \"display_reveal?\",\n    cs.display_title AS \"display_title?\",\n    (\n        req.value_slot_path_id IS NOT NULL\n        AND EXISTS (\n            SELECT 1\n            FROM rev.value_slots vs2\n            JOIN rev.versioned_objects vo2 ON vo2.id = vs2.versioned_object_id\n            JOIN rev.dispatch_intent_bindings dib ON dib.value_slot_id = vs2.id\n            JOIN rev.dispatches d ON d.id = dib.dispatch_id\n            JOIN journey_chain jc ON jc.journey_id = d.journey_id\n            WHERE vo2.path_id = req.value_slot_path_id\n              AND (\n    jc.fork_cutoff_ord IS NULL\n    OR COALESCE((\n        SELECT MAX(fps.ord)\n        FROM rev.dispatch_stages fds\n        JOIN rev.playbook_stages fps ON fps.id = fds.playbook_stage_id\n        WHERE fds.dispatch_id = d.id\n    ), 2147483647) < jc.fork_cutoff_ord\n)\n\n        )\n    ) AS \"bound?\"\nFROM journey_steps js\nLEFT JOIN required req ON req.stage_step_id = js.stage_step_id\nLEFT JOIN operator_slot os ON os.value_slot_path_id = req.value_slot_path_id\nLEFT JOIN computed_slot cs ON cs.value_slot_path_id = req.value_slot_path_id\nLEFT JOIN rev.value_slot_path_details vspd ON vspd.path_id = req.value_slot_path_id\nLEFT JOIN rev.value_slots rvs ON rvs.id = COALESCE(os.value_slot_id, cs.value_slot_id)\nLEFT JOIN rev.value_kinds vk ON vk.id = COALESCE(rvs.value_kind_id, vspd.value_kind_id)\nLEFT JOIN rev.value_slots cs_vs ON cs_vs.id = os.candidate_source_value_slot_id\nLEFT JOIN rev.versioned_objects cs_vo ON cs_vo.id = cs_vs.versioned_object_id\nLEFT JOIN rev.value_slot_path_details cs_vspd ON cs_vspd.path_id = cs_vo.path_id\nORDER BY js.stage_ord, js.step_ord, vspd.name, COALESCE(os.value_slot_id, cs.value_slot_id);\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "stage_step_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.stage_steps",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "playbook_stage_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.playbook_stages",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "value_slot_id?",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "value_slot_name?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slot_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "value_kind?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.value_kinds",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "producer?",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 6,
+        "name": "control_type?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_input_control_types",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "label_text?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_input",
+            "name": "label_text"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "help_text?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_input",
+            "name": "help_text"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "placeholder_text?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_unit_input",
+            "name": "placeholder_text"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "brief_unit_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_units",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "cardinality?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slots",
+            "name": "cardinality"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "min_selections?",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slots",
+            "name": "min_selections"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "max_selections?",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slots",
+            "name": "max_selections"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "candidate_source_value_slot_id?",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 15,
+        "name": "candidate_source_name?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slot_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 16,
+        "name": "optional?",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 17,
+        "name": "item_fields?",
+        "type_info": "Jsonb",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 18,
+        "name": "refine_input_value_slot_id?",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 19,
+        "name": "axis?",
+        "type_info": "Jsonb",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 20,
+        "name": "display_kind?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_output_display_hints",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 21,
+        "name": "display_reveal?",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_outputs",
+            "name": "reveal"
+          }
+        }
+      },
+      {
+        "ordinal": 22,
+        "name": "display_title?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.brief_outputs",
+            "name": "title_text"
+          }
+        }
+      },
+      {
+        "ordinal": 23,
+        "name": "bound?",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      null,
+      false,
+      false,
+      null,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      true,
+      true,
+      null,
+      false,
+      null,
+      null,
+      null,
+      null,
+      false,
+      false,
+      true,
+      null
+    ]
+  },
+  "hash": "924a107124fa49954e67e4266064249cd46268288ab8f31e294f62d22ffc64c4"
+}

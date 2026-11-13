@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT brief_pack_id FROM rev.journey_brief_packs WHERE journey_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "brief_pack_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.journey_brief_packs",
+            "name": "brief_pack_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "cf9772904e7dd2092c4f5c18e4b210d4bb38bce540b03b372ca04328cef7ed81"
+}

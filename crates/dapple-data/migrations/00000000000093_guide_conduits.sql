@@ -1,0 +1,11 @@
+-- Conduit-facing guide frame (CONDUITS.md).
+--
+-- Each guide version carries the raw markdown of its required CONDUITS.md:
+-- the conduit's dedicated operating context (binding semantics, how to read
+-- retrieved guide prose). Stored per version row so a journey's pinned
+-- guide_id resolves the exact frame that shipped with that version.
+--
+-- Nullable: pre-existing append-only version rows have no frame (journeys
+-- pinned to them get no guide-frame injection). Every new ingest populates it
+-- because the parser hard-requires CONDUITS.md.
+ALTER TABLE rev.guides ADD COLUMN conduits_md TEXT;

@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT quarter_end\nFROM rev.institutional_holdings_manager_ingest\nWHERE manager_cik = $1\n  AND status = 'ok'\nORDER BY quarter_end;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "quarter_end",
+        "type_info": "Date",
+        "origin": {
+          "Table": {
+            "table": "rev.institutional_holdings_manager_ingest",
+            "name": "quarter_end"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "85c8beaca98df3289f941ae027815c437618795336512b5ae33909d658865464"
+}

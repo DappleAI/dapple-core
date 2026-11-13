@@ -1,0 +1,11 @@
+args AS (
+    SELECT *
+    FROM UNNEST(:bind(object_ids)::UUID[]) WITH ORDINALITY AS o(id, ord)
+),
+task_page AS (
+    SELECT t.id, args.ord
+    FROM args
+    JOIN rev.tasks t ON t.id = args.id
+    ORDER BY args.ord
+    LIMIT :bind(limit)::BIGINT OFFSET :bind(offset)::BIGINT
+)

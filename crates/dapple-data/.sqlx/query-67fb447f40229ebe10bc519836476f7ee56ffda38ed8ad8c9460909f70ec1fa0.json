@@ -1,0 +1,54 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH args AS (\n    SELECT *\n    FROM UNNEST($1::UUID[]) WITH ORDINALITY AS o(object_id, ord)\n)\nSELECT\n    objs.object_id AS id,\n    u.email::TEXT AS email,\n    objs.created_at\nFROM rev.user_details objs\n     JOIN auth.users u ON objs.user_id = u.id\nJOIN args a ON a.object_id = objs.object_id\nWHERE u.email IS NOT NULL\nORDER BY objs.object_id\nLIMIT $2 OFFSET $3;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.user_details",
+            "name": "object_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "email",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "auth.users",
+            "name": "email"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.user_details",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "67fb447f40229ebe10bc519836476f7ee56ffda38ed8ad8c9460909f70ec1fa0"
+}

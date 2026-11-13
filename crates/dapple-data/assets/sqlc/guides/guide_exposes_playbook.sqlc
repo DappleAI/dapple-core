@@ -1,0 +1,16 @@
+# True iff the given guide version exposes the given playbook version (a
+# rev.guide_playbooks row links them). The journey POST handler calls this to
+# validate that a caller-supplied (guide_id, playbook_id) pair is internally
+# consistent: the caller supplies BOTH as specific object_ids and the backend
+# never resolves "latest" or by path. A matching-but-non-canonical pair is a
+# normal, valid request (experiments / a consumer deliberately on an older
+# version); canonical-pin resolution stays a browse concern, not a create one.
+#
+# Parameters (alphabetical bind order → $1=guide_id, $2=playbook_id):
+#   guide_id (UUID), playbook_id (UUID)
+SELECT EXISTS (
+    SELECT 1
+    FROM rev.guide_playbooks gp
+    WHERE gp.guide_id = :bind(guide_id)::UUID
+      AND gp.playbook_id = :bind(playbook_id)::UUID
+) AS "exposes!";

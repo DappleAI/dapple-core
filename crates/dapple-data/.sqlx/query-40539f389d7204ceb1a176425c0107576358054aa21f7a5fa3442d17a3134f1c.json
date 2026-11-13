@@ -1,0 +1,151 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH latest_deprecation AS (\n    SELECT DISTINCT ON (versioned_object_id)\n        versioned_object_id,\n        to_level_id\n    FROM rev.deprecation_events\n    ORDER BY versioned_object_id, created_at DESC\n),\n\ncurrent_pins AS (\n    SELECT crp.ref_key, crp.versioned_object_id, crp.id AS pin_id\n    FROM rev.canonical_release_pins crp\n    LEFT JOIN rev.canonical_release_pins newer ON newer.supersedes_id = crp.id\n    WHERE newer.id IS NULL\n      AND crp.scope = $4::TEXT\n      AND crp.environment = $1::TEXT\n      AND crp.object_type = 'guides'\n      AND crp.resolved_at IS NOT NULL\n),\nguide_card_page AS (\n    SELECT DISTINCT ON (op.id)\n        g.id AS guide_id,\n        vo.path_id,\n        gpd.title,\n        gpd.slug,\n        vo.content_hash\n    FROM rev.guides g\n    JOIN rev.versioned_objects vo ON vo.id = g.versioned_object_id\n    JOIN rev.object_paths op ON op.id = vo.path_id\n    JOIN rev.guide_path_details gpd ON gpd.path_id = op.id\n    LEFT JOIN latest_deprecation ld ON ld.versioned_object_id = vo.id\n    LEFT JOIN rev.deprecation_levels dl ON dl.id = ld.to_level_id\n    LEFT JOIN current_pins cp\n        ON cp.ref_key = g.source_path\n       AND cp.versioned_object_id = vo.id\n    WHERE dl.id IS NULL\n    ORDER BY op.id,\n        cp.pin_id NULLS LAST,\n        vo.created_at DESC\n)\n\nSELECT\n    gc.id,\n    gc.guide_id,\n    gcp.path_id,\n    gcp.title,\n    gcp.slug,\n    gc.subtitle,\n    gc.card_image_asset_id,\n    gc.category,\n    gc.color,\n    gc.accent,\n    gc.created_at\nFROM guide_card_page gcp\nJOIN rev.guide_cards gc ON gc.guide_id = gcp.guide_id\nORDER BY gc.category, gcp.title\nLIMIT $2::BIGINT OFFSET $3::BIGINT;\n\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_cards",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "guide_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_cards",
+            "name": "guide_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "path_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "path_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "title",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_path_details",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "slug",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_path_details",
+            "name": "slug"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "subtitle",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_cards",
+            "name": "subtitle"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "card_image_asset_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_cards",
+            "name": "card_image_asset_id"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "category",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_cards",
+            "name": "category"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "color",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_cards",
+            "name": "color"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "accent",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_cards",
+            "name": "accent"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.guide_cards",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8",
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "40539f389d7204ceb1a176425c0107576358054aa21f7a5fa3442d17a3134f1c"
+}

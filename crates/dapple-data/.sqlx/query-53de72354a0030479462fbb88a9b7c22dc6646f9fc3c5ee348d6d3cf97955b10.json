@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT d.id\nFROM rev.dispatch_steps s\nJOIN rev.dispatch_stages st ON s.dispatch_stage_id = st.id\nJOIN rev.dispatches d ON st.dispatch_id = d.id\nWHERE s.id = $1::uuid;\n\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.dispatches",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "53de72354a0030479462fbb88a9b7c22dc6646f9fc3c5ee348d6d3cf97955b10"
+}

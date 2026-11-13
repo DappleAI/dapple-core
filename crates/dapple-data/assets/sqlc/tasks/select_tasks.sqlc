@@ -1,0 +1,6 @@
+# Select all tasks using unified versioning
+#
+# LIMIT/OFFSET apply to distinct tasks (not flat rows) via a page CTE.
+# The flat join (task x task_prompts x prompts) produces many rows per task,
+# so limiting flat rows would silently truncate results.
+:compose(tasks/select_tasks_body.sqlc, @page = tasks/pages/all.sqlc)

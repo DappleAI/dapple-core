@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT COUNT(*)::BIGINT AS \"count!\"\n           FROM rev.object_paths op\n           WHERE op.namespace_company_id = $1::UUID\n             AND op.created_at >= (\n                 SELECT op2.created_at\n                 FROM rev.object_paths op2\n                 JOIN rev.versioned_objects vo ON vo.path_id = op2.id\n                 JOIN rev.guides g ON g.versioned_object_id = vo.id\n                 WHERE g.id = $2\n             )",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "fb3a62b35905a1ec5c028dbc47986e86f36999a0df2c0bffcc9436729d3c1d43"
+}

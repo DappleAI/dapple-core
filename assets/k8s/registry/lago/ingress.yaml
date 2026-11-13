@@ -1,0 +1,59 @@
+# Wildcard TLS cert for *.kube.dappleai.dev in the lago namespace.
+# K8s TLS secrets are namespace-scoped, so we need a Certificate resource
+# per namespace that wants to use the wildcard. The CA itself is the
+# cluster-scoped local-dev-ca ClusterIssuer set up by setup_microk8s.nu.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wildcard-kube.dappleai.dev
+  namespace: lago
+spec:
+  secretName: wildcard-kube.dappleai.dev
+  issuerRef:
+    kind: ClusterIssuer
+    name: local-dev-ca
+  dnsNames:
+    - kube.dappleai.dev
+    - "*.kube.dappleai.dev"
+  duration: 8760h      # 365d
+  renewBefore: 720h    # 30d
+---
+# Lago Ingress - External access via wildcard cert
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: lago-ingress
+  namespace: lago
+  annotations:
+    # Allow larger request bodies for file uploads
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+spec:
+  ingressClassName: public
+  tls:
+    - hosts:
+        - lago.kube.dappleai.dev
+        - lago-api.kube.dappleai.dev
+      secretName: wildcard-kube.dappleai.dev
+  rules:
+    # Frontend UI
+    - host: lago.kube.dappleai.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: lago-front
+                port:
+                  number: 80
+    # API backend
+    - host: lago-api.kube.dappleai.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: lago-api
+                port:
+                  number: 3000

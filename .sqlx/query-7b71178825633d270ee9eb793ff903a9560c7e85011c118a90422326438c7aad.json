@@ -1,0 +1,186 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH value_slot_latest AS (\n    SELECT DISTINCT ON (op.id)\n        vs.id\n    FROM rev.value_slots vs\n    JOIN rev.versioned_objects vo ON vo.id = vs.versioned_object_id\n    JOIN rev.object_paths op ON op.id = vo.path_id\n    LEFT JOIN LATERAL (\n        SELECT de.to_level_id\nFROM rev.deprecation_events de\nWHERE de.versioned_object_id = vo.id\nORDER BY de.created_at DESC\nLIMIT 1\n\n    ) ld ON TRUE\n    LEFT JOIN rev.deprecation_levels dl ON dl.id = ld.to_level_id\n    WHERE dl.id IS NULL\n      AND op.namespace_company_id = $1::UUID\n    ORDER BY op.id, vo.created_at DESC\n),\nvalue_slot_page AS (\n    SELECT id FROM value_slot_latest\n    ORDER BY id\n    LIMIT $2::BIGINT OFFSET $3::BIGINT\n)\n\nSELECT\n    vs.id,\n    vs.versioned_object_id,\n    op.id AS path_id,\n    vspd.name,\n    vk.key as value_kind_key,\n    vo.content_hash,\n    dl.key AS \"deprecation_level_key?\",\n    vs.title,\n    vs.description,\n    vs.constraints,\n    vs.cardinality,\n    vs.min_selections,\n    vs.max_selections,\n    vs.created_at\nFROM value_slot_page vskp\nJOIN rev.value_slots vs ON vs.id = vskp.id\nJOIN rev.versioned_objects vo ON vo.id = vs.versioned_object_id\nJOIN rev.object_paths op ON op.id = vo.path_id\nJOIN rev.value_slot_path_details vspd ON vspd.path_id = op.id\nJOIN rev.value_kinds vk ON vk.id = vs.value_kind_id\nLEFT JOIN LATERAL (\n    SELECT de.to_level_id\nFROM rev.deprecation_events de\nWHERE de.versioned_object_id = vo.id\nORDER BY de.created_at DESC\nLIMIT 1\n\n) ld ON TRUE\nLEFT JOIN rev.deprecation_levels dl ON dl.id = ld.to_level_id\nORDER BY vs.id;\n\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slots",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "versioned_object_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slots",
+            "name": "versioned_object_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "path_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.object_paths",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slot_path_details",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "value_kind_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.value_kinds",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "content_hash",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.versioned_objects",
+            "name": "content_hash"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "deprecation_level_key?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.deprecation_levels",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "title",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slots",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "description",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slots",
+            "name": "description"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "constraints",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slots",
+            "name": "constraints"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "cardinality",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slots",
+            "name": "cardinality"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "min_selections",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slots",
+            "name": "min_selections"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "max_selections",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slots",
+            "name": "max_selections"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.value_slots",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      false,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "7b71178825633d270ee9eb793ff903a9560c7e85011c118a90422326438c7aad"
+}

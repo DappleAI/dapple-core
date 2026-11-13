@@ -1,0 +1,139 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE rev.asset_dataset_extractions\nSET status = 'ok',\n    envelope = $2,\n    table_count = $3,\n    row_count = $4,\n    completed_at = now()\nWHERE id = $1\nRETURNING\n    id,\n    asset_id,\n    extractor_version,\n    status,\n    envelope,\n    table_count,\n    row_count,\n    error_message,\n    created_at,\n    completed_at;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.asset_dataset_extractions",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "asset_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rev.asset_dataset_extractions",
+            "name": "asset_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "extractor_version",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "rev.asset_dataset_extractions",
+            "name": "extractor_version"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "status",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.asset_dataset_extractions",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "envelope",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "rev.asset_dataset_extractions",
+            "name": "envelope"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "table_count",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "rev.asset_dataset_extractions",
+            "name": "table_count"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "row_count",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "rev.asset_dataset_extractions",
+            "name": "row_count"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "error_message",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rev.asset_dataset_extractions",
+            "name": "error_message"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.asset_dataset_extractions",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "completed_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rev.asset_dataset_extractions",
+            "name": "completed_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Jsonb",
+        "Int4",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "c11dd5ab668d46d073dcab9239ca815d855791df1bde24e8622b8630748ec3a5"
+}

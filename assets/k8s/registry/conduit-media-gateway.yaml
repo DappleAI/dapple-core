@@ -1,0 +1,128 @@
+---
+# conduit-media-gateway — isolated, opt-in Twitch-VOD → learning-highlight service.
+# Downloads VODs (yt-dlp), transcribes (whisper.cpp, baked model), detects teaching
+# moments, and cuts clips (ffmpeg). Called directly by dapple-prompt-flow commands
+# via DAPPLE_MEDIA_GATEWAY_URL. Holds a DB pool (reads input assets, persists the
+# small derivatives — transcript JSON, clips, EDL). The full VOD lives only on the
+# emptyDir scratch volume and is never persisted. Built with `--features
+# media-gateway` (Docker-only; the image bakes ffmpeg + yt-dlp + the whisper model).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: conduit-media-gateway
+  namespace: dapple-sandbox
+  labels:
+    app: conduit-media-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: conduit-media-gateway
+  template:
+    metadata:
+      labels:
+        app: conduit-media-gateway
+    spec:
+      containers:
+        - name: conduit-media-gateway
+          image: registry.kube.dappleai.dev/conduit-media-gateway:dapple-latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8086
+              name: http
+          env:
+            - name: MEDIA_GATEWAY_PORT
+              value: "8086"
+            - name: RUST_LOG
+              value: "warn,conduit_media_gateway=debug"
+            # Reads input assets + persists derivatives, so it needs the prompt DB.
+            - name: DAPPLE_PROMPT_DATABASE_URL
+              value: postgres://dapple:ai@prompt-db:5432/dapple
+            # VOD download scratch (the full multi-GB video lives only here).
+            - name: MEDIA_GATEWAY_SCRATCH_DIR
+              value: /scratch
+            # whisper model baked into /models at /models/ggml-base.en.bin.
+            - name: WHISPER_MODEL
+              value: base.en
+            - name: WHISPER_MODEL_DIR
+              value: /models
+            # Whisper CPU threads. Cap to the pod cpu limit (below), NOT the node's core
+            # count — available_parallelism() returns the node's 32 cores, so without
+            # this whisper runs 32-wide on a 4-CPU quota: it saturates the CPU, starves
+            # the async runtime + /api/health_check (readiness drops the pod, the flow's
+            # /jobs poll fails), and throttles the transcribe to a crawl. Leave ~1 CPU
+            # for the runtime + health checks.
+            - name: MEDIA_GATEWAY_WHISPER_THREADS
+              value: "3"
+            # Optional DappleAi cursive logo composited on recap cards. Drop the PNG at
+            # this path (mount or bake into the image); absent = cards render without it.
+            - name: MEDIA_GATEWAY_LOGO
+              value: /models/dapple-logo.png
+            - name: CONDUIT_INTERNAL_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: conduit-internal-auth
+                  key: internal-key
+                  optional: true
+            # Twitch Helix app credentials (required at job time — the pipeline
+            # fails loud without them). Created by the deploy from ~/.env when set.
+            - name: TWITCH_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: media-gateway-twitch
+                  key: client-id
+                  optional: true
+            - name: TWITCH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: media-gateway-twitch
+                  key: client-secret
+                  optional: true
+          volumeMounts:
+            - name: scratch
+              mountPath: /scratch
+          resources:
+            # whisper.cpp is CPU-bound; give it headroom. VOD download + ffmpeg cut
+            # are I/O + short CPU bursts. The 8Gi memory limit covers a whisper
+            # transcode overlapping a reel assemble (the assemble's xfade renders are
+            # memory-bounded by the chunked fold in media::xfade_reel; a ~24-part
+            # single-pass xfade OOMed the previous 4Gi limit).
+            requests: { cpu: "250m", memory: "512Mi" }
+            limits: { cpu: "4000m", memory: "8Gi" }
+          # Readiness gates traffic; it is tolerant because this is a batch worker that
+          # runs long CPU-bound whisper transcodes — a brief health-check delay under
+          # load must not drop the pod mid-job (the flow polls /jobs/{id} throughout).
+          # The thread cap (MEDIA_GATEWAY_WHISPER_THREADS) keeps the runtime responsive;
+          # this tolerance is belt-and-suspenders. failureThreshold 6 * period 10s = 60s.
+          readinessProbe:
+            httpGet:
+              path: /api/health_check
+              port: 8086
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          # NO livenessProbe: a liveness probe on /api/health_check would RESTART the pod
+          # whenever a long transcribe starves the health check, killing the in-flight
+          # job (the OOM-looking exit-137 we chased). A genuinely hung pod is rare and can
+          # be restarted manually; do not auto-kill a busy batch worker.
+      volumes:
+        - name: scratch
+          emptyDir:
+            sizeLimit: 20Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: conduit-media-gateway
+  namespace: dapple-sandbox
+  labels:
+    app: conduit-media-gateway
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8086
+      targetPort: 8086
+      protocol: TCP
+  selector:
+    app: conduit-media-gateway

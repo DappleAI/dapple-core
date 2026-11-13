@@ -1,0 +1,35 @@
+# Lago ConfigMap - Non-secret configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lago-config
+  namespace: lago
+data:
+  # API Configuration
+  LAGO_API_URL: "http://lago-api:3000"
+  LAGO_FRONT_URL: "https://lago.kube.dappleai.dev"
+  LAGO_PDF_URL: "http://lago-pdf:3000"
+
+  # Application settings
+  RAILS_ENV: "production"
+  RAILS_LOG_TO_STDOUT: "true"
+  LAGO_DISABLE_SIGNUP: "false"
+  LAGO_DISABLE_SEGMENT: "true"
+  LAGO_SIDEKIQ_WEB: "true"
+
+  # Email configuration (can be customized later)
+  LAGO_FROM_EMAIL: "noreply@dappleai.dev"
+
+  # Database settings
+  DATABASE_POOL: "10"
+  POSTGRES_DB: "lago"
+  POSTGRES_USER: "lago"
+  POSTGRES_HOST: "lago-postgres"
+  POSTGRES_PORT: "5432"
+
+  # Redis settings
+  REDIS_HOST: "lago-redis"
+  REDIS_PORT: "6379"
+
+  # Worker settings
+  SIDEKIQ_CONCURRENCY: "10"

@@ -1,0 +1,15 @@
+# Return the ownership + guide_id + playbook_id columns of a single journey
+# so handlers can validate a `predecessor_journey_id` claim before inserting
+# a chained child. Returns NULL row if the journey does not exist; the caller
+# treats that as a 404. Internal callers compare `principal_id`; external
+# callers compare `owner_company_id`. `playbook_id` lets the handler validate
+# a stage-level fork point (`fork_stage_id` must be a stage of the
+# predecessor's playbook — Migration 74).
+SELECT
+    j.id,
+    j.owner_company_id,
+    j.principal_id,
+    j.guide_id AS "guide_id?",
+    j.playbook_id
+FROM rev.journeys j
+WHERE j.id = :bind(journey_id)::UUID;
