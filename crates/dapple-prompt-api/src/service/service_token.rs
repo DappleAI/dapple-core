@@ -16,7 +16,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use thiserror::Error;
 
 /// Token prefix that identifies dapple service tokens
-#[allow(dead_code)]
 pub const TOKEN_PREFIX: &str = "dps_";
 
 /// Expected token version byte
@@ -29,7 +28,6 @@ const TOKEN_BYTES: usize = 128;
 const SIGNATURE_BYTES: usize = 64;
 
 /// Message size
-#[allow(dead_code)]
 const MESSAGE_BYTES: usize = 64;
 
 /// Maximum allowed duration between valid_from and valid_until (5 minutes)
@@ -68,7 +66,6 @@ pub enum ServiceTokenError {
 
 /// Result of successful token verification
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct VerifiedServiceToken {
     /// The service identifier from the token
     pub service_id: String,
@@ -231,16 +228,9 @@ pub fn parse_ed25519_public_key(pem: &str) -> Result<VerifyingKey, ServiceTokenE
         .map_err(|e| ServiceTokenError::InvalidPublicKey(format!("invalid Ed25519 key: {}", e)))
 }
 
-/// Check if a token string is a service token (dps_ prefix).
-/// Used for quick detection in auth middleware.
-#[allow(dead_code)]
-pub fn is_service_token(token: &str) -> bool {
-    token.starts_with(TOKEN_PREFIX)
-}
-
 /// Strip the dps_ prefix from a token string.
-#[allow(dead_code)]
-pub fn strip_prefix(token: &str) -> Option<&str> {
+#[cfg(test)]
+fn strip_prefix(token: &str) -> Option<&str> {
     token.strip_prefix(TOKEN_PREFIX)
 }
 
@@ -363,13 +353,6 @@ mod tests {
             "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAGb9F2CMqM/WQKzjhFTwOb3V4VXBZ9xPKL8b/hQFBgvQ=\n-----END PUBLIC KEY-----",
         );
         assert!(matches!(result, Err(ServiceTokenError::MalformedToken(_))));
-    }
-
-    #[test]
-    fn test_is_service_token() {
-        assert!(is_service_token("dps_anything"));
-        assert!(!is_service_token("dpl_anything"));
-        assert!(!is_service_token("Bearer eyJ..."));
     }
 
     #[test]

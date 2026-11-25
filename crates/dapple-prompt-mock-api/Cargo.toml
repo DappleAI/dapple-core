@@ -26,7 +26,6 @@ rand = "0.8.5"
 jsonwebtoken = { version = "10.2.0", features = ["rust_crypto"] }
 
 # Re-use types from the main API crate
-dapple-data = { path = "../dapple-data" }
 
 # For OpenAPI documentation (reused from real API)
 dapple-prompt-api = { path = "../dapple-prompt-api" }

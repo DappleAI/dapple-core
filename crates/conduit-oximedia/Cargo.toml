@@ -31,12 +31,6 @@ tower-http = { version = "0.6", features = ["cors"] }
 # WAV decode for audio-analysis input. Optional — only under `oximedia`.
 hound = { version = "3.5", optional = true }
 
-# Dot-geometry extraction off an operator's mask SVG (the progression
-# strategy's placement policy — the generic renderer in conduit-media-gateway
-# only rasterizes mattes and never reads geometry). Optional — only under
-# `oximedia`.
-roxmltree = { version = "0.20", optional = true }
-
 # OxiMedia — audio analysis + MIR + timeline interchange. Optional, behind the
 # `oximedia` feature, pinned exact (young v0.1.x family). We use only the
 # audio-analysis and OTIO-export paths; none of OxiMedia's codec/mux crates.
@@ -55,13 +49,11 @@ oximedia = [
     "dep:oximedia-analysis",
     "dep:oximedia-timeline",
     "dep:oximedia-core",
-    "dep:roxmltree",
 ]
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
-tokio-test = "0.4"
 
 [[bin]]
 name = "conduit-oximedia"

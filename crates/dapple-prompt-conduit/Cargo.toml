@@ -81,7 +81,6 @@ resvg = "0.45"
 
 [dev-dependencies]
 reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls-native-roots"] }
-tokio-test = "0.4"
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
 

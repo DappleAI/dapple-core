@@ -79,8 +79,6 @@ media-gateway = [
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }
-http-body-util = "0.1"
-tokio-test = "0.4"
 
 [[bin]]
 name = "conduit-media-gateway"

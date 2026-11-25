@@ -4,11 +4,9 @@
 //! endpoint, and stores the resulting embeddings with tag and locale
 //! associations.
 //!
-//! Two entry points:
-//! - `generate_embeddings_for_guide_sync()` — propagates errors to the caller.
-//!   Used during ingest so embedding failures fail the ingest when conduit is configured.
-//! - `generate_embeddings_for_guide()` — fire-and-forget wrapper that swallows errors.
-//!   Kept for any future async-only callers.
+//! Entry point: `generate_embeddings_for_guide_sync()` — propagates errors to
+//! the caller. Used during ingest so embedding failures fail the ingest when
+//! conduit is configured.
 
 use crate::AppState;
 use crate::service::embedding_client::EmbeddingClient;
@@ -101,20 +99,6 @@ pub async fn generate_embeddings_for_guide_sync(
     guide_id: Uuid,
 ) -> Result<(), String> {
     generate_embeddings_inner(data, guide_id).await
-}
-
-/// Generate embeddings for a guide (fire-and-forget).
-///
-/// Any error is logged as a warning but never propagates to the caller.
-#[allow(dead_code)]
-pub async fn generate_embeddings_for_guide(data: &Arc<AppState>, guide_id: Uuid) {
-    if let Err(e) = generate_embeddings_inner(data, guide_id).await {
-        log::warn!(
-            "Embedding generation failed for guide {}: {}. Guide was stored without embeddings.",
-            guide_id,
-            e
-        );
-    }
 }
 
 async fn generate_embeddings_inner(data: &Arc<AppState>, guide_id: Uuid) -> Result<(), String> {

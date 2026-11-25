@@ -214,18 +214,6 @@ impl PromptTextFunction {
         })
     }
 
-    // TODO: this should take in whatever values are needed to fully interpolate the prompt. An error
-    #[allow(dead_code)]
-    fn build_prompt(&self, pt: String) -> Value {
-        // TODO: interpolate the template in pt:
-        // TODO: error out if tera template requested is missing any values
-        println!("ignoring prompt template: {}", pt);
-
-        json!({
-            "prompt": "This is a placeholder for the prompt text."
-        })
-    }
-
     fn lookup_values(&self, m: &Map<String, Value>) -> dataflow_rs::Result<Map<String, Value>> {
         let mut acc = Map::new();
 
@@ -238,47 +226,6 @@ impl PromptTextFunction {
         }
 
         Ok(acc)
-    }
-
-    #[allow(dead_code)]
-    fn get_object_at_path<'a>(
-        &self,
-        message: &'a mut Message,
-        path: &str,
-    ) -> dataflow_rs::Result<&'a Map<String, Value>> {
-        let parts: Vec<&str> = path.split('.').collect();
-
-        if parts.len() > 1 {
-            return Err(DataflowError::Validation(
-                "path depth of greater than 1 not supported yet".to_string(),
-            ));
-        }
-        let target = if parts[0] == "data" {
-            Ok(message.data_mut())
-        } else if parts[0] == "temp_data" {
-            Ok(message.temp_data_mut())
-        } else if parts[0] == "metadata" {
-            Ok(message.metadata_mut())
-        } else {
-            //TODO: here we should walk all of the options in priority of temp_data -> data -> metadata
-            Err(
-                DataflowError::Validation(
-                    "paths for templates should be a complete path for now, path searching coming soon.".to_string()
-                )
-            )
-        }?;
-
-        let v = target
-            .get(parts[1])
-            .and_then(Value::as_object)
-            .ok_or_else(|| {
-                DataflowError::Validation(format!(
-                    "couldn't find object at {}.{}",
-                    parts[0], parts[1]
-                ))
-            })?;
-
-        Ok(v)
     }
 
     // TODO: this should be moved to a common function trait

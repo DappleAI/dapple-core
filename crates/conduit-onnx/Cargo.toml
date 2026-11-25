@@ -22,9 +22,6 @@ ort = { version = "=2.0.0-rc.11", default-features = false, features = ["load-dy
 # Tokenizers for text preprocessing (shared with ONNX models)
 tokenizers = "0.21"
 
-# Audio processing for TTS
-hound = "3.5"
-
 # CPU detection for ONNX Runtime thread configuration
 num_cpus = "1.16"
 

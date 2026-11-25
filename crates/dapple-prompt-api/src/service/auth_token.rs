@@ -24,7 +24,6 @@ pub const EXPECTED_TOKEN_LEN: usize = 129;
 const SIGNATURE_LEN: usize = 65;
 
 /// Message length in bytes
-#[allow(dead_code)]
 const MESSAGE_LEN: usize = 64;
 
 /// Errors that can occur during auth token verification

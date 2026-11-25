@@ -12,13 +12,13 @@ rustls-tls = ["reqwest/rustls-tls-native-roots"]
 tarball = ["dep:tar", "dep:flate2", "dep:toml"]
 hash = ["dep:dapple-hash"]
 # Internal-surface (api.dapple.x) Ed25519 service-token auth.
-service-auth = ["dep:ed25519-dalek", "dep:rand", "dep:tokio"]
+service-auth = ["dep:ed25519-dalek", "dep:tokio"]
 # External-surface (external-api.dapple.x) carve-out. Independent sibling
 # to `service-auth`. Customer SDKs (acme-sdk et al) flip this; internal
 # is the default-flavored surface and doesn't need this flag. Future scope:
 # this flag will also gate the resource-client surface available to external
 # consumers (omit internal-only endpoints, expose external-specific ones).
-external = ["dep:ed25519-dalek", "dep:rand", "dep:tokio", "dep:base64"]
+external = ["dep:ed25519-dalek", "dep:tokio", "dep:base64"]
 
 [dependencies]
 dapple-types = { path = "../dapple-types" }
@@ -31,8 +31,6 @@ thiserror = "2"
 async-trait = "0.1"
 url = "2"
 bytes = "1"
-log = "0.4"
-futures = "0.3"
 
 # Optional: tarball creation for guide ingest from directory
 tar = { version = "0.4", optional = true }
@@ -45,7 +43,6 @@ dapple-hash = { path = "../dapple-hash", optional = true }
 
 # Optional: Ed25519 service token signing
 ed25519-dalek = { version = "2", features = ["rand_core"], optional = true }
-rand = { version = "0.8", optional = true }
 tokio = { version = "1", features = ["sync"], optional = true }
 # Optional: base64 — used only by the `external` feature for the
 # 128-byte structured-token wire format the external surface expects.

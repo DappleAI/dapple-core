@@ -1842,7 +1842,6 @@ name = "conduit-llm"
 version = "0.1.0"
 dependencies = [
  "async-stream",
- "async-trait",
  "axum",
  "env_logger",
  "futures",
@@ -1852,7 +1851,6 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
- "tokio-stream",
  "tower-http",
 ]
 
@@ -1864,7 +1862,6 @@ dependencies = [
  "dapple-data",
  "env_logger",
  "hound",
- "http-body-util",
  "log",
  "reqwest 0.13.4",
  "resvg 0.45.1",
@@ -1872,7 +1869,6 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
- "tokio-test",
  "tower 0.5.3",
  "tower-http",
  "twitch_api",
@@ -1888,7 +1884,6 @@ dependencies = [
  "axum",
  "base64 0.22.1",
  "env_logger",
- "hound",
  "log",
  "ndarray",
  "num_cpus",
@@ -1915,12 +1910,10 @@ dependencies = [
  "oximedia-core",
  "oximedia-mir",
  "oximedia-timeline",
- "roxmltree 0.20.0",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
- "tokio-test",
  "tower 0.5.3",
  "tower-http",
  "uuid 1.23.2",
@@ -2365,15 +2358,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "dapple"
-version = "0.1.0"
-
-[[package]]
 name = "dapple-data"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "base64 0.22.1",
  "dapple-fluent",
  "dapple-hash",
  "dapple-types",
@@ -2433,7 +2421,6 @@ version = "0.1.0"
 dependencies = [
  "aide",
  "alloy-primitives",
- "async-trait",
  "axum",
  "base64 0.22.1",
  "chrono",
@@ -2446,9 +2433,7 @@ dependencies = [
  "env_logger",
  "fake",
  "flate2",
- "futures",
  "hmac 0.12.1",
- "hyper",
  "indexmap 2.14.0",
  "jsonwebtoken",
  "k256",
@@ -2471,9 +2456,7 @@ dependencies = [
  "thiserror 2.0.18",
  "time",
  "tokio",
- "tower 0.5.3",
  "tower-http",
- "tracing-subscriber",
  "url",
  "uuid 1.23.2",
 ]
@@ -2515,7 +2498,6 @@ dependencies = [
  "tokenizers",
  "tokio",
  "tokio-stream",
- "tokio-test",
  "tower 0.5.3",
  "tower-http",
  "uuid 1.23.2",
@@ -2529,7 +2511,6 @@ name = "dapple-prompt-external-api"
 version = "0.1.0"
 dependencies = [
  "aide",
- "async-trait",
  "axum",
  "base64 0.22.1",
  "chrono",
@@ -2552,7 +2533,6 @@ dependencies = [
  "sqlx",
  "tar",
  "tempfile",
- "thiserror 2.0.18",
  "time",
  "tokio",
  "uuid 1.23.2",
@@ -2595,7 +2575,6 @@ dependencies = [
  "thiserror 1.0.69",
  "time",
  "tokio",
- "tokio-stream",
  "tracing",
  "uuid 1.23.2",
  "zip 1.1.4",
@@ -2610,7 +2589,6 @@ dependencies = [
  "axum",
  "base64 0.22.1",
  "chrono",
- "dapple-data",
  "dapple-prompt-api",
  "jsonwebtoken",
  "k256",
@@ -2657,9 +2635,6 @@ dependencies = [
  "dapple-types",
  "ed25519-dalek",
  "flate2",
- "futures",
- "log",
- "rand 0.8.6",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
@@ -12409,17 +12384,6 @@ dependencies = [
  "futures-core",
  "pin-project-lite",
  "tokio",
-]
-
-[[package]]
-name = "tokio-test"
-version = "0.4.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f6d24790a10a7af737693a3e8f1d03faef7e6ca0cc99aae5066f533766de545"
-dependencies = [
- "futures-core",
- "tokio",
- "tokio-stream",
 ]
 
 [[package]]

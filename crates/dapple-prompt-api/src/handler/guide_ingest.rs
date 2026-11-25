@@ -3329,15 +3329,6 @@ struct ExistingFluentMessageRow {
     content_hash: String,
 }
 
-/// Helper row for looking up existing playbooks by slug.
-#[derive(sqlx::FromRow)]
-#[allow(dead_code)]
-struct ExistingPlaybookRow {
-    #[allow(dead_code)]
-    path_id: Uuid,
-    id: Uuid,
-}
-
 // ============================================================================
 // Helper: create guide_assets associations
 // ============================================================================

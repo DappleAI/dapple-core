@@ -99,24 +99,6 @@ fn flatten_step_tasks_for_insert(
     }])
 }
 
-#[allow(dead_code)]
-fn flatten_tasks_for_insert(
-    tasks: Vec<CreateStepTaskSchema>,
-) -> Result<InsertStepTaskArgs, DataError> {
-    if tasks.is_empty() {
-        return Err(InsertArgColumnMismatch::InvalidColumnSize {
-            column: "CreateStepStepSchema.tasks".into(),
-            expected: 1,
-            found: 0,
-        }
-        .into());
-    }
-
-    Ok(InsertStepTaskArgs {
-        task_ids: tasks.iter().map(|t| t.task_id).collect(),
-    })
-}
-
 pub async fn steps_get_handler(
     Path(id): Path<Uuid>,
     State(data): State<Arc<AppState>>,
