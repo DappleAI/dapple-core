@@ -1,11 +1,11 @@
 //! External-surface Ed25519 service token authentication.
 //!
 //! Sister to `service_token.rs` but for the **external** API surface
-//! (`external-api.dapple.x`). The two share the same signing primitive
-//! (Ed25519) but differ in the token payload format and exchange endpoint:
+//! (`external-api.dapple.x`). The two share the signing primitive, the
+//! token format ([`super::sign_structured_token`]) and the exchange endpoint;
+//! they differ in which signing keys the server accepts:
 //!
-//! - **Endpoint:** `POST /api/get-service-token` (vs internal's
-//!   `POST /api/auth/service-token`).
+//! - **Endpoint:** `POST /api/get-service-token` on each surface.
 //! - **Token payload:** a 128-byte structured blob — 64 bytes of Ed25519
 //!   signature followed by a 64-byte message:
 //!   `[version (1)][valid_from (8 BE)][valid_until (8 BE)][sid_len (1)][sid bytes][zero padding]`.
@@ -22,8 +22,6 @@
 
 use super::AuthProvider;
 use crate::SdkError;
-use base64::Engine as _;
-use base64::engine::general_purpose::STANDARD as BASE64;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -60,41 +58,13 @@ impl ExternalServiceTokenAuth {
         }
     }
 
-    /// Build the 128-byte structured token payload (sig || message) and
-    /// base64-encode it. Match the format `verify_service_token` expects.
+    /// Build the base64 structured token `verify_service_token` expects.
     fn sign_token(&self) -> String {
-        use ed25519_dalek::Signer;
-
-        let now_secs = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .expect("system clock before Unix epoch")
-            .as_secs();
-        let valid_from = now_secs;
-        let valid_until = now_secs + DEFAULT_TOKEN_VALIDITY_SECS;
-
-        let mut message = [0u8; 64];
-        message[0] = 0x01; // version
-        message[1..9].copy_from_slice(&valid_from.to_be_bytes());
-        message[9..17].copy_from_slice(&valid_until.to_be_bytes());
-        let sid_bytes = self.service_id.as_bytes();
-        // sid_len is one byte, sid_bytes follows; total message len is 64
-        // bytes so the sid must fit (with header) — practically sid ≤ 46
-        // bytes. Real service_ids are short (e.g. "acme_prod"); this
-        // bound has never come up.
-        assert!(
-            sid_bytes.len() <= 32,
-            "service_id too long for external token format"
-        );
-        message[17] = sid_bytes.len() as u8;
-        message[18..18 + sid_bytes.len()].copy_from_slice(sid_bytes);
-
-        let signature = self.signing_key.sign(&message);
-
-        let mut token = [0u8; 128];
-        token[..64].copy_from_slice(&signature.to_bytes());
-        token[64..].copy_from_slice(&message);
-
-        BASE64.encode(token)
+        super::sign_structured_token(
+            &self.signing_key,
+            &self.service_id,
+            DEFAULT_TOKEN_VALIDITY_SECS,
+        )
     }
 
     /// Sign + exchange for a JWT against the external surface.

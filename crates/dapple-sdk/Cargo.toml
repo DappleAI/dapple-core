@@ -12,7 +12,7 @@ rustls-tls = ["reqwest/rustls-tls-native-roots"]
 tarball = ["dep:tar", "dep:flate2", "dep:toml"]
 hash = ["dep:dapple-hash"]
 # Internal-surface (api.dapple.x) Ed25519 service-token auth.
-service-auth = ["dep:ed25519-dalek", "dep:tokio"]
+service-auth = ["dep:ed25519-dalek", "dep:tokio", "dep:base64"]
 # External-surface (external-api.dapple.x) carve-out. Independent sibling
 # to `service-auth`. Customer SDKs (acme-sdk et al) flip this; internal
 # is the default-flavored surface and doesn't need this flag. Future scope:
@@ -48,3 +48,11 @@ tokio = { version = "1", features = ["sync"], optional = true }
 # 128-byte structured-token wire format the external surface expects.
 base64 = { version = "0.22", optional = true }
 
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+
+# Post-deploy smoke test: cargo run -p dapple-sdk --example smoke --features service-auth
+[[example]]
+name = "smoke"
+required-features = ["service-auth"]

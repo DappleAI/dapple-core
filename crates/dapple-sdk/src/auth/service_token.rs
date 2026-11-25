@@ -10,6 +10,9 @@ use crate::SdkError;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
+/// Validity window (seconds) for a signed token; the server caps it at 300.
+const DEFAULT_TOKEN_VALIDITY_SECS: u64 = 60;
+
 /// Authentication via Ed25519 service token exchange (`dps_` prefix).
 ///
 /// Signs a short-lived token using the provided Ed25519 private key,
@@ -41,28 +44,21 @@ impl ServiceTokenAuth {
     }
 
     /// Exchange the signed service token for a JWT.
+    ///
+    /// `POST /api/get-service-token` with `{ "service_id", "token" }`, where
+    /// `token` is the base64 structured token (no `dps_` prefix); the server
+    /// answers `{ "status", "jwt", "service_id", "expires_at" }`.
     async fn exchange_token(&self) -> Result<String, SdkError> {
-        use ed25519_dalek::Signer;
-
-        // Create payload: service_id + timestamp
-        let timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .expect("system clock before Unix epoch")
-            .as_secs() as i64;
-        let payload = format!("{}:{}", self.service_id, timestamp);
-        let signature = self.signing_key.sign(payload.as_bytes());
-
-        // Encode signature as hex manually (avoid hex crate dependency)
-        let sig_bytes = signature.to_bytes();
-        let sig_hex: String = sig_bytes.iter().map(|b| format!("{b:02x}")).collect();
-
         let body = serde_json::json!({
             "service_id": self.service_id,
-            "timestamp": timestamp,
-            "signature": sig_hex,
+            "token": super::sign_structured_token(
+                &self.signing_key,
+                &self.service_id,
+                DEFAULT_TOKEN_VALIDITY_SECS,
+            ),
         });
 
-        let url = format!("{}/api/auth/service-token", self.base_url);
+        let url = format!("{}/api/get-service-token", self.base_url);
         let resp = self
             .http
             .post(&url)
@@ -82,11 +78,11 @@ impl ServiceTokenAuth {
 
         #[derive(serde::Deserialize)]
         struct TokenResponse {
-            token: String,
+            jwt: String,
         }
 
         let token_resp: TokenResponse = resp.json().await.map_err(SdkError::Http)?;
-        Ok(token_resp.token)
+        Ok(token_resp.jwt)
     }
 }
 
