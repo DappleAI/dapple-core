@@ -8,7 +8,7 @@ Dapple Prompt provides a comprehensive platform for managing structured prompts,
 
 ## Architecture
 
-This is a Cargo workspace containing the following crates:
+This is a Cargo workspace containing the following crates;
 
 **Services**
 
