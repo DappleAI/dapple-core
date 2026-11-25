@@ -764,29 +764,41 @@ def ensure_onnx_models [onnx_cache_dir: string] {
     let ort_lib = ($ort_dir | path join "libonnxruntime.so")
 
     if not ($ort_lib | path exists) {
-        let arch = if ($nu.os-info.arch == "aarch64") or ($nu.os-info.arch == "arm64") {
-            "aarch64"
+        # microsoft/onnxruntime was removed from GitHub [2026-11], so its
+        # release tarballs 404. Microsoft still publishes the same native
+        # libraries in the Microsoft.ML.OnnxRuntime NuGet package — the
+        # linux-x64 libonnxruntime.so is byte-identical to the old tarball's.
+        # One .nupkg carries every RID, so one pinned checksum covers both.
+        const ORT_NUPKG_SHA256 = "25fe172f7fcdf34f2b5b02c8b997f6b88abc282956849d4af4335af23d0c4e4a"
+        let rid = if ($nu.os-info.arch == "aarch64") or ($nu.os-info.arch == "arm64") {
+            "linux-arm64"
         } else {
-            "x64"
+            "linux-x64"
         }
-        let ort_tgz_name = $"onnxruntime-linux-($arch)-($ORT_VERSION)"
-        let url = $"https://github.com/microsoft/onnxruntime/releases/download/v($ORT_VERSION)/($ort_tgz_name).tgz"
+        let url = $"https://www.nuget.org/api/v2/package/Microsoft.ML.OnnxRuntime/($ORT_VERSION)"
 
-        log info $"ONNX Runtime: downloading v($ORT_VERSION) for linux-($arch)..."
+        log info $"ONNX Runtime: downloading v($ORT_VERSION) for ($rid) from NuGet..."
         try { mkdir $ort_dir } catch {|e|
             log warning $"Cannot create ONNX Runtime dir ($ort_dir): ($e.msg)"
         }
 
-        let tmp_tgz = ($ort_dir | path join "ort.tgz")
+        let tmp_pkg = ($ort_dir | path join "ort.nupkg")
         try {
-            http get --raw $url | save -f $tmp_tgz
-            # Extract lib/ contents (strip top-level dir + lib/ = 2 components)
-            ^tar -xzf $tmp_tgz -C $ort_dir --strip-components=2 $"($ort_tgz_name)/lib"
-            rm -f $tmp_tgz
+            if (which unzip | is-empty) {
+                error make { msg: "unzip is not installed [needed to unpack the ONNX Runtime .nupkg] — install it, e.g. `sudo apt install unzip`" }
+            }
+            http get --raw $url | save -f $tmp_pkg
+            let actual = (open --raw $tmp_pkg | hash sha256)
+            if $actual != $ORT_NUPKG_SHA256 {
+                error make { msg: $"checksum mismatch for ($url): expected ($ORT_NUPKG_SHA256), got ($actual)" }
+            }
+            # .nupkg is a zip; -j drops the runtimes/<rid>/native/ prefix.
+            ^unzip -q -o -j $tmp_pkg $"runtimes/($rid)/native/*" -d $ort_dir
+            rm -f $tmp_pkg
             log info $"ONNX Runtime: v($ORT_VERSION) installed at ($ort_dir)"
         } catch {|e|
             log warning $"ONNX Runtime: download failed: ($e.msg)"
-            rm -f $tmp_tgz
+            rm -f $tmp_pkg
         }
     } else {
         log info $"ONNX Runtime: already present at ($ort_dir)"

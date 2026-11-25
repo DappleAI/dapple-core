@@ -82,33 +82,36 @@ FROM base-${GPU_TYPE} AS runtime-base
 WORKDIR /app
 
 # Install common dependencies
-RUN apt-get update && apt-get install -y ca-certificates openssl wget && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y ca-certificates openssl wget unzip && rm -rf /var/lib/apt/lists/*
 
 # Install ONNX Runtime shared library based on GPU type
-# The ort crate with load-dynamic feature loads libonnxruntime.so at runtime
+# The ort crate with load-dynamic feature loads libonnxruntime.so at runtime.
+#
+# microsoft/onnxruntime was removed from GitHub [2026-11], so its release
+# tarballs 404. Microsoft still publishes the native libraries as NuGet packages
+# (the CPU linux-x64 libonnxruntime.so is byte-identical to the old tarball's).
+# A .nupkg is a zip; the libraries live under runtimes/linux-x64/native/.
 ARG GPU_TYPE=none
 ARG ORT_VERSION=1.23.2
+# sha256 of Microsoft.ML.OnnxRuntime.<ORT_VERSION>.nupkg — bump with ORT_VERSION.
+ARG ORT_CPU_NUPKG_SHA256=25fe172f7fcdf34f2b5b02c8b997f6b88abc282956849d4af4335af23d0c4e4a
 
 RUN set -ex && \
     if [ "$GPU_TYPE" = "amd" ]; then \
-        # ROCm ONNX Runtime
-        wget -q -O /tmp/ort.tgz https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-linux-x64-rocm-${ORT_VERSION}.tgz && \
-        mkdir -p /opt/onnxruntime && \
-        tar -xzf /tmp/ort.tgz -C /opt/onnxruntime --strip-components=1 && \
-        rm /tmp/ort.tgz; \
+        echo "ONNX Runtime ROCm builds were only published as GitHub release tarballs," >&2; \
+        echo "which no longer exist. Provide libonnxruntime.so for ROCm yourself." >&2; \
+        exit 1; \
     elif [ "$GPU_TYPE" = "nvidia" ]; then \
         # CUDA ONNX Runtime
-        wget -q -O /tmp/ort.tgz https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-linux-x64-gpu-${ORT_VERSION}.tgz && \
-        mkdir -p /opt/onnxruntime && \
-        tar -xzf /tmp/ort.tgz -C /opt/onnxruntime --strip-components=1 && \
-        rm /tmp/ort.tgz; \
+        wget -q -O /tmp/ort.nupkg "https://www.nuget.org/api/v2/package/Microsoft.ML.OnnxRuntime.Gpu.Linux/${ORT_VERSION}"; \
     else \
         # CPU-only ONNX Runtime
-        wget -q -O /tmp/ort.tgz https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-linux-x64-${ORT_VERSION}.tgz && \
-        mkdir -p /opt/onnxruntime && \
-        tar -xzf /tmp/ort.tgz -C /opt/onnxruntime --strip-components=1 && \
-        rm /tmp/ort.tgz; \
-    fi
+        wget -q -O /tmp/ort.nupkg "https://www.nuget.org/api/v2/package/Microsoft.ML.OnnxRuntime/${ORT_VERSION}" && \
+        echo "${ORT_CPU_NUPKG_SHA256}  /tmp/ort.nupkg" | sha256sum -c -; \
+    fi && \
+    mkdir -p /opt/onnxruntime/lib && \
+    unzip -q -o -j /tmp/ort.nupkg 'runtimes/linux-x64/native/*' -d /opt/onnxruntime/lib && \
+    rm /tmp/ort.nupkg
 
 # Set up environment for ONNX Runtime
 ENV ORT_DYLIB_PATH=/opt/onnxruntime/lib/libonnxruntime.so
