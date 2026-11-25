@@ -18,7 +18,8 @@ natively as a snap.
 
 ```bash
 sudo apt update && sudo apt install -y \
-  docker.io openssl bzip2 libnss3-tools postgresql-client-18 build-essential curl git
+  docker.io openssl bzip2 libnss3-tools postgresql-client build-essential \
+  pkg-config libssl-dev unzip curl git
 ```
 
 | package | why |
@@ -27,7 +28,9 @@ sudo apt update && sudo apt install -y \
 | `openssl` | secret generation, and deriving service-token public keys |
 | `bzip2` | the VITS TTS model ships as `.tar.bz2` and `tar` shells out to it |
 | `libnss3-tools` | registers the dev CA with Chromium's NSS store — without it browser TLS to `*.kube.dappleai.dev` fails |
-| `postgresql-client-18` | `psql` for the token tooling; match the server major (PG 18) |
+| `postgresql-client` | `psql` for the token tooling; the stock Ubuntu client works against the PG 18 server |
+| `pkg-config`, `libssl-dev` | `cargo install sqlx-cli` and the conduit-family builds link OpenSSL |
+| `unzip` | the deploy unpacks ONNX Runtime from Microsoft's NuGet package |
 
 Add yourself to the docker group and re-login:
 
@@ -37,7 +40,7 @@ sudo usermod -aG docker $USER && newgrp docker
 
 **nushell** is not in Ubuntu's repos. Install from upstream releases or
 `cargo install nu`. Check with `nu --version` — the tooling is developed against
-0.114.
+0.114 and the full deploy is verified on 0.117.
 
 **Rust** via [rustup](https://rustup.rs). `sqlx-cli` is installed for you in
 step 5.
@@ -160,12 +163,9 @@ fails loudly, so a silent miss here is unexpected — say so if you hit one.
 cd ~/src/dapple/dapple-prompt && nu assets/nu/k8s/deploy_dapple_core.nu
 ```
 
-Backend services. The first run builds images and takes a while. Then apply
-migrations:
-
-```bash
-dapple sqlx migrate
-```
+Backend services. The first run builds images and takes a while. The deploy
+creates the database and applies every migration itself, and is safe to re-run:
+a repeat deploy finds the schema current and changes nothing.
 
 Check it:
 
@@ -174,6 +174,25 @@ kubectl get pods -n dapple-sandbox && curl -sk -o /dev/null -w '%{http_code}\n' 
 ```
 
 A 200 means the whole chain works: DNS → ingress → TLS → API.
+
+## 9. First user and smoke test
+
+A fresh database has no users, and every data endpoint needs one. Create
+yourself with an admin personal access token — the token is printed **once**:
+
+```bash
+dapple token pat create you@example.com --admin --create-user
+```
+
+`--create-user` creates the user if it does not exist yet and is a no-op
+otherwise. Then prove the stack works end to end — token → API → database:
+
+```bash
+DAPPLE_SMOKE_PAT=dpl_... cargo run -p dapple-sdk --example smoke --features service-auth
+```
+
+It ends with `smoke test passed`. Use the same token as
+`Authorization: Bearer dpl_...` for your own API calls.
 
 ---
 

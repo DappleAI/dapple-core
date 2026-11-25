@@ -92,10 +92,35 @@ def resolve_user [db_url: string, identifier: string] {
     }
 }
 
+# Ensure a user with this email exists: an auth.users row plus its
+# rev.user_details row (the user_detail_creates_principal trigger then creates
+# the human principal). Idempotent — an existing user is left untouched.
+#
+# This is how a fresh deploy gets its FIRST user: users were previously
+# created by the web app's sign-in flow, which is not part of this repo.
+def ensure_user [db_url: string, email: string] {
+    let safe_email = ($email | str replace -a "'" "''")
+    let sql = (r#'
+        INSERT INTO auth.users (email, name)
+        SELECT '{email}', '{email}'
+        WHERE NOT EXISTS (SELECT 1 FROM auth.users WHERE lower(email) = lower('{email}'));
+        INSERT INTO rev.user_details (user_id)
+        SELECT a.id FROM auth.users a
+        WHERE lower(a.email) = lower('{email}')
+          AND NOT EXISTS (SELECT 1 FROM rev.user_details d WHERE d.user_id = a.id);
+    '# | str replace -a "{email}" $safe_email)
+    let result = (do { ^psql $db_url -v ON_ERROR_STOP=1 -q -c $sql } | complete)
+    if $result.exit_code != 0 {
+        error make { msg: $"Failed to create user ($email): ($result.stderr | str trim)" }
+    }
+    log info $"User ensured: ($email)"
+}
+
 # Create a PAT token for a user via direct database insert
 #
 # This creates an API token by directly inserting into web.api_tokens.
-# Use this for testing when you need tokens for arbitrary users.
+# With --create-user, a user identified by email is created first if missing —
+# the way to bootstrap the first user on a fresh deploy.
 #
 # The token is shown ONCE - store it securely!
 export def "main create" [
@@ -103,8 +128,16 @@ export def "main create" [
     --name: string = "CLI Test Token"  # Human-readable name for the token
     --expires-days: int = 30         # Days until expiration (0 = never expires)
     --admin                          # Create admin-capable token (also grants admin role to user)
+    --create-user                    # Create the user first if it does not exist [email only]
 ] {
     let db_url = (require_db_url)
+
+    if $create_user {
+        if not ($user | str contains "@") {
+            error make { msg: "--create-user needs an email address, not an object_id" }
+        }
+        ensure_user $db_url $user
+    }
 
     log info $"Looking up user: ($user)"
 
@@ -325,12 +358,9 @@ export def create [
     --name: string = "CLI Test Token"
     --expires-days: int = 30
     --admin
+    --create-user                    # Create the user first if missing [email only]
 ] {
-    if $admin {
-        main create $user --name $name --expires-days $expires_days --admin
-    } else {
-        main create $user --name $name --expires-days $expires_days
-    }
+    main create $user --name $name --expires-days $expires_days --admin=$admin --create-user=$create_user
 }
 
 export def list [

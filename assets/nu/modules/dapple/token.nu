@@ -6,6 +6,7 @@
 # Examples:
 #   dapple token pat create <user-uuid>       # Create PAT for user
 #   dapple token pat create <email> --admin   # Create admin PAT by email
+#   dapple token pat create <email> --admin --create-user  # First user on a fresh deploy
 #   dapple token pat list <user-uuid>         # List user's PATs
 #   dapple token pat revoke <token-uuid>      # Revoke a PAT
 #   dapple token pat create-via-api --jwt ..  # Create PAT via API
@@ -25,12 +26,9 @@ export def "pat create" [
     --name: string = "CLI Test Token"  # Human-readable name
     --expires-days: int = 30         # Days until expiration (0 = never)
     --admin                          # Create admin-capable token
+    --create-user                    # Create the user first if missing [email only; first-user bootstrap]
 ] {
-    if $admin {
-        create $user --name $name --expires-days $expires_days --admin
-    } else {
-        create $user --name $name --expires-days $expires_days
-    }
+    create $user --name $name --expires-days $expires_days --admin=$admin --create-user=$create_user
 }
 
 # Create a PAT token via the dapple-prompt-api service (requires JWT)
