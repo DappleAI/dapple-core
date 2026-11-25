@@ -65,7 +65,7 @@ Then re-run this." }
 
     # Load the hand-authored file as a key-value record (it takes precedence)
     let user_vars = if ($user_env_file | path exists) {
-        open $user_env_file | lines
+        open --raw $user_env_file | lines
         | where {|l| $l !~ '^#' and $l != '' and ($l | str contains '=')}
         | each {|l|
             let parts = ($l | split row '=' -n 2)
@@ -148,7 +148,7 @@ def load_existing_secrets [file: path]: nothing -> record {
         return {}
     }
 
-    open $file | lines
+    open --raw $file | lines
     | where {|l| $l !~ '^#' and $l != '' and ($l | str contains '=')}
     | each {|l|
         let parts = ($l | split row '=' -n 2)
