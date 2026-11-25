@@ -1274,12 +1274,19 @@ def setup_dapple_svc [cfg: record, --force, --hostpath: string = "", --docker, -
         let image_exists = (check_registry_image $cfg.name)
         if not $image_exists {
             log warning $"Image for ($cfg.name) not found in registry — pushing placeholder image"
-            # Push a tiny placeholder so K8s can pull it. The hostPath patch
-            # overrides the entrypoint to run the local binary, so the image
-            # contents don't matter — it just needs to exist in the registry.
+            # The hostPath patch overrides the entrypoint to run the local
+            # binary, but that binary still runs on the image's filesystem: a
+            # bare base image has no CA bundle [every outbound HTTPS call
+            # fails] and no ONNX Runtime [conduit-onnx panics]. Build the
+            # Dockerfile's runtime-base stage — the real image minus the binary.
             let tag = $"($env.KUBE_REGISTRY_HOST)/($cfg.name):($env.DOCKER_DAPPLE_TAG_LATEST)"
-            ^docker pull debian:trixie-slim
-            ^docker tag debian:trixie-slim $tag
+            let gpu_type = ($cfg | get -o gpu | default { type: "none" } | get type)
+            (^docker build
+                --target runtime-base
+                --build-arg $"GPU_TYPE=($gpu_type)"
+                --file ($env.DAPPLE_PROMPT_WORKSPACE_DIR | path join "Dockerfile")
+                --tag $tag
+                $env.DAPPLE_PROMPT_WORKSPACE_DIR)
             ^docker push $tag
             log info $"Placeholder image pushed: ($tag)"
         }

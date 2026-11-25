@@ -73,7 +73,12 @@ RUN TARGET_DIR=$(if [ "$PROFILE" = "dev" ]; then echo "debug"; else echo "$PROFI
 
 # Runtime stage - select base by GPU_TYPE
 ARG GPU_TYPE=none
-FROM base-${GPU_TYPE} AS runtime
+# runtime-base: everything a service binary needs at runtime EXCEPT the binary.
+# hostPath deploys run a locally built binary on top of this stage, and
+# deploy_dapple_core.nu builds it (--target runtime-base) as the placeholder
+# image when the registry has none yet, so those pods get the same CA bundle,
+# OpenSSL and ONNX Runtime as a real image.
+FROM base-${GPU_TYPE} AS runtime-base
 WORKDIR /app
 
 # Install common dependencies
@@ -108,6 +113,9 @@ RUN set -ex && \
 # Set up environment for ONNX Runtime
 ENV ORT_DYLIB_PATH=/opt/onnxruntime/lib/libonnxruntime.so
 ENV LD_LIBRARY_PATH=/opt/onnxruntime/lib
+ENV ONNX_MODEL_PATH=/models
+
+FROM runtime-base AS runtime
 
 # Copy the binary from builder
 ARG BIN=dapple-prompt-api

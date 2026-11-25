@@ -725,6 +725,10 @@ export def setup_docker_registry_cert [host_name: string, crt_name: string] {
     # stale file into Docker's trust dir is worse than not running at all: it
     # looks like the trust was configured.
     _ensure_local_ca_current
+    # The node's containerd trusts its own copy of the CA. A rotation that
+    # refreshes only the host leaves every image pull failing x509 while the
+    # deploy itself reports success.
+    _ensure_node_ca_current
 
     let crt_path = $env.KUBE_CERTS_DIR | path join $crt_name
     let registry_host = if $host_name == "" { $env.KUBE_REGISTRY_HOST } else { $host_name }
@@ -777,6 +781,18 @@ export def setup_docker_registry_cert [host_name: string, crt_name: string] {
         # Native dockerd path: /etc/docker/certs.d/{registry}/ca.crt
         let system_target_dir = $"/etc/docker/certs.d/($registry_host)"
         let system_target_crt = $system_target_dir | path join "ca.crt"
+
+        # Content comparison first: the common case changes nothing and never
+        # prompts for sudo, so a non-interactive deploy does not die here.
+        let current = if ($system_target_crt | path exists) {
+            open $system_target_crt --raw | str trim
+        } else {
+            ""
+        }
+        if $current == (open $crt_path --raw | str trim) {
+            log debug $"Docker registry certificate at ($system_target_crt) is current"
+            return
+        }
 
         if not ($system_target_dir | path exists) {
             ^sudo mkdir -p $system_target_dir
@@ -851,6 +867,46 @@ def _ensure_local_ca_current [] {
     register_local_certs "local-dev-root-ca"
 }
 
+# Keep the node-side copy of the dev root CA in step with the cluster's.
+#
+# containerd on every node trusts the CA that the registry-ca-trust DaemonSet
+# copied out of the kube-system/registry-root-ca ConfigMap. Only
+# setup_microk8s.nu refreshed that ConfigMap, so after cert-manager rotated the
+# root CA the node kept trusting the old one: once it expired, every image pull
+# failed with "x509: certificate has expired" while deploys still reported
+# success, and pods sat in ContainerCreating / ImagePullBackOff indefinitely.
+#
+# Content comparison first — one kubectl call when nothing changed. No sudo:
+# the DaemonSet does the privileged copy. Not exported, for the same reason as
+# _ensure_local_ca_current.
+def _ensure_node_ca_current [] {
+    let cluster = (do {
+        kubectl -n cert-manager get secret local-dev-root-ca -o 'jsonpath={.data.tls\.crt}'
+    } | complete)
+    if $cluster.exit_code != 0 or ($cluster.stdout | str trim | is-empty) {
+        log warning "could not read the local-dev-root-ca secret — skipping node CA freshness check"
+        return
+    }
+    let cluster_pem = ($cluster.stdout | str trim | decode base64 | decode | str trim)
+
+    let node = (do {
+        kubectl -n kube-system get configmap registry-root-ca -o 'jsonpath={.data.ca\.crt}'
+    } | complete)
+    let node_pem = if $node.exit_code == 0 { $node.stdout | str trim } else { "" }
+
+    if $node_pem == $cluster_pem {
+        log debug "node registry CA matches the cluster"
+        return
+    }
+
+    log warning "node registry CA differs from the cluster's [CA rotated] — refreshing containerd trust"
+    setup_k8s_registry_cert
+    # Re-applying an unchanged DaemonSet does not restart it, and the copy
+    # happens at pod start — force a restart so the new CA reaches the node.
+    kubectl -n kube-system rollout restart daemonset/registry-ca-trust
+    kubectl -n kube-system rollout status daemonset/registry-ca-trust --timeout=300s
+}
+
 # Configure Kubernetes nodes to trust the registry certificate
 export def setup_k8s_registry_cert [] {
     log info "configuring Kubernetes nodes to trust registry certificate"
@@ -881,9 +937,16 @@ export def setup_k8s_registry_cert [] {
         log debug $"creating ConfigMap with cert from: ($tmp_file_abs)"
         kubectl create configmap registry-root-ca -n kube-system --from-file=ca.crt=($tmp_file_abs) --dry-run=client -o yaml | kubectl apply -f -
         
-        # Apply the DaemonSet to trust the certificate on all nodes
-        # Use relative path from project root (where script is run from)
-        let daemonset_path = "assets/k8s/registry/trust-registry-ca.yaml"
+        # Apply the DaemonSet to trust the certificate on all nodes. Resolve it
+        # from the workspace so a deploy launched from any directory finds it;
+        # fall back to the project-root-relative path setup_microk8s.nu uses.
+        let rel_path = "assets/k8s/registry/trust-registry-ca.yaml"
+        let workspace = ($env | get -o DAPPLE_PROMPT_WORKSPACE_DIR | default "")
+        let daemonset_path = if ($workspace | is-not-empty) and ($workspace | path join $rel_path | path exists) {
+            $workspace | path join $rel_path
+        } else {
+            $rel_path
+        }
         log debug $"applying DaemonSet from: ($daemonset_path)"
         
         if not ($daemonset_path | path exists) {
