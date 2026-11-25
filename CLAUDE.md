@@ -39,9 +39,9 @@ Narrative documentation lives in `docs/books/` (renamed from `docs/guides/` beca
 
 ## Workspace Overview
 
-**Monorepo structure** with multiple Rust crates under `crates/` each with an AGENTS.md file for additional instructions:
+**Monorepo structure** with multiple Rust crates under `crates/`, most with an AGENTS.md file for additional instructions:
 
-## Crates And Responsibilties
+## Crates And Responsibilities
 ### dapple-data
 #### Responsibilities
 Data access layer to PostgreSQL via SQLx, All SQL queries, Data Models, Queries and Data Access Philosophies. Uses **sql-composer** (`cargo sqlc`) to compose `.sqlc` source files into generated `.sql` output — never edit `assets/.sql/` directly.
@@ -86,14 +86,26 @@ Explore @crates/dapple-prompt-flow/AGENTS.md for all details related to crate re
 
 ### dapple-prompt-mock-api
 #### Responsibilities
-#### Agent Information
-Explore @crates/dapple-prompt-mock-api/AGENTS.md for all details related to crate responsibilities.
+In-memory, fixture-driven stand-in for `dapple-prompt-api`. Serves the real API's OpenAPI spec (`dapple_prompt_api::build_openapi_spec()`) over an `InMemoryStore` seeded from `assets/fixtures/`, so clients can develop against the API contract without a database or cluster.
 
 ### dapple-render
 #### Responsibilities
 Content Rendering (markdown-to-HTML, PDF generation, tag filtering) - @crates/dapple-render/AGENTS.md
 #### Agent Information
 Explore @crates/dapple-render/AGENTS.md for all details related to crate responsibilities.
+
+### Supporting crates
+
+| Crate | Responsibility | Docs |
+|---|---|---|
+| `conduit-llm` | Local LLM inference sub-service (MistralRS GGUF), isolated in its own pod for memory. Only conduit calls it. | @crates/conduit-llm/AGENTS.md |
+| `conduit-onnx` | Headless ONNX inference sub-service (embeddings, TTS models). Only conduit calls it. | @crates/conduit-onnx/AGENTS.md |
+| `conduit-media-gateway` | Opt-in media pipeline (`media-gateway` feature, Docker-only): VOD recap pipeline and `POST /render-timeline`. | @crates/conduit-media-gateway/AGENTS.md |
+| `conduit-oximedia` | Opt-in audio analysis + A/V composition (`oximedia` feature): `/analyze-audio`, `/compose-av`. | @crates/conduit-oximedia/AGENTS.md |
+| `dapple-hash` | Content-addressable hashing shared by server and SDK (see Content-Addressable Versioning below). | `crates/dapple-hash/README.md` |
+| `dapple-types` | Public DTO types — the shared source of truth between the API and the SDK. | `crates/dapple-types/README.md` |
+| `dapple-sdk` | Typed Rust HTTP client for the Dapple Prompt API (features: `service-auth`, `external`). | crate docs |
+| `fluent-syntax-unicode` | Vendored fork of `fluent-syntax` 0.11.1 accepting non-ASCII identifiers. Keeps upstream `Apache-2.0 OR MIT`. | `crates/fluent-syntax-unicode/README.md` |
 
 ## Journey-Centric Philosophy
 
@@ -221,17 +233,17 @@ insignificant in SQL outside string literals.
 - Shared CTE fragments live in `assets/sqlc/shared/` and are composed into entity queries
 - See `crates/dapple-data/AGENTS.md` for the full sql-composer workflow and shared statement inventory
 
-## Infrastructure Overiew
+## Infrastructure Overview
 
 ### Nushell Tooling
 #### Overview
-Everything revolves around our Nushell Tooling and is ex
+Everything revolves around our Nushell tooling: environment overlays, secrets generation, the `dapple` module (`dapple sqlc`, …), and the K8s deploy scripts.
 #### Agent Information
 Explore @assets/nu/AGENTS.md
 
 ### K8s Setup
-### Overview
-Locally environment runs in a microk8s kube. macOS contributors run microk8s inside an OrbStack-hosted Ubuntu VM — see @docs/books/journey-builder-guide/development/orbstack-setup.md for setup.
+#### Overview
+The local environment runs in a microk8s kube. macOS contributors run microk8s inside an OrbStack-hosted Ubuntu VM — see @docs/books/journey-builder-guide/development/orbstack-setup.md for setup.
 #### Agent Information
 Explore @assets/k8s/AGENTS.md
 

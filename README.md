@@ -10,20 +10,33 @@ Dapple Prompt provides a comprehensive platform for managing structured prompts,
 
 This is a Cargo workspace containing the following crates:
 
-- **[dapple-data](crates/dapple-data/README.md)** — Data access layer with SQLx, PostgreSQL models, and query functions
-- **[dapple-prompt-api](crates/dapple-prompt-api/README.md)** — REST API service built with Axum, exposing OpenAPI 3.1 endpoints
-- **[dapple-prompt-conduit](crates/dapple-prompt-conduit/README.md)** — Prompt rendering and LLM routing service with multi-backend support
+**Services**
+
+- **[dapple-prompt-api](crates/dapple-prompt-api/README.md)** — Internal-tier REST API service built with Axum, exposing OpenAPI 3.1 endpoints
+- **[dapple-prompt-external-api](crates/dapple-prompt-external-api/AGENTS.md)** — External-tier REST API for customer companies, cryptographically and data-isolated from the internal surface
+- **[dapple-prompt-conduit](crates/dapple-prompt-conduit/AGENTS.md)** — Prompt rendering and LLM routing service with multi-backend support
 - **[dapple-prompt-flow](crates/dapple-prompt-flow/README.md)** — Workflow execution engine with Nushell integration
-- **[dapple](crates/dapple/README.md)** — CLI utilities for development and operations
-- **[dapple-parser](crates/dapple-parser/README.md)** — Guide content parser (markdown directives, TOML metadata, Fluent messages)
-- **[dapple-render](crates/dapple-render/README.md)** — Content rendering (markdown-to-HTML, PDF generation, tag-based filtering)
+- **[dapple-prompt-mock-api](crates/dapple-prompt-mock-api/)** — In-memory, fixture-driven mock of the API for client development
+- **[conduit-llm](crates/conduit-llm/AGENTS.md)**, **[conduit-onnx](crates/conduit-onnx/AGENTS.md)** — Inference sub-services behind conduit (local LLM, ONNX models)
+- **[conduit-media-gateway](crates/conduit-media-gateway/AGENTS.md)**, **[conduit-oximedia](crates/conduit-oximedia/AGENTS.md)** — Opt-in media pipeline and audio-analysis services
+
+**Libraries**
+
+- **[dapple-data](crates/dapple-data/README.md)** — Data access layer with SQLx, PostgreSQL models, and query functions
+- **[dapple-parser](crates/dapple-parser/AGENTS.md)** — Guide content parser (markdown directives, TOML metadata, Fluent messages)
+- **[dapple-render](crates/dapple-render/AGENTS.md)** — Content rendering (markdown-to-HTML, PDF generation, tag-based filtering)
+- **[dapple-fluent](crates/dapple-fluent/AGENTS.md)** — Fluent template parsing, rendering, and modeling
+- **[dapple-hash](crates/dapple-hash/README.md)** — Content-addressable hashing for versioned objects
+- **[dapple-types](crates/dapple-types/README.md)** — Public DTO types shared by the API and the SDK
+- **[dapple-sdk](crates/dapple-sdk/)** — Typed Rust client for the Dapple Prompt API
+- **[fluent-syntax-unicode](crates/fluent-syntax-unicode/README.md)** — Vendored `fluent-syntax` fork with Unicode identifiers
 
 ## Quick Start
 
 ### Prerequisites
 
-- Rust 1.75+ (2024 edition)
-- PostgreSQL 15+
+- Rust 1.95 (pinned by `rust-toolchain.toml`; rustup installs it automatically)
+- PostgreSQL 18 with PostGIS and pgvector (see `assets/docker/prompt-db/Dockerfile`)
 - Docker (optional, for containerized development)
 
 ### Environment Setup
