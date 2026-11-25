@@ -132,7 +132,7 @@ export def drain [
 The build commands in `build.nu` delegate to standalone scripts:
 - `nu/k8s/build_image.nu` - Builds Docker images
 - `nu/k8s/patch_image.nu` - Updates deployments with new images
-- `nu/k8s/deploy_dapple_prompt_pods.nu` - Full deployment
+- `nu/k8s/deploy_dapple_core.nu` - Full deployment
 
 When modifying build logic, consider:
 - Should the change be in the CLI wrapper or the underlying script?
@@ -192,7 +192,7 @@ The module expects the `dapple_sandbox` overlay to be active, which sets up:
 - Registry authentication
 - Database URLs
 
-### With deploy_dapple_prompt_pods.nu
+### With deploy_dapple_core.nu
 
 The `dapple deploy` command wraps this script. The standalone script handles:
 - SQLx migrations

@@ -188,7 +188,7 @@ export def --env migrate_legacy_files [home: path, declared_env: string] {
 # as the new pair's, so any key present in both can change value — and
 # load-dotenv reports nothing when one does. Silence IS the failure mode here:
 # the original symptom was a workstation quietly swapping OAUTH_GOOGLE_CLIENT_ID
-# for the other file's copy, which deploy_dapple_web_pods.nu then stamped into
+# for the other file's copy, which the web deploy then stamped into
 # the dapple-ui-auth secret on a green deploy.
 #
 # Names only. These files are full of secrets and this output is not.

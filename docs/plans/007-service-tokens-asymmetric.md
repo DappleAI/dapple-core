@@ -168,7 +168,7 @@ Total: 128 bytes, base64 encoded
   - `DAPPLE_SERVICE_ID` (which service identity to use)
 
 ### Phase 6: Deployment Script Updates
-- [ ] Update `deploy_dapple_prompt_pods.nu` to:
+- [ ] Update `deploy_dapple_core.nu` to:
   - Generate keypairs for each service (if not exists)
   - Register public keys with prompt-api
   - Inject private keys as k8s secrets

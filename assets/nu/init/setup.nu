@@ -127,7 +127,7 @@ def install_shell_profile [workspace: path] {
     # are the same directory; on macOS nushell uses
     # ~/Library/Application Support/nushell, so a hardcoded path installs into
     # somewhere nu never reads — modules silently stale, fragment never
-    # sourced. deploy_dapple_prompt_pods.nu's freshness check compares against
+    # sourced. deploy_dapple_core.nu's freshness check compares against
     # $nu.default-config-dir too, so the two must agree.
     let nu_dir = $nu.default-config-dir
     let modules_dst = ($nu_dir | path join "modules")

@@ -86,7 +86,7 @@ export-env {
         $env.DAPPLE_WEB_LANDING_PAGE_SOURCE_DIR = ($siblings | path join "dapple-landing-page")
 
         # The landing page is served on a dev-cluster NodePort; prod does not
-        # run it at all. deploy_dapple_prompt_pods.nu reads the port directly
+        # run it at all. deploy_dapple_core.nu reads the port directly
         # [twice], and `dapple url dapple-web-landing-page` prints the URL.
         $env.DAPPLE_WEB_LANDING_PAGE_HOST = $cfg.kube_host
         $env.DAPPLE_WEB_LANDING_PAGE_PORT = "31082"
@@ -95,7 +95,7 @@ export-env {
 
     # --- Service addresses ------------------------------------------------
     # INTERNAL means in-cluster, and its only consumer is the dapple-ui-auth
-    # secret [deploy_dapple_web_pods.nu], read by pods. It briefly held
+    # secret (deployed outside this repo), read by pods. It briefly held
     # $cfg.api_base, which is an INGRESS url in sandbox — pods can resolve
     # neither the zone nor the private CA, so that silently broke every
     # server-side call dapple-ui makes. Tools that need a workstation-reachable

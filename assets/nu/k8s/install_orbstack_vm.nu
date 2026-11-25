@@ -128,7 +128,7 @@ def main [] {
     # OrbStack's docker CLI doesn't ship buildx by default; the dapple
     # service Dockerfiles use `RUN --mount=type=cache,...` (a BuildKit
     # feature), and `docker build` with DOCKER_BUILDKIT=1 hands off to
-    # buildx. Without this step, `deploy_dapple_prompt_pods.nu` fails
+    # buildx. Without this step, `deploy_dapple_core.nu` fails
     # with "BuildKit is enabled but the buildx component is missing".
     ensure_docker_buildx
 
@@ -136,7 +136,7 @@ def main [] {
     log info $"OrbStack VM ($name) is provisioned with microk8s installed."
     log info "Next steps:"
     log info "  nu assets/nu/k8s/setup_microk8s.nu"
-    log info "  nu assets/nu/k8s/deploy_dapple_prompt_pods.nu"
+    log info "  nu assets/nu/k8s/deploy_dapple_core.nu"
     log info ""
     log info "If *.kube.dappleai.dev stops resolving:"
     log info "  1. orb info microk8s-vm — confirm VM is running"

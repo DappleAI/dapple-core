@@ -66,7 +66,7 @@ export def ui [
 
         # Database (broken-out form consumed by packages/ui/lib/db/pool.ts).
         # For local dev we point at the external hostname; the cluster pod
-        # version (see deploy_dapple_web_pods.nu) targets prompt-db directly.
+        # deployment (managed outside this repo) targets prompt-db directly.
         DATABASE_HOST: "prompt-db.kube.dappleai.dev"
         DATABASE_PORT: "5432"
         DATABASE_USER: "dapple"

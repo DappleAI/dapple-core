@@ -297,8 +297,8 @@ Build: full dapple-suite workspace compiles clean (warnings only).
     ```
 - [ ] **12.2** Redeploy API + flow:
     ```
-    nu assets/nu/k8s/deploy_dapple_prompt_pods.nu --svc api
-    nu assets/nu/k8s/deploy_dapple_prompt_pods.nu --svc flow
+    nu assets/nu/k8s/deploy_dapple_core.nu --svc api
+    nu assets/nu/k8s/deploy_dapple_core.nu --svc flow
     ```
 - [ ] **12.3** Build dapple-suite:
     ```

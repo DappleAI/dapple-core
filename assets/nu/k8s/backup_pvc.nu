@@ -273,5 +273,5 @@ def "main restore" [
     log info $"scaling ($deployment) back to 1"
     _scale $deployment $ns 1
 
-    log info $"restore complete. ($deployment) Postgres will run crash-recovery on first start — this is NORMAL and expected. If restoring prompt-db, run `backup_pvc.nu restore` BEFORE deploy_dapple_prompt_pods.nu so migrations see the restored _sqlx_migrations table."
+    log info $"restore complete. ($deployment) Postgres will run crash-recovery on first start — this is NORMAL and expected. If restoring prompt-db, run `backup_pvc.nu restore` BEFORE deploy_dapple_core.nu so migrations see the restored _sqlx_migrations table."
 }

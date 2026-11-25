@@ -37,7 +37,7 @@ When deploying, if a service's secret is not in `~/.env`:
 | File | Change |
 |------|--------|
 | `assets/nu/tools/service_token.nu` | Add `register` and `ensure` subcommands |
-| `assets/nu/k8s/deploy_dapple_prompt_pods.nu` | Call `ensure_service_tokens` after migrations |
+| `assets/nu/k8s/deploy_dapple_core.nu` | Call `ensure_service_tokens` after migrations |
 | `assets/nu/k8s/deploy_dapple_web_pods.nu` | Update to use service-specific env vars |
 
 ## Implementation Details
@@ -73,7 +73,7 @@ export def "main ensure" [
 }
 ```
 
-### 2. Update `deploy_dapple_prompt_pods.nu`
+### 2. Update `deploy_dapple_core.nu`
 
 After migrations (line 28), add:
 
@@ -157,7 +157,7 @@ DAPPLE_LANDING_API_SECRET=<64-hex-ed25519-key>
 
 2. **Run prompt deployment**:
    ```nu
-   nu assets/nu/k8s/deploy_dapple_prompt_pods.nu
+   nu assets/nu/k8s/deploy_dapple_core.nu
    ```
    Should see:
    - `generating keypair for dapple_ui`
@@ -370,7 +370,7 @@ export def "main ensure" [
 }
 ```
 
-## Step 3: Update `deploy_dapple_prompt_pods.nu`
+## Step 3: Update `deploy_dapple_core.nu`
 
 After line 28 (after `sqlx migrate run`), add:
 
@@ -438,7 +438,7 @@ def setup_dapple_ui_secret [] {
     }
 
     if ($internal_api_secret | is-empty) {
-        log warning "DAPPLE_UI_API_SECRET not set - run deploy_dapple_prompt_pods.nu first to generate keys"
+        log warning "DAPPLE_UI_API_SECRET not set - run deploy_dapple_core.nu first to generate keys"
     }
 
     # Delete existing secret if present (ignore errors if it doesn't exist)
@@ -510,7 +510,7 @@ Environment Variables:
 
 1. **service_token.nu** - Add `derive_public_key`, `register`, `ensure` functions
 2. **service_token.nu** - Update `print-help` with new subcommands
-3. **deploy_dapple_prompt_pods.nu** - Add `ensure_service_tokens` function and call it after migrations
+3. **deploy_dapple_core.nu** - Add `ensure_service_tokens` function and call it after migrations
 4. **deploy_dapple_web_pods.nu** - Update `setup_dapple_ui_secret` to use new env var names
 5. **Test** - Run the verification steps
 
@@ -530,6 +530,6 @@ grep API_SECRET ~/.env
 nu assets/nu/tools/service_token.nu list
 
 # 5. Full deployment test
-nu assets/nu/k8s/deploy_dapple_prompt_pods.nu
+nu assets/nu/k8s/deploy_dapple_core.nu
 nu assets/nu/k8s/deploy_dapple_web_pods.nu
 ```

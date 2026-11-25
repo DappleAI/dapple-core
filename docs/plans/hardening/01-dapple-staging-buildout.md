@@ -215,7 +215,7 @@ The customer's existing sandbox tokens keep working in dapple-sandbox for testin
 
 ## 13. Deploy-Script Changes
 
-`assets/nu/k8s/deploy_dapple_staging_pods.nu` is a new file, modeled on `deploy_dapple_prompt_pods.nu` but with structural refusals:
+`assets/nu/k8s/deploy_dapple_staging_pods.nu` is a new file, modeled on `deploy_dapple_core.nu` but with structural refusals:
 
 - Refuses to deploy `dapple-mock-openai` (already gone, but a belt-and-suspenders check).
 - Refuses to deploy `dev-dns`, `prompt-db-gateway`, `dapple-redis-gateway`.

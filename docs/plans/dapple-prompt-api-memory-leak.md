@@ -44,7 +44,7 @@ Trade-off: a change to any workspace crate now invalidates the cache for every s
 
 ### Practical guidance going forward
 
-- **Always re-run `nu assets/nu/k8s/deploy_dapple_prompt_pods.nu` after pulling source changes.** The script's content-hash logic now correctly invalidates on any workspace input.
+- **Always re-run `nu assets/nu/k8s/deploy_dapple_core.nu` after pulling source changes.** The script's content-hash logic now correctly invalidates on any workspace input.
 - **`docker build --no-cache` is no longer needed as a workaround.** With the wider hash, the script either rebuilds (correct) or skips (cache hit IS valid).
 - **If a deploy completes suspiciously fast and "skips" services, double-check git status.** A clean tree on a known commit means the registry image was built from that exact source — trustworthy.
 

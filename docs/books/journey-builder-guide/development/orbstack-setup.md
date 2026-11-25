@@ -66,14 +66,13 @@ This enables the standard microk8s addons (`dns`, `dashboard`, `hostpath-storage
 ## Step 4 — Deploy Services
 
 ```bash
-nu assets/nu/k8s/deploy_dapple_prompt_pods.nu
-nu assets/nu/k8s/deploy_dapple_web_pods.nu
+nu assets/nu/k8s/deploy_dapple_core.nu
 ```
 
-The first invocation of `deploy_dapple_prompt_pods.nu` on macOS verifies that the cross-compile toolchain (`zig`, `cargo-zigbuild`, `rustup target add aarch64-unknown-linux-gnu`) is installed — running `nu assets/nu/init/setup.nu --environment sandbox` once handles all three. From then on, the iteration loop on a Rust service is identical to Linux:
+The first invocation of `deploy_dapple_core.nu` on macOS verifies that the cross-compile toolchain (`zig`, `cargo-zigbuild`, `rustup target add aarch64-unknown-linux-gnu`) is installed — running `nu assets/nu/init/setup.nu --environment sandbox` once handles all three. From then on, the iteration loop on a Rust service is identical to Linux:
 
 ```bash
-nu assets/nu/k8s/deploy_dapple_prompt_pods.nu --svc api
+nu assets/nu/k8s/deploy_dapple_core.nu --svc api
 ```
 
 The deploy script invokes `cargo zigbuild` itself on macOS (with `SQLX_OFFLINE=true` against the committed `.sqlx/` cache), then mounts the cross-compiled `target/aarch64-unknown-linux-gnu/debug/` binary into the pod via hostPath and restarts the deployment. Source changes are picked up by re-running the deploy. Conduit-family services (`conduit`, `conduit-onnx`, `conduit-llm`) auto-promote to Docker mode on macOS because their ML deps don't cross-compile cleanly.
@@ -187,7 +186,7 @@ nu assets/nu/k8s/install_orbstack_vm.nu
 - The Rust workspace, sql-composer outputs, migrations
 - The local registry hostname `registry.kube.dappleai.dev`
 - cert-manager-issued certificates and the `register_local_certs` flow
-- Service deployment scripts (`deploy_dapple_prompt_pods.nu`, `deploy_dapple_web_pods.nu`)
+- The service deployment script (`deploy_dapple_core.nu`)
 - The `dapple` CLI service aliases (`api`, `conduit`, `flow`, `ui`, etc.)
 - Linux contributors' workflow (microk8s runs natively as a snap; no VM layer)
 
@@ -243,7 +242,7 @@ side-by-side with an interpretation note.
 
 ### Prevention
 
-- `deploy_dapple_prompt_pods.nu` now runs **registry GC after every
+- `deploy_dapple_core.nu` now runs **registry GC after every
   `deploy_all`** (targeted `--svc` runs skip the cost).
 - Periodically run `nu assets/nu/k8s/reclaim_disk.nu registry-gc`; run
   `containerd-reset --confirm` when real usage is high.
@@ -255,7 +254,7 @@ side-by-side with an interpretation note.
 
 ### Automatic reclaim during deploys
 
-`deploy_dapple_prompt_pods.nu` runs an **auto-reclaim plan** at the end of
+`deploy_dapple_core.nu` runs an **auto-reclaim plan** at the end of
 every full `deploy_all` (targeted `--svc` runs skip it):
 
 **Auto-runs (safe, idempotent):**
@@ -357,7 +356,7 @@ nu assets/nu/k8s/reclaim_disk.nu docker-prune
 docker system prune -af --volumes
 ```
 
-`deploy_dapple_prompt_pods.nu` also runs this automatically at the end of
+`deploy_dapple_core.nu` also runs this automatically at the end of
 every `deploy_all`, so the auto-reclaim plan keeps this bucket trimmed
 between manual interventions.
 
@@ -373,7 +372,7 @@ Manual invocation if needed:
 ```bash
 nu assets/nu/k8s/reclaim_disk.nu registry-gc
 # (the `microk8s ctr content prune references` step is auto-run by
-# deploy_dapple_prompt_pods.nu; no separate subcommand for it here)
+# deploy_dapple_core.nu; no separate subcommand for it here)
 ```
 
 For the destructive in-VM containerd reset (when image-GC heuristics
@@ -415,7 +414,7 @@ open -a OrbStack
 nu assets/nu/k8s/install_orbstack_vm.nu
 nu assets/nu/k8s/setup_microk8s.nu
 nu assets/nu/k8s/backup_pvc.nu restore ~/dapple-backups/<latest>.tar.gz --confirm
-nu assets/nu/k8s/deploy_dapple_prompt_pods.nu
+nu assets/nu/k8s/deploy_dapple_core.nu
 ```
 
 Empirical confirmation: running this sequence dropped the data dir from
@@ -502,10 +501,10 @@ Layer 1 — host Docker engine (APFS clones, reclaims immediately):
    `nu assets/nu/k8s/install_orbstack_vm.nu` →
    `nu assets/nu/k8s/setup_microk8s.nu`.
 5. `nu assets/nu/k8s/backup_pvc.nu restore ~/dapple-backups/prompt-db-pgdata-<YYYYMMDD>.tar.gz --confirm`
-   **before** `deploy_dapple_prompt_pods.nu`, so migrations see the
+   **before** `deploy_dapple_core.nu`, so migrations see the
    restored `_sqlx_migrations` table. (Postgres runs crash-recovery on
    first start — normal.)
-6. `nu assets/nu/k8s/deploy_dapple_prompt_pods.nu`.
+6. `nu assets/nu/k8s/deploy_dapple_core.nu`.
 
 > A VM delete+recreate **changes the VM IP** (stable only across
 > reboot/sleep, not recreate). `setup_host_resolver` now verifies its write

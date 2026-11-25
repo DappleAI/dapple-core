@@ -52,7 +52,7 @@ use std/log
 
 use ../modules/orb
 
-# Shared reclaim helpers — also imported by deploy_dapple_prompt_pods.nu so
+# Shared reclaim helpers — also imported by deploy_dapple_core.nu so
 # both files use the same state file path and the same `du -sb` byte count.
 use ../modules/dapple/reclaim.nu
 
@@ -72,7 +72,7 @@ def _require_macos []: nothing -> bool {
     true
 }
 
-# Shared with deploy_dapple_prompt_pods.nu's registry_garbage_collect (~6
+# Shared with deploy_dapple_core.nu's registry_garbage_collect (~6
 # lines — duplicated intentionally rather than introducing a cross-file
 # import between a k8s/ script and the deploy script).
 def _registry_gc []: nothing -> nothing {
@@ -216,7 +216,7 @@ def "main diagnose" [] {
     print "    nu assets/nu/k8s/install_orbstack_vm.nu"
     print "    nu assets/nu/k8s/setup_microk8s.nu"
     print "    nu assets/nu/k8s/backup_pvc.nu restore ~/dapple-backups/<latest>.tar.gz --confirm"
-    print "    nu assets/nu/k8s/deploy_dapple_prompt_pods.nu"
+    print "    nu assets/nu/k8s/deploy_dapple_core.nu"
     print "  See docs/books/journey-builder-guide/development/orbstack-setup.md."
 }
 
@@ -321,7 +321,7 @@ def "main containerd-reset" [--confirm] {
         error make { msg: "containerd-reset: microk8s start failed — inspect the VM" }
     }
 
-    log info "containerd reset complete — images will re-pull on next deploy. Run: nu assets/nu/k8s/deploy_dapple_prompt_pods.nu"
+    log info "containerd reset complete — images will re-pull on next deploy. Run: nu assets/nu/k8s/deploy_dapple_core.nu"
 
     # Reset the shared reclaim state file so the deploy script's
     # deploys-since-reset counter starts fresh, the post-reset size is
@@ -342,7 +342,7 @@ def "main plan" [] {
     let state = (reclaim read_state)
     let bytes_gib = (($bytes / 1024 / 1024 / 1024) | into int)
 
-    # Thresholds (env-overridable — mirrors deploy_dapple_prompt_pods.nu).
+    # Thresholds (env-overridable — mirrors deploy_dapple_core.nu).
     let high_water_override = ($env.DAPPLE_RECLAIM_HIGH_WATER_GIB? | default "")
     let high_water = if ($high_water_override | is-empty) {
         25 * 1024 * 1024 * 1024

@@ -34,7 +34,7 @@ The terse versions live in `docs/books/README.md` ("Start here, agent"); the can
 - **Migrations run via `cargo sqlx migrate run`, never `psql -f`.**
 - **Two engines named "Engine" — don't conflate them.** `StepEngine` (in `dapple-prompt-flow`) parses and runs Nushell scripts. `dataflow_rs::Engine` (from the `dataflow-rs` crate) orchestrates JSONLogic-driven workflows. Same word, different jobs. Cited everywhere; flagged in `flow/overview.md`.
 - **Journey-centric vocabulary.** Internal types are still named `Brief`/`BriefPack`/`BriefGroup`; user-facing surfaces and most prose say *Debrief*. Don't fix this in code as a side-effect.
-- **Default deploy mode is hostPath, not Docker.** `nu assets/nu/k8s/deploy_dapple_prompt_pods.nu --svc api` mounts your local `target/debug/` binary into the pod. `--docker dev` is opt-in and refuses to run on a dirty git tree.
+- **Default deploy mode is hostPath, not Docker.** `nu assets/nu/k8s/deploy_dapple_core.nu --svc api` mounts your local `target/debug/` binary into the pod. `--docker dev` is opt-in and refuses to run on a dirty git tree.
 - **`assets/.sqlx/` is the offline metadata cache.** Set `SQLX_OFFLINE=true` for CI. Run `dapple sqlx prepare` (raw: `cargo sqlx prepare --workspace -- --all-targets`) after editing `.sqlc` and re-running `cargo sqlc compose` — `--all-targets` keeps the cache covering test-target inline queries, which CI's offline build needs.
 - **Embedding generation is async.** The API ingest handler spawns a background task to call the conduit's `POST /embed` and write `rev.guide_content_embeddings`. Failures log a warning and never fail the ingest.
 

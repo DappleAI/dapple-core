@@ -5,7 +5,7 @@
 **Parent plan:** [orbstack-migration.md](orbstack-migration.md)
 **Branch:** `mac_orbstack`
 
-This document captures the cleanup items identified while validating the OrbStack migration end-to-end through `setup_microk8s.nu` and `deploy_dapple_prompt_pods.nu`. Each item below is real (not theoretical) — every one was triggered by an actual deploy failure during the session that produced this branch.
+This document captures the cleanup items identified while validating the OrbStack migration end-to-end through `setup_microk8s.nu` and `deploy_dapple_core.nu`. Each item below is real (not theoretical) — every one was triggered by an actual deploy failure during the session that produced this branch.
 
 They're polish items so the next contributor doesn't re-hit the same traps.
 

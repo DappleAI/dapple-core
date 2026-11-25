@@ -1,4 +1,4 @@
-# Reclaim helpers — shared between deploy_dapple_prompt_pods.nu and
+# Reclaim helpers — shared between deploy_dapple_core.nu and
 # reclaim_disk.nu so both files agree on the "how big is containerd?" answer
 # and the per-deploy counter state.
 #

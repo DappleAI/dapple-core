@@ -11,7 +11,7 @@ assets/nu/
 ├── init/
 │   └── setup.nu                 # One-time environment setup
 ├── k8s/
-│   ├── deploy_dapple_prompt_pods.nu  # Full deployment script
+│   ├── deploy_dapple_core.nu  # Full deployment script
 │   ├── build_image.nu           # Docker image building
 │   └── patch_image.nu           # Quick image updates
 └── modules/
@@ -107,7 +107,7 @@ nu assets/nu/k8s/patch_image.nu api
 nu assets/nu/k8s/patch_image.nu api --tag abc123
 ```
 
-## deploy_dapple_prompt_pods.nu
+## deploy_dapple_core.nu
 
 Full deployment script including infrastructure setup.
 
@@ -130,7 +130,7 @@ Full deployment script including infrastructure setup.
 
 **Usage:**
 ```bash
-nu assets/nu/k8s/deploy_dapple_prompt_pods.nu [flags]
+nu assets/nu/k8s/deploy_dapple_core.nu [flags]
 ```
 
 **Deployment modes (most current):**
@@ -159,19 +159,19 @@ fast no-op, so re-running the deploy after an edit is the whole loop:
 **Examples:**
 ```bash
 # Default (hostPath): builds dapple-prompt-api, then mounts and rolls the pod
-nu assets/nu/k8s/deploy_dapple_prompt_pods.nu --svc api
+nu assets/nu/k8s/deploy_dapple_core.nu --svc api
 
 # Edit code, run the exact same command — the rebuild is part of the deploy
-nu assets/nu/k8s/deploy_dapple_prompt_pods.nu --svc api
+nu assets/nu/k8s/deploy_dapple_core.nu --svc api
 
 # Mount a binary you already built, skipping the build entirely
-nu assets/nu/k8s/deploy_dapple_prompt_pods.nu --svc api --no-build
+nu assets/nu/k8s/deploy_dapple_core.nu --svc api --no-build
 
 # Docker mode (requires clean git tree)
-nu assets/nu/k8s/deploy_dapple_prompt_pods.nu --docker dev --svc api
+nu assets/nu/k8s/deploy_dapple_core.nu --docker dev --svc api
 
 # Multiple services in default (hostPath) mode
-nu assets/nu/k8s/deploy_dapple_prompt_pods.nu --svc api,conduit
+nu assets/nu/k8s/deploy_dapple_core.nu --svc api,conduit
 ```
 
 ## Platform Behavior
@@ -250,7 +250,7 @@ The scripts expect these environment variables (set by dapple_sandbox overlay):
    - Add to `resolve-service` if needed
    - Add special build logic if different from standard crates
 
-2. Update `deploy_dapple_prompt_pods.nu`:
+2. Update `deploy_dapple_core.nu`:
    - Add new `setup_dapple_svc` call in main
    - Configure manifest template and ports
 

@@ -30,7 +30,7 @@ nu -c '
 
 For deployment operations, invoke Nushell scripts directly:
 ```bash
-nu assets/nu/k8s/deploy_dapple_prompt_pods.nu --svc api
+nu assets/nu/k8s/deploy_dapple_core.nu --svc api
 ```
 
 ## Documentation
@@ -153,7 +153,7 @@ cargo build -p dapple-data
 
 **hostPath deploys build for you.** A hostPath pod runs the binary mounted from
 `target/<profile>/`, so a stale artifact deploys green while the new code never
-runs. `deploy_dapple_prompt_pods.nu` therefore compiles every hostPath service
+runs. `deploy_dapple_core.nu` therefore compiles every hostPath service
 itself before mounting it (`cargo build` on Linux, `cargo zigbuild` on macOS) —
 a forgotten `cargo build --workspace` can no longer ship the wrong version. Pass
 `--no-build` to mount `target/` as-is.
@@ -172,7 +172,7 @@ auto-runs `cargo zigbuild` for cross-compile-eligible services — `api`,
 #   cargo install cargo-zigbuild
 
 # Then just deploy — the script builds the right artifact for the host:
-nu assets/nu/k8s/deploy_dapple_prompt_pods.nu --svc api
+nu assets/nu/k8s/deploy_dapple_core.nu --svc api
 ```
 
 Conduit-family services (`conduit`, `conduit-onnx`, `conduit-llm`) auto-promote

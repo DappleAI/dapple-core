@@ -149,8 +149,8 @@ export def vm_delete []          # `orb delete --force`
 | `assets/nu/modules/k8s/mod.nu` lines 309–327 (`setup_host_resolver`) | **Delete** (or shrink to log-and-no-op) | OrbStack hostnames resolve via `*.orb.local` natively; we stop maintaining `/etc/resolver/kube.dappleai.dev` for VM-IP resolution. **However:** the in-cluster `*.kube.dappleai.dev` ingress hosts still need to resolve from the macOS host. See "DNS strategy under OrbStack" below — we either (a) keep a static resolver pointing to OrbStack's stable VM IP, or (b) switch ingress hosts to `*.orb.local` patterns. The Phase 2 implementer should pick one (preferred: option (a) with a one-shot resolver write at `install_orbstack_vm.nu` time, since the IP no longer drifts). |
 | `assets/nu/modules/k8s/mod.nu` lines 338–398 (`configure_macos_masqed_dns`) | **Rewrite using `orb vm_run` / `orb vm_push`** | Replace `^multipass transfer` with `orb push`; replace `^multipass exec $vm_name --` with `orb run -m $vm_name --`. The semantic flow (push resolv.conf, edit kubelet args, restart kubelite) is unchanged; only the transport changes. The empty-content guard at line 357–360 must be preserved. |
 | `assets/nu/k8s/setup_microk8s.nu` lines 63–69 | **Replace `multipass info` with `orb vm_ip`** | One-line swap: `let vm_ip = (orb vm_ip)`. The surrounding macOS-only gate stays (Linux has no concept of a "VM IP" for microk8s). |
-| `assets/nu/k8s/deploy_dapple_prompt_pods.nu` line 16 (`use k8s ensure_vm_mounts`) | **Keep import** | The function still exists; it's just become a no-op. Removing the import would diverge unnecessarily. |
-| `assets/nu/k8s/deploy_dapple_prompt_pods.nu` lines 126, 170, 203 (`ensure_vm_mounts` calls) | **Keep call sites** | Same reasoning — calls become no-ops, no behavior change needed at call site. |
+| `assets/nu/k8s/deploy_dapple_core.nu` line 16 (`use k8s ensure_vm_mounts`) | **Keep import** | The function still exists; it's just become a no-op. Removing the import would diverge unnecessarily. |
+| `assets/nu/k8s/deploy_dapple_core.nu` lines 126, 170, 203 (`ensure_vm_mounts` calls) | **Keep call sites** | Same reasoning — calls become no-ops, no behavior change needed at call site. |
 | `assets/nu/k8s/deploy_dapple_web_pods.nu` lines 13, 72–75 | **Keep import and call** | Same as above. |
 
 **DNS strategy under OrbStack (decision required in Phase 2):**
@@ -169,9 +169,9 @@ The dev-dns pod's `status.hostIP` baking continues to work unchanged inside the 
 **Acceptance criteria:**
 - `git grep -nE 'multipass|^Multipass' -- 'assets/nu/**/*.nu'` returns zero matches in non-`AGENTS.md` files.
 - `nu assets/nu/k8s/setup_microk8s.nu` runs cleanly end-to-end on a fresh OrbStack VM.
-- `nu assets/nu/k8s/deploy_dapple_prompt_pods.nu --svc api` succeeds; `kubectl get pods -n dapple-sandbox` shows api as Running.
+- `nu assets/nu/k8s/deploy_dapple_core.nu --svc api` succeeds; `kubectl get pods -n dapple-sandbox` shows api as Running.
 - `curl -k https://dapple-prompt-api.kube.dappleai.dev/api/health_check` returns 200 from the macOS host.
-- hostPath mode is auto-promoted to Docker mode on macOS as before (the auto-promotion logic in `deploy_dapple_prompt_pods.nu` lines 36–42 is independent of VM runtime).
+- hostPath mode is auto-promoted to Docker mode on macOS as before (the auto-promotion logic in `deploy_dapple_core.nu` lines 36–42 is independent of VM runtime).
 
 ---
 
@@ -299,7 +299,7 @@ nu assets/nu/k8s/install_orbstack_vm.nu
 nu assets/nu/k8s/setup_microk8s.nu
 
 # 3. Deploy prompt services
-nu assets/nu/k8s/deploy_dapple_prompt_pods.nu
+nu assets/nu/k8s/deploy_dapple_core.nu
 
 # 4. Deploy web services
 nu assets/nu/k8s/deploy_dapple_web_pods.nu
@@ -358,7 +358,7 @@ brew uninstall multipass    # optional
 
 …then follow the OrbStack onboarding doc. **Do not write `migrate_multipass_to_orbstack.nu` or any helper that reads from the old VM.** Any code that touches `multipass …` invocations is being deleted, not refactored.
 
-Re-bootstrapping the microk8s cluster (registry images, prompt-db, secrets, deployments) is fast and well-trodden via `setup_microk8s.nu` + `deploy_dapple_prompt_pods.nu` + `deploy_dapple_web_pods.nu`. Cross-runtime qcow2 migration would be both more code and less safe.
+Re-bootstrapping the microk8s cluster (registry images, prompt-db, secrets, deployments) is fast and well-trodden via `setup_microk8s.nu` + `deploy_dapple_core.nu` + `deploy_dapple_web_pods.nu`. Cross-runtime qcow2 migration would be both more code and less safe.
 
 ## Risk and Rollback
 
@@ -366,7 +366,7 @@ Re-bootstrapping the microk8s cluster (registry images, prompt-db, secrets, depl
 
 - All in-cluster state in the existing Multipass VM:
   - Registry images (will be rebuilt automatically on first deploy)
-  - `prompt-db` data (will be recreated by `sqlx migrate run` in `deploy_dapple_prompt_pods.nu`; **any local-only test data will be lost**)
+  - `prompt-db` data (will be recreated by `sqlx migrate run` in `deploy_dapple_core.nu`; **any local-only test data will be lost**)
   - Redis state (ephemeral by design)
   - All Kubernetes secrets (regenerated from `~/.env.dapple` and service-token registration on first deploy)
   - Build cache in `target/` — *not* lost; that lives on the macOS host, untouched
@@ -381,7 +381,7 @@ If OrbStack has a regression severe enough to block development:
 2. `git revert` the migration commit(s) — the Multipass code paths are restored verbatim.
 3. `multipass launch --name microk8s-vm 22.04 --cpus 4 --memory 8G --disk 40G` (or whatever launch flags the original setup used — the implementer should capture these in a comment in `install_orbstack_vm.nu` for reference).
 4. `nu assets/nu/k8s/setup_microk8s.nu`
-5. `nu assets/nu/k8s/deploy_dapple_prompt_pods.nu`
+5. `nu assets/nu/k8s/deploy_dapple_core.nu`
 
 The rollback is "rebuild from manifests" — same shape as the forward migration, just with Multipass instead of OrbStack on the host. The Rust workspace, sql-composer output, migrations, and k8s registry manifests are runtime-agnostic.
 
@@ -409,7 +409,7 @@ Calling these out explicitly to scope the migration:
 - **dapple CLI service aliases** (`api`, `conduit`, `flow`, `ui`, etc.). Unchanged.
 - **Environment overlay system** (`dapple_env_profiles/`). Unchanged.
 - **`~/.env.dapple` generation, service-token registration, secret management.** Unchanged.
-- **hostPath-mode auto-promotion to Docker mode on macOS** (`deploy_dapple_prompt_pods.nu` lines 36–42). Unchanged — the host-arch / VM-arch impedance mismatch is independent of which VM runtime hosts the Linux kernel.
+- **hostPath-mode auto-promotion to Docker mode on macOS** (`deploy_dapple_core.nu` lines 36–42). Unchanged — the host-arch / VM-arch impedance mismatch is independent of which VM runtime hosts the Linux kernel.
 
 ## Open Questions and Risks
 

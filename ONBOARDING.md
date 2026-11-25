@@ -157,7 +157,7 @@ fails loudly, so a silent miss here is unexpected — say so if you hit one.
 ## 8. Deploy
 
 ```bash
-cd ~/src/dapple/dapple-prompt && nu assets/nu/k8s/deploy_dapple_prompt_pods.nu
+cd ~/src/dapple/dapple-prompt && nu assets/nu/k8s/deploy_dapple_core.nu
 ```
 
 Backend services. The first run builds images and takes a while. Then apply

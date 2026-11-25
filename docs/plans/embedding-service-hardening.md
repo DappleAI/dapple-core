@@ -321,7 +321,7 @@ Not a fix — an instrument and a knob:
   has zero first-party path deps, so there is no shared crate to hoist into
   without inventing a dependency edge.
 - **conduit-onnx is hostPath on Linux** (Docker-only on macOS), so deploys need
-  no commit: `nu assets/nu/k8s/deploy_dapple_prompt_pods.nu --svc conduit-onnx`.
+  no commit: `nu assets/nu/k8s/deploy_dapple_core.nu --svc conduit-onnx`.
 
 ---
 

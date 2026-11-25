@@ -38,7 +38,7 @@ If this is your first contact with the codebase, read this before opening any bo
 6. **The data layer is append-only.** Versioned objects use Path tables and version triplets; deletes are soft (deprecation events). No UPDATE in normal flow.
 7. **Versioned objects are content-addressable.** SHA-1 over canonical content; on ingest/PATCH, a matching hash returns the existing version (no duplicate). Parents Merkle-hash sorted child hashes.
 8. **Guides are Fluent-native.** Localizable directive blocks (prose, stage, step, brief_pack, inference_profile, block) carry `content: None`; their text lives in `.ftl` files under the guide's `locales/`. Inline blocks (nushell, ref) keep their content.
-9. **Local deploy mode is hostPath, not Docker.** `nu assets/nu/k8s/deploy_dapple_prompt_pods.nu --svc api` mounts your local `target/debug/` binary into the pod. `--docker dev` is opt-in and refuses to run on a dirty git tree.
+9. **Local deploy mode is hostPath, not Docker.** `nu assets/nu/k8s/deploy_dapple_core.nu --svc api` mounts your local `target/debug/` binary into the pod. `--docker dev` is opt-in and refuses to run on a dirty git tree.
 10. **Two engines named "Engine" — don't conflate them.** `StepEngine` (in `dapple-prompt-flow`) parses and runs Nushell scripts with security policy. `dataflow_rs::Engine` orchestrates JSONLogic-driven workflows. Same word, different jobs.
 
 For per-crate detail, every crate has its own `AGENTS.md`. The terse rules above mostly come from `CLAUDE.md` and the `crates/*/AGENTS.md` files; this list is the survival kit.

@@ -40,13 +40,13 @@ export def image [
     nu ...$args
 }
 
-# Full deploy (manifests + rollout) using deploy_dapple_prompt_pods.nu
+# Full deploy (manifests + rollout) using deploy_dapple_core.nu
 export def deploy [
     service: string     # Service alias or comma-separated list
     --force (-f)        # Force rebuild
     --hostpath: string = ""  # Enable hostPath mode (Linux only)
 ] {
-    let script = (get-k8s-scripts-dir) | path join "deploy_dapple_prompt_pods.nu"
+    let script = (get-k8s-scripts-dir) | path join "deploy_dapple_core.nu"
 
     mut args = [$script "--svc" $service]
     if $force {

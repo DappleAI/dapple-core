@@ -18,7 +18,7 @@ This copies modules from `assets/nu/modules/` into your nushell config dir's
 ## Deploy Services
 
 ```bash
-nu assets/nu/k8s/deploy_dapple_prompt_pods.nu
+nu assets/nu/k8s/deploy_dapple_core.nu
 ```
 
 **Note**: After deploying/updating secrets, you must restart deployments to pick up new values:

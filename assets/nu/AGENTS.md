@@ -10,8 +10,7 @@ assets/nu/
 ├── deploy/           # Deployment utilities
 ├── init/             # setup.nu (current); setup_nu.nu (legacy, see below)
 ├── k8s/              # Kubernetes deployment scripts
-│   ├── deploy_dapple_prompt_pods.nu  # Deploy dapple-prompt services
-│   ├── deploy_dapple_web_pods.nu     # Deploy web services
+│   ├── deploy_dapple_core.nu         # Deploy dapple-core services
 │   └── setup_microk8s.nu             # Initialize microk8s cluster
 ├── modules/          # Reusable Nushell modules
 │   ├── dapple_env_profiles/          # Environment overlay system
@@ -78,7 +77,7 @@ The `k8s` module (`<nushell-config-dir>/modules/k8s/mod.nu` — `~/.config/nushe
 
 ## Deployment Script Pattern
 
-Both `deploy_dapple_prompt_pods.nu` and `deploy_dapple_web_pods.nu` default to **hostPath mode** — they mount the local source/binary directory into the pod. No Docker build is needed for local development.
+`deploy_dapple_core.nu` defaults to **hostPath mode** — it mounts the local source/binary directory into the pod. No Docker build is needed for local development.
 
 ### Deployment Modes
 
@@ -97,7 +96,7 @@ On Linux, `<triple>` is implicit (just `target/debug/`). On macOS, hostPath mode
 ```bash
 # Identical workflow on Linux and macOS — the deploy script picks the right
 # build command for the host (cargo build on Linux, cargo zigbuild on Mac).
-nu assets/nu/k8s/deploy_dapple_prompt_pods.nu --svc api
+nu assets/nu/k8s/deploy_dapple_core.nu --svc api
 ```
 
 **The deploy builds the binary it mounts, on both platforms.** In hostPath mode the mounted artifact *is* the deployment, so a stale `target/` dir means the rollout succeeds while your change never runs — the pod comes up healthy running the last binary you happened to build. `setup_dapple_svc` therefore compiles each hostPath service before applying the patch: `cargo zigbuild -p <svc> --target aarch64-unknown-linux-gnu` on macOS, plain `cargo build -p <svc>` on Linux. Cargo's freshness check makes this a fast no-op when you already built by hand, so there is no reason to skip it.
@@ -119,7 +118,7 @@ dapple patch api --restart    # restart only, if the binary is already built
 
 ```bash
 # Build and deploy via Docker (requires clean git tree)
-nu assets/nu/k8s/deploy_dapple_prompt_pods.nu --docker dev --svc api
+nu assets/nu/k8s/deploy_dapple_core.nu --docker dev --svc api
 ```
 
 ### macOS hostPath via cross-compile
@@ -161,39 +160,13 @@ setup_dapple_svc {
 | `dapple-prompt-service.yaml` | HTTP services with health checks |
 | `dapple-prompt-engine.yaml` | Background workers (no health checks) |
 
-### Web Services Deployment (`deploy_dapple_web_pods.nu`)
-
-Deploys web frontend services (landing page, dapple-ui) that are separate from the Rust backend services.
-
-```bash
-nu assets/nu/k8s/deploy_dapple_web_pods.nu
-```
-
-**What it does:**
-1. Creates/updates `dapple-ui-auth` secret with auth configuration
-2. Deploys `dapple-web-landing-page`
-3. Deploys `dapple-ui` (if `DAPPLE_UI_SOURCE_DIR` is set)
-
-**Required Environment Variables:**
-
-| Variable | Description |
-|----------|-------------|
-| `NEXTAUTH_SECRET` | JWT signing secret (from `~/.env.dapple`) |
-| `DAPPLE_UI_SAT_SIGNING_KEY` | Service token signing key |
-| `OAUTH_GOOGLE_CLIENT_ID` | Google OAuth client ID |
-| `OAUTH_GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
-| `DAPPLE_UI_SOURCE_DIR` | Path to dapple-ui source (optional) |
-| `DAPPLE_WEB_LANDING_PAGE_SOURCE_DIR` | Path to landing page source |
-
-**Note:** After running this script, dapple-ui will have database access configured for the `auth` schema where NextAuth tables reside.
-
 ## Common Operations
 
 ### Deploy All Services
 
 ```bash
 cd $DAPPLE_PROMPT_WORKSPACE_DIR
-nu assets/nu/k8s/deploy_dapple_prompt_pods.nu
+nu assets/nu/k8s/deploy_dapple_core.nu
 ```
 
 ### Check Deployment Status
@@ -442,11 +415,11 @@ Certificate installation depends on which Docker daemon is in use:
 | Linux (default) | Native dockerd | `/etc/docker/certs.d/{registry}/ca.crt` (via `sudo`) | No — dockerd reads certs on each TLS handshake |
 | Linux + `DAPPLE_DOCKER_DESKTOP=true` | Docker Desktop | `~/.docker/certs.d/{registry}/ca.crt` | Yes — restart Docker Desktop |
 
-The `_uses_docker_desktop` helper in `k8s/mod.nu` encapsulates this logic. Error messages in `deploy_dapple_prompt_pods.nu` and `build_image.nu` are platform-aware.
+The `_uses_docker_desktop` helper in `k8s/mod.nu` encapsulates this logic. Error messages in `deploy_dapple_core.nu` and `build_image.nu` are platform-aware.
 
 ### ONNX Model Provisioning
 
-The deploy script (`deploy_dapple_prompt_pods.nu`) automatically downloads pre-converted ONNX models from HuggingFace when deploying the conduit service. No Python/torch/optimum dependencies are needed.
+The deploy script (`deploy_dapple_core.nu`) automatically downloads pre-converted ONNX models from HuggingFace when deploying the conduit service. No Python/torch/optimum dependencies are needed.
 
 **Auto-downloaded models:**
 
@@ -521,7 +494,7 @@ until kubelet's image-GC watermark (>85%) cascades the node.
 | `reclaim_disk.nu containerd-reset --confirm` | SAFE full containerd reset (wipes local image cache; PVCs untouched; GUEST bytes only) |
 | `backup_pvc.nu backup` / `restore` | Postgres PVC backup/restore around a VM re-provision |
 
-`deploy_dapple_prompt_pods.nu` now runs an **auto-reclaim plan** at the
+`deploy_dapple_core.nu` now runs an **auto-reclaim plan** at the
 end of every `deploy_all`: safe actions (registry GC with `--dry-run`
 probe, `ctr content prune`) run automatically; the destructive
 `containerd-reset` is only ever **recommended via a log warning** when a

@@ -60,7 +60,7 @@ const _SCRIPT_PATH = path self
 # any imported function — hence the call site at the very first line of
 # `main`.
 def _check_installed_modules_fresh [] {
-    # Walk up from <repo>/assets/nu/k8s/deploy_dapple_prompt_pods.nu to the
+    # Walk up from <repo>/assets/nu/k8s/deploy_dapple_core.nu to the
     # repo root via four `path dirname` operations, then join the standard
     # modules subpath. Best-effort: if the script is being run from a copy
     # outside the repo and the source dir doesn't exist, silently return.
@@ -1222,7 +1222,7 @@ def _run_reclaim_plan [] {
         log warning "    6. nu assets/nu/k8s/install_orbstack_vm.nu"
         log warning "    7. nu assets/nu/k8s/setup_microk8s.nu"
         log warning "    8. nu assets/nu/k8s/backup_pvc.nu restore ~/dapple-backups/<latest>.tar.gz --confirm"
-        log warning "    9. nu assets/nu/k8s/deploy_dapple_prompt_pods.nu"
+        log warning "    9. nu assets/nu/k8s/deploy_dapple_core.nu"
         log warning "  see docs/books/journey-builder-guide/development/orbstack-setup.md"
     }
 

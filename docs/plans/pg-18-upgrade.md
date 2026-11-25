@@ -333,7 +333,7 @@ Change: Rename DAPPLE_INTERNAL_POSTGRES_URL, DAPPLE_EXTERNAL_POSTGRES_URL, DAPPL
 File: assets/nu/init/setup_nu.nu                                                                                                                                                    
 Change: Update PWD hook to set DAPPLE_PROMPT_DATABASE_URL instead of DATABASE_URL                                                                                                   
 ────────────────────────────────────────                                                                                                                                            
-File: assets/nu/k8s/deploy_dapple_prompt_pods.nu                                                                                                                                    
+File: assets/nu/k8s/deploy_dapple_core.nu                                                                                                                                    
 Change: Update references to DATABASE_URL -> DAPPLE_PROMPT_DATABASE_URL; update DAPPLE_INTERNAL_POSTGRES_URL -> DAPPLE_PROMPT_INTERNAL_POSTGRES_URL                                 
 ────────────────────────────────────────                                                                                                                                            
 File: assets/nu/k8s/build_image.nu                                                                                                                                                  
@@ -358,7 +358,7 @@ Files Affected
 - assets/k8s/manifests/dapple-prompt-engine.yaml                                                                                                                                    
 - assets/nu/modules/dapple_env_profiles/dapple_sandbox.nu                                                                                                                           
 - assets/nu/init/setup_nu.nu                                                                                                                                                        
-- assets/nu/k8s/deploy_dapple_prompt_pods.nu                                                                                                                                        
+- assets/nu/k8s/deploy_dapple_core.nu                                                                                                                                        
 - assets/nu/k8s/build_image.nu                                                                                                                                                      
 - assets/nu/k8s/deploy_dapple_web_pods.nu                                                                                                                                           
 - assets/nu/modules/dapple/env.nu                                                                                                                                                   
