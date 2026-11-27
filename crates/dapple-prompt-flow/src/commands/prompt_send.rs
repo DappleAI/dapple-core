@@ -420,7 +420,8 @@ fn strip_markdown_fences(text: &str) -> &str {
 
 /// Convert a PromptResult to a nu Value.
 ///
-/// For text results, returns a record with `text`, `input_tokens`, `output_tokens`, and `latency_ms`
+/// For text results, returns a record with `text`, `input_tokens`, `output_tokens`, `latency_ms`,
+/// plus `model` and `request_id` (for provenance; `null` if the conduit did not report them)
 /// so that callers can access token metadata via signals. The nushell script pattern is:
 ///   let result = ($in | prompt send "name")
 ///   { payload: $result.text, signals: { input_tokens: $result.input_tokens, ... } }
@@ -434,6 +435,15 @@ pub fn prompt_result_to_value(result: PromptResult, span: Span) -> Result<Value,
                 "input_tokens" => Value::int(text_result.usage.input_tokens as i64, span),
                 "output_tokens" => Value::int(text_result.usage.output_tokens as i64, span),
                 "latency_ms" => Value::int(text_result.usage.latency_ms as i64, span),
+                // Provenance: which model wrote this text (see `md provenance`).
+                "model" => text_result
+                    .model
+                    .map(|m| Value::string(m, span))
+                    .unwrap_or_else(|| Value::nothing(span)),
+                "request_id" => text_result
+                    .request_id
+                    .map(|id| Value::string(id.to_string(), span))
+                    .unwrap_or_else(|| Value::nothing(span)),
             };
             Ok(Value::record(record, span))
         }

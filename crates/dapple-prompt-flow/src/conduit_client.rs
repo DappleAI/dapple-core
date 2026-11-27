@@ -133,6 +133,11 @@ pub enum PromptResult {
 pub struct TextResult {
     pub content: String,
     pub usage: TokenUsage,
+    /// The model that answered (conduit `engine_key`, e.g. `claude-3-5-sonnet`),
+    /// from the SSE `started` event — what a provenance source records.
+    pub model: Option<String>,
+    /// Conduit request id from the same event (correlates with conduit logs).
+    pub request_id: Option<Uuid>,
 }
 
 /// Asset information from TTS or similar binary output
@@ -365,11 +370,21 @@ pub struct RenderDocumentRequest {
     /// `Some(false)` suppresses it, `None` = automatic (≥9 h1–h3 headings).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub toc: Option<bool>,
+    /// `urn:dapple:document:…` of the document this one corrects or improves.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub derived_from: Option<String>,
+    /// The rendering task's dispatch, recorded in the provenance manifest.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dispatch_id: Option<Uuid>,
 }
 
 /// Response from `POST /render-document`.
 #[derive(Debug, Clone, Deserialize)]
 pub struct RenderDocumentResponse {
+    /// `urn:dapple:document:<uuid>` — this render's identity.
+    /// `serde(default)` keeps an older conduit parseable.
+    #[serde(default)]
+    pub document_id: Option<String>,
     /// The PDF asset (`application/pdf`).
     pub asset_id: Uuid,
     pub asset_kind: String,
@@ -379,6 +394,13 @@ pub struct RenderDocumentResponse {
     /// for the inline `display: document` viewer.
     pub html_asset_id: Uuid,
     pub html_content_length: i64,
+    /// The provenance manifest (`application/json`) — present only when the
+    /// markdown carried provenance markup. `serde(default)` keeps an older
+    /// conduit parseable.
+    #[serde(default)]
+    pub provenance_json_asset_id: Option<Uuid>,
+    #[serde(default)]
+    pub provenance_warnings: Vec<String>,
 }
 
 // ============================================================================
@@ -548,6 +570,8 @@ impl ConduitClient {
         let mut collected_tokens: Vec<String> = Vec::new();
         let mut asset_result: Option<AssetResult> = None;
         let mut token_usage = TokenUsage::default();
+        let mut started_model: Option<String> = None;
+        let mut started_request_id: Option<Uuid> = None;
         let mut stream = response.bytes_stream();
 
         // Buffer for incomplete SSE lines
@@ -566,8 +590,12 @@ impl ConduitClient {
                 // Parse SSE event
                 if let Some(event) = parse_sse_event(&event_block)? {
                     match event {
-                        PromptEvent::Started { request_id, .. } => {
+                        PromptEvent::Started {
+                            request_id, model, ..
+                        } => {
                             log::debug!("Prompt execution started: request_id={}", request_id);
+                            started_model = Some(model);
+                            started_request_id = Some(request_id);
                         }
                         PromptEvent::Token { content } => {
                             collected_tokens.push(content);
@@ -638,6 +666,8 @@ impl ConduitClient {
             Ok(PromptResult::Text(TextResult {
                 content: collected_tokens.join(""),
                 usage: token_usage,
+                model: started_model,
+                request_id: started_request_id,
             }))
         }
     }

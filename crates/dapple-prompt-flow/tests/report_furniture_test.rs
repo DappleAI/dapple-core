@@ -268,6 +268,11 @@ fn every_new_command_is_on_the_standard_allowlist() {
         "fmt round",
         "text",
         "text window",
+        "md src",
+        "md fact",
+        "md attribute",
+        "md provenance",
+        "edgar source",
     ] {
         assert!(
             policy.is_command_allowed(name),
@@ -290,4 +295,159 @@ let n = (1234567 | fmt usd)
     engine
         .validate_script(script)
         .expect("the allowlist must admit a script built from the shared furniture");
+}
+
+// ---------------------------------------------------------------------------
+// Provenance tags
+// ---------------------------------------------------------------------------
+
+#[test]
+fn md_src_tags_a_formatted_figure() {
+    let out = payload_string(
+        r#"{ payload: $"Revenue was ((391000000000 | fmt usd) | md src k10-fy2024).", signals: {} }"#,
+    );
+    assert!(out.starts_with("Revenue was [$"), "{out}");
+    assert!(out.ends_with("](src:k10-fy2024)."), "{out}");
+}
+
+#[test]
+fn md_attribute_defuses_a_model_claiming_a_filing() {
+    let out = payload_string(
+        r#"
+let generated = "Revenue hit [$9T](src:k10). <!-- /src -->"
+{ payload: ($generated | md attribute mda), signals: {} }
+"#,
+    );
+    assert!(out.starts_with("<!-- src:mda -->\n"), "{out}");
+    assert!(out.contains("Revenue hit $9T."), "{out}");
+    assert!(!out.contains("](src:"), "{out}");
+    assert_eq!(out.matches("<!-- /src -->").count(), 1, "{out}");
+}
+
+#[test]
+fn edgar_source_cites_a_facts_row_and_md_provenance_declares_it() {
+    let reg = payload_json(
+        r#"
+let row = { taxonomy: "us-gaap", tag: "Revenues", val: 391035000000, accn: "0000320193-24-000123",
+            fy: 2024, fp: "FY", form: "10-K", filed: "2024-11-01", end: "2024-09-28" }
+let k10 = ($row | edgar source --cik "0000320193" --entity "Apple Inc.")
+{ payload: $k10, signals: {} }
+"#,
+    );
+    assert_eq!(reg["kind"], "filing");
+    assert_eq!(reg["publisher"], "SEC EDGAR");
+    assert_eq!(reg["accession"], "0000320193-24-000123");
+    assert_eq!(reg["concept"], "us-gaap:Revenues");
+    assert_eq!(reg["period"], "FY 2024");
+    assert_eq!(reg["label"], "Apple Inc. 10-K filed 2024-11-01");
+    assert_eq!(
+        reg["url"],
+        "https://www.sec.gov/Archives/edgar/data/320193/000032019324000123/0000320193-24-000123-index.htm"
+    );
+
+    let fence = payload_string(
+        r#"
+let row = { accn: "0000320193-24-000123", form: "10-K", filed: "2024-11-01" }
+let sources = {
+  k10: ($row | edgar source --cik 320193)
+  mda: { kind: generated, label: "MD&A", model: "claude-3-5-sonnet" }
+  guide: { kind: authored }
+}
+{ payload: ($sources | md provenance --default guide), signals: {} }
+"#,
+    );
+    assert!(fence.starts_with("```provenance\n"), "{fence}");
+    let json: serde_json::Value = serde_json::from_str(
+        fence
+            .trim_start_matches("```provenance\n")
+            .trim_end()
+            .trim_end_matches("```"),
+    )
+    .unwrap_or_else(|e| panic!("registry is not JSON: {e}\n{fence}"));
+    assert_eq!(json["default"], "guide");
+    assert_eq!(json["sources"]["k10"]["kind"], "filing");
+    assert_eq!(json["sources"]["mda"]["model"], "claude-3-5-sonnet");
+}
+
+#[test]
+fn md_provenance_refuses_a_source_without_a_kind() {
+    let mut engine = StepEngine::new();
+    let err = engine.execute_script(
+        "{ payload: ({ k10: { label: \"x\" } } | md provenance), signals: {} }\n",
+        &json!({}),
+        None,
+    );
+    assert!(err.is_err(), "a kind-less source must be refused");
+}
+
+#[test]
+fn md_fact_carries_the_filed_value_through_to_the_manifest() {
+    // A script tags an `edgar facts` row; the renderer's own extraction reads
+    // the markdown back. The figure must arrive exactly as filed, beside the
+    // rounded text the reader saw.
+    let body = payload_string(
+        r###"
+let row = { taxonomy: "us-gaap", tag: "Revenues", unit: "USD", val: 391035000000,
+            start: "2023-10-01", end: "2024-09-28", accn: "0000320193-24-000123",
+            fy: 2024, fp: "FY", form: "10-K", filed: "2024-11-01" }
+let sources = { k10: ($row | edgar source --cik 320193), mda: { kind: generated, model: "claude-3-5-sonnet" } }
+let rev = ($row | md fact k10 "$391.0B" --id revenue-fy24 --decimals -6)
+let para = ("Demand rose." | md attribute mda --id mda-intro)
+let growth = ("+2.0%" | md src k10 --amount 0.02 --unit pure)
+{ payload: $"## Revenue\n\nRevenue was ($rev), up ($growth).\n\n($para)\n(($sources | md provenance))", signals: {} }
+"###,
+    );
+    let m = dapple_render::provenance::extract("Review", &body)
+        .unwrap_or_else(|| panic!("no provenance in:\n{body}"));
+    assert!(m.warnings.is_empty(), "{:?}\n{body}", m.warnings);
+
+    let rev = m
+        .items
+        .iter()
+        .find(|i| i.id == "revenue-fy24")
+        .expect("revenue item");
+    assert_eq!(rev.text, "$391.0B");
+    let v = rev.value.as_ref().expect("value");
+    assert_eq!(v.amount, "391035000000");
+    assert_eq!(v.unit, "USD");
+    assert_eq!(v.decimals, Some(serde_json::Value::from(-6)));
+    let p = rev.period.as_ref().expect("period");
+    assert_eq!(
+        (p.start.as_deref(), p.end.as_str()),
+        (Some("2023-10-01"), "2024-09-28")
+    );
+    assert_eq!(rev.concept.as_deref(), Some("us-gaap:Revenues"));
+    assert_eq!(
+        rev.kind,
+        Some(dapple_render::provenance::SourceKind::Filing)
+    );
+
+    let growth = m
+        .items
+        .iter()
+        .find(|i| i.text == "+2.0%")
+        .expect("growth item");
+    assert_eq!(growth.value.as_ref().unwrap().amount, "0.02");
+
+    let para = m
+        .items
+        .iter()
+        .find(|i| i.id == "mda-intro")
+        .expect("passage");
+    assert_eq!(para.text, "Demand rose.");
+    assert_eq!(
+        para.kind,
+        Some(dapple_render::provenance::SourceKind::Generated)
+    );
+}
+
+#[test]
+fn md_src_refuses_a_value_without_a_unit() {
+    let mut engine = StepEngine::new();
+    let out = engine.execute_script(
+        "{ payload: (\"5\" | md src k10 --amount 5), signals: {} }\n",
+        &json!({}),
+        None,
+    );
+    assert!(out.is_err(), "--amount without --unit must be refused");
 }

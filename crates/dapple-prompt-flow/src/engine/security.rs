@@ -272,6 +272,7 @@ impl SecurityPolicy {
         allowed.insert("edgar".to_string());
         allowed.insert("edgar filings".to_string());
         allowed.insert("edgar facts".to_string());
+        allowed.insert("edgar source".to_string());
         allowed.insert("edgar exhibits".to_string());
         allowed.insert("edgar holders".to_string());
         allowed.insert("edgar insiders".to_string());
@@ -306,6 +307,10 @@ impl SecurityPolicy {
         allowed.insert("md".to_string());
         allowed.insert("md table".to_string());
         allowed.insert("md admonish".to_string());
+        allowed.insert("md src".to_string());
+        allowed.insert("md fact".to_string());
+        allowed.insert("md attribute".to_string());
+        allowed.insert("md provenance".to_string());
         allowed.insert("fmt".to_string());
         allowed.insert("fmt scale".to_string());
         allowed.insert("fmt usd".to_string());

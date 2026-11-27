@@ -38,3 +38,7 @@ time = "0.3"
 # aren't needed for parsing, and lopdf 0.44's `time` feature fails to build
 # against the workspace-resolved time 0.3.47.
 lopdf = { version = "0.44", default-features = false }
+# Validates generated provenance manifests against schema/provenance.schema.json
+# in tests. default-features off: no remote $ref resolution is needed (the
+# schema is self-contained) and none should be attempted from a test.
+jsonschema = { version = "0.33", default-features = false }

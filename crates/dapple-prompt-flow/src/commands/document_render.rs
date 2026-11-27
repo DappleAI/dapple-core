@@ -7,6 +7,10 @@
 //! `display: file` for a download card, and `html_asset_id` at another output
 //! with `display: document` so the inline viewer shows the fully rendered,
 //! anchor-linked report as the result page.
+//!
+//! When the markdown tags where its content came from (see `md src`,
+//! `md attribute`, `md provenance`), the same call also stores a JSON
+//! provenance manifest beside the PDF and HTML.
 
 use crate::commands::prompt_send::{get_conduit_url, get_dapple_metadata};
 use crate::conduit_client::{ConduitClient, ConduitClientError, RenderDocumentRequest};
@@ -58,6 +62,12 @@ impl Command for DocumentRenderCommand {
                 None,
             )
             .switch("no-toc", "Suppress the table-of-contents page", None)
+            .named(
+                "derived-from",
+                SyntaxShape::String,
+                "document_id (urn:dapple:document:...) of an earlier render this one corrects or improves",
+                None,
+            )
             .category(Category::Custom("dapple".into()))
     }
 
@@ -96,14 +106,48 @@ Markdown features beyond CommonMark + GFM tables:
   header, and an optional linked TOC page (--toc / --no-toc override the
   9-heading auto threshold).
 
-Returns a record with both assets:
+Provenance (optional): tag where content came from and the render also
+stores a JSON provenance manifest listing every tagged figure, passage and
+chart with its source. The tags are invisible in the PDF and HTML.
+- A figure:   [$391.0B](src:k10-fy24 "id=... amount=... unit=...")
+              (`$row | md fact k10-fy24 $display` for an `edgar facts` row,
+               or `$value | md src k10-fy24 --amount ... --unit ...`)
+- A passage:  <!-- src:mda --> ... <!-- /src -->   (`$text | md attribute mda --id ...`)
+  Wrap a ```chart fence the same way to attribute the figure's data.
+- The registry, once per document (`$sources | md provenance --default guide`):
+  ```provenance
+  { "default": "guide",
+    "sources": {
+      "k10-fy24": { "kind": "filing", "label": "Acme 10-K FY2024",
+                    "publisher": "SEC EDGAR", "form": "10-K",
+                    "accession": "...", "filed": "...", "url": "https://..." },
+      "mda":      { "kind": "generated", "label": "MD&A narrative",
+                    "model": "<prompt send .model>", "prompt": "rt10k-mda" },
+      "guide":    { "kind": "authored", "label": "Report template" } } }
+  ```
+  kind: filing | generated | operator | computed | authored. Every other
+  field is free detail carried into the manifest. `edgar source` builds a filing
+  source from an `edgar facts` row; `prompt send` returns `.model`.
+The manifest (JSON Schema urn:dapple:schema:provenance:1) carries the
+document id, every source, and every tagged item with its full text and, for
+figures, the value as filed (exact decimal string + XBRL unit, period,
+concept). --derived-from records which earlier render this one corrects.
+Untagged documents produce no manifest. Tagging mistakes never fail
+the render; they come back in `provenance_warnings`.
+
+Returns a record:
+- document_id                                        (urn:dapple:document:<uuid>; pass it
+                                                       as a later render's --derived-from)
 - asset_id, asset_kind, mime_type, content_length   (the PDF)
 - html_asset_id, html_content_length                 (the HTML page)
+- provenance_json_asset_id                           (provenance manifest JSON, or null)
+- provenance_warnings                                (list of tagging problems)
 
 Wire the deliverable via computed `:::brief-output`s on `asset`-kind value
 slots: `html_asset_id` with `display: document` shows the rendered report
 inline as the result page; `asset_id` with `display: file` adds a PDF
-download card.
+download card; `provenance_json_asset_id` with `display: file` offers the
+provenance manifest.
 
 Environment:
 - DAPPLE_PROMPT_CONDUIT_URL: URL of the conduit service (required)
@@ -197,6 +241,25 @@ Environment:
             (false, false) => None,
         };
 
+        let derived_from: Option<String> = call.get_flag(engine_state, stack, "derived-from")?;
+        let derived_from = derived_from
+            .map(|d| d.trim().to_string())
+            .filter(|d| !d.is_empty());
+        if let Some(d) = &derived_from
+            && !d.starts_with("urn:dapple:document:")
+        {
+            return Err(ShellError::GenericError {
+                error: "Invalid --derived-from".into(),
+                msg: format!("'{d}' is not a document id"),
+                span: Some(span),
+                help: Some(
+                    "Pass the document_id an earlier `document render` returned (urn:dapple:document:<uuid>)"
+                        .into(),
+                ),
+                inner: vec![],
+            });
+        }
+
         let metadata = get_dapple_metadata(engine_state, stack);
         let conduit_url = get_conduit_url(&metadata);
         let client = ConduitClient::new(&conduit_url);
@@ -209,6 +272,8 @@ Environment:
             date,
             branding,
             toc,
+            derived_from,
+            dispatch_id: metadata.dispatch_id,
         };
 
         let response = tokio::task::block_in_place(|| {
@@ -218,13 +283,29 @@ Environment:
 
         match response {
             Ok(resp) => {
+                let opt_uuid = |id: Option<uuid::Uuid>| match id {
+                    Some(id) => Value::string(id.to_string(), span),
+                    None => Value::nothing(span),
+                };
                 let record = record! {
+                    "document_id" => match resp.document_id {
+                        Some(id) => Value::string(id, span),
+                        None => Value::nothing(span),
+                    },
                     "asset_id" => Value::string(resp.asset_id.to_string(), span),
                     "asset_kind" => Value::string(resp.asset_kind, span),
                     "mime_type" => Value::string(resp.mime_type, span),
                     "content_length" => Value::int(resp.content_length, span),
                     "html_asset_id" => Value::string(resp.html_asset_id.to_string(), span),
                     "html_content_length" => Value::int(resp.html_content_length, span),
+                    "provenance_json_asset_id" => opt_uuid(resp.provenance_json_asset_id),
+                    "provenance_warnings" => Value::list(
+                        resp.provenance_warnings
+                            .into_iter()
+                            .map(|w| Value::string(w, span))
+                            .collect(),
+                        span,
+                    ),
                 };
                 Ok(PipelineData::Value(Value::record(record, span), None))
             }
@@ -281,7 +362,15 @@ mod tests {
     fn test_signature_has_flags() {
         let sig = DocumentRenderCommand.signature();
         let flag_names: Vec<&str> = sig.named.iter().map(|f| f.long.as_str()).collect();
-        for expected in ["subtitle", "author", "date", "branding", "toc", "no-toc"] {
+        for expected in [
+            "subtitle",
+            "author",
+            "date",
+            "branding",
+            "toc",
+            "no-toc",
+            "derived-from",
+        ] {
             assert!(flag_names.contains(&expected), "missing --{expected}");
         }
         assert_eq!(sig.required_positional.len(), 1);

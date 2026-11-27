@@ -45,6 +45,7 @@ pub mod edgar_resolve;
 pub mod edgar_search;
 pub mod edgar_security;
 pub mod edgar_segments;
+pub mod edgar_source;
 pub mod fluent;
 pub mod fluent_emit;
 pub mod fmt;
@@ -60,6 +61,7 @@ pub mod json_schema;
 pub mod madlib;
 pub mod md;
 pub mod md_admonish;
+pub mod md_provenance;
 pub mod md_table;
 pub mod media_gateway;
 pub mod prompt;
@@ -181,6 +183,7 @@ pub fn register_dapple_commands(engine_state: &mut EngineState) {
     working_set.add_decl(Box::new(edgar::EdgarCommand));
     working_set.add_decl(Box::new(edgar_filings::EdgarFilings));
     working_set.add_decl(Box::new(edgar_facts::EdgarFacts));
+    working_set.add_decl(Box::new(edgar_source::EdgarSource));
     working_set.add_decl(Box::new(edgar_exhibits::EdgarExhibits));
     working_set.add_decl(Box::new(edgar_holders::EdgarHolders));
     working_set.add_decl(Box::new(edgar_insiders::EdgarInsiders));
@@ -215,6 +218,12 @@ pub fn register_dapple_commands(engine_state: &mut EngineState) {
     working_set.add_decl(Box::new(md::MdCommand));
     working_set.add_decl(Box::new(md_table::MdTable));
     working_set.add_decl(Box::new(md_admonish::MdAdmonish));
+    // Provenance tags: invisible in the PDF/HTML, read by `document render`
+    // into its JSON provenance manifest.
+    working_set.add_decl(Box::new(md_provenance::MdSrc));
+    working_set.add_decl(Box::new(md_provenance::MdFact));
+    working_set.add_decl(Box::new(md_provenance::MdAttribute));
+    working_set.add_decl(Box::new(md_provenance::MdProvenance));
     working_set.add_decl(Box::new(fmt::FmtCommand));
     working_set.add_decl(Box::new(fmt_scale::FmtScale));
     working_set.add_decl(Box::new(fmt_usd::FmtUsd));
