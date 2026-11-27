@@ -121,6 +121,15 @@ impl ItemAttrs {
                 inner: vec![],
             });
         }
+        if self.decimals.is_some() && self.amount.is_none() {
+            return Err(ShellError::GenericError {
+                error: "Precision without a value".into(),
+                msg: "--decimals is the precision of --amount; give --amount and --unit too".into(),
+                span: Some(span),
+                help: Some("e.g. --amount 103213000000 --unit USD --decimals -6".into()),
+                inner: vec![],
+            });
+        }
         for (flag, d) in [("start", &self.start), ("end", &self.end)] {
             if let Some(d) = d
                 && !md::is_date(d)

@@ -416,7 +416,9 @@ struct OpenSpan {
 }
 
 struct OpenRegion {
-    source: String,
+    /// `None` for a region whose id is invalid: it still pairs with its close
+    /// marker, but owns nothing (its text falls to the enclosing owner).
+    source: Option<String>,
     /// Which walked string the region opened in (admonition bodies are
     /// walked separately; offsets only mean something within one string).
     scope: usize,
@@ -540,24 +542,26 @@ impl<'h> Walker<'h> {
                 Event::Start(Tag::Link {
                     dest_url, title, ..
                 }) => {
-                    let is_src = is_src_dest(&dest_url);
+                    let mut is_src = is_src_dest(&dest_url);
                     if is_src {
                         self.saw_markup = true;
                         let source = dest_url[SRC_SCHEME.len()..].trim().to_string();
                         if !is_valid_source_id(&source) {
+                            // Not a usable tag: its text stays untagged (the
+                            // enclosing owner, else the default), so the
+                            // manifest never carries an id its schema rejects.
                             self.warnings.push(format!(
                                 "sourced span has an invalid source id '{source}' \
-                                 (ids are [A-Za-z0-9_.:-]+)"
+                                 (ids are [A-Za-z0-9_.:-]+); treated as untagged"
                             ));
+                            is_src = false;
                         }
+                    }
+                    if is_src {
+                        let source = dest_url[SRC_SCHEME.len()..].trim().to_string();
                         let what = format!("span [{source}]");
                         let attrs = parse_attrs(&title, &what, true, &mut self.warnings);
-                        // The link's source is `[inner](src:… "…")`; keep the inner.
-                        let whole = &src[range];
-                        let markdown = whole
-                            .rfind("](")
-                            .map(|end| whole[1..end].to_string())
-                            .unwrap_or_default();
+                        let markdown = link_inner_markdown(&src[range]).to_string();
                         self.spans.push(OpenSpan {
                             source,
                             attrs,
@@ -608,9 +612,16 @@ impl<'h> Walker<'h> {
         }
     }
 
+    /// The innermost open region with a valid source: the one that owns
+    /// region text. An invalid-id region owns nothing, so its text (plain and
+    /// counted) belongs to the region around it.
+    fn owning_region(&mut self) -> Option<&mut OpenRegion> {
+        self.regions.iter_mut().rev().find(|r| r.source.is_some())
+    }
+
     /// Separate blocks in the open region's plain text (not counted).
     fn text_break(&mut self) {
-        if let Some(region) = self.regions.last_mut()
+        if let Some(region) = self.owning_region()
             && !region.plain.is_empty()
             && !region.plain.ends_with('\n')
         {
@@ -623,16 +634,16 @@ impl<'h> Walker<'h> {
     fn attribute(&mut self, text: &str) {
         let n = text.chars().count();
         self.total_chars += n;
-        if let Some(region) = self.regions.last_mut() {
+        if let Some(region) = self.owning_region() {
             // The plain text reads through nested spans so it stays prose.
             region.plain.push_str(text);
         }
         let owner = if let Some(span) = self.spans.last_mut() {
             span.text.push_str(text);
             Some(span.source.clone())
-        } else if let Some(region) = self.regions.last_mut() {
+        } else if let Some(region) = self.owning_region() {
             region.chars += n;
-            Some(region.source.clone())
+            region.source.clone()
         } else {
             None
         };
@@ -659,7 +670,7 @@ impl<'h> Walker<'h> {
                 .unwrap_or_else(|| format!("untitled {what}"));
             let mut d = Draft::new(
                 ItemForm::Figure,
-                self.regions.last().map(|r| r.source.clone()),
+                self.regions.iter().rev().find_map(|r| r.source.clone()),
                 self.section.clone(),
             );
             d.text = title;
@@ -696,21 +707,23 @@ impl<'h> Walker<'h> {
                 self.saw_markup = true;
                 let mut parts = rest.trim().splitn(2, char::is_whitespace);
                 let source = parts.next().unwrap_or("").to_string();
-                if !is_valid_source_id(&source) {
+                // An invalid id still opens a region, so the matching close
+                // marker pairs with it rather than an enclosing one; it just
+                // owns nothing and reports no item.
+                let source = if is_valid_source_id(&source) {
+                    Some(source)
+                } else {
                     self.warnings.push(format!(
                         "sourced region has an invalid source id '{source}' \
-                         (ids are [A-Za-z0-9_.:-]+)"
+                         (ids are [A-Za-z0-9_.:-]+); treated as untagged"
                     ));
-                }
-                let what = format!("region [{source}]");
+                    None
+                };
+                let what = format!("region [{}]", source.as_deref().unwrap_or("?"));
                 let attrs =
                     parse_attrs(parts.next().unwrap_or(""), &what, false, &mut self.warnings);
                 let slot = self.drafts.len();
-                let mut d = Draft::new(
-                    ItemForm::Passage,
-                    Some(source.clone()),
-                    self.section.clone(),
-                );
+                let mut d = Draft::new(ItemForm::Passage, source.clone(), self.section.clone());
                 d.explicit_id = attrs.id;
                 self.drafts.push(d);
                 self.regions.push(OpenRegion {
@@ -739,7 +752,7 @@ impl<'h> Walker<'h> {
             plain.clone()
         };
         draft.chars = region.chars;
-        draft.dropped = region.chars == 0 && plain.is_empty();
+        draft.dropped = region.source.is_none() || (region.chars == 0 && plain.is_empty());
         draft.text = plain;
     }
 
@@ -747,7 +760,7 @@ impl<'h> Walker<'h> {
         while let Some(region) = self.regions.pop() {
             self.warnings.push(format!(
                 "region `<!-- src:{} -->` is never closed; it runs to the end of the document",
-                region.source
+                region.source.as_deref().unwrap_or("?")
             ));
             // Offsets of an unclosed region are not recoverable here; keep
             // its plain text.
@@ -755,7 +768,7 @@ impl<'h> Walker<'h> {
             let draft = &mut self.drafts[region.slot];
             draft.markdown = plain.clone();
             draft.chars = region.chars;
-            draft.dropped = region.chars == 0 && plain.is_empty();
+            draft.dropped = region.source.is_none() || (region.chars == 0 && plain.is_empty());
             draft.text = plain;
         }
         if !self.saw_markup {
@@ -992,6 +1005,32 @@ fn parse_registries(
         }
     }
     (sources, default)
+}
+
+/// The inner markdown of a link's source: `[inner](…)` / `[inner][ref]` /
+/// `[inner]` → `inner` (brackets matched, backslash escapes honored, so a
+/// `](` inside the title or a nested `[..]` cannot cut it short), and an
+/// autolink `<inner>` → `inner`.
+fn link_inner_markdown(whole: &str) -> &str {
+    if let Some(rest) = whole.strip_prefix('[') {
+        let mut depth = 0usize;
+        let mut escaped = false;
+        for (i, c) in rest.char_indices() {
+            match c {
+                _ if escaped => escaped = false,
+                '\\' => escaped = true,
+                '[' => depth += 1,
+                ']' if depth == 0 => return &rest[..i],
+                ']' => depth -= 1,
+                _ => {}
+            }
+        }
+        return rest;
+    }
+    whole
+        .strip_prefix('<')
+        .and_then(|r| r.strip_suffix('>'))
+        .unwrap_or(whole)
 }
 
 fn collapse_ws(s: &str) -> String {
@@ -1252,6 +1291,46 @@ mod tests {
         let m = extract("T", messy).unwrap();
         let v: Value = serde_json::from_str(&m.to_json()).unwrap();
         assert_eq!(schema_errors(&v), Vec::<String>::new());
+    }
+
+    #[test]
+    fn invalid_source_ids_degrade_to_untagged_and_stay_schema_valid() {
+        let body = "[a](src:) and [b](src:k10%20x)\n\n\
+                    <!-- src:k10 -->\nouter <!-- src:a/b -->inner<!-- /src --> tail\n<!-- /src -->\n\n\
+                    ```provenance\n{\"sources\":{\"k10\":{\"kind\":\"filing\"}}}\n```\n";
+        let m = extract("T", body).unwrap();
+        let v: Value = serde_json::from_str(&m.to_json()).unwrap();
+        assert_eq!(schema_errors(&v), Vec::<String>::new());
+        assert!(m.sources.iter().all(|s| is_valid_source_id(&s.id)));
+        assert!(
+            m.items
+                .iter()
+                .all(|i| i.source.as_deref().is_none_or(is_valid_source_id))
+        );
+        assert_eq!(
+            m.warnings
+                .iter()
+                .filter(|w| w.contains("invalid source id"))
+                .count(),
+            3
+        );
+        // The invalid inner region pairs with its own close marker, so the
+        // valid outer one still owns all of its text, inner included.
+        let outer = m
+            .items
+            .iter()
+            .find(|i| i.source.as_deref() == Some("k10"))
+            .unwrap();
+        assert_eq!(outer.text, "outer inner tail");
+    }
+
+    #[test]
+    fn span_markdown_survives_reference_links_and_bracketed_titles() {
+        let body = "[$1.2B][k] and [**$3** \\]x](src:k10 \"id=a](b\")\n\n[k]: src:k10\n\n\
+                    ```provenance\n{\"sources\":{\"k10\":{\"kind\":\"filing\"}}}\n```\n";
+        let m = extract("T", body).unwrap();
+        let md: Vec<&str> = m.items.iter().map(|i| i.markdown.as_str()).collect();
+        assert_eq!(md, vec!["$1.2B", "**$3** \\]x"]);
     }
 
     #[test]

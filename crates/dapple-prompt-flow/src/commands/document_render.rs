@@ -246,7 +246,9 @@ Environment:
             .map(|d| d.trim().to_string())
             .filter(|d| !d.is_empty());
         if let Some(d) = &derived_from
-            && !d.starts_with("urn:dapple:document:")
+            && d
+                .strip_prefix("urn:dapple:document:")
+                .is_none_or(|id| uuid::Uuid::parse_str(id).is_err())
         {
             return Err(ShellError::GenericError {
                 error: "Invalid --derived-from".into(),

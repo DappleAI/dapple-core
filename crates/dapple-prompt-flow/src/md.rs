@@ -260,6 +260,10 @@ pub fn src_span_with(id: &str, text: &str, attrs: &[(&str, String)]) -> String {
 /// Unless `trusted`, provenance markup already inside the body is defused
 /// first ([`defuse_provenance`]): the usual body is model output, and a model
 /// must not be able to claim that a number it wrote came from a filing.
+///
+/// A code fence the body leaves open is closed before the close marker, so
+/// the marker can never become code text (visible in the PDF/HTML, and a
+/// region that never closes would claim the rest of the document).
 pub fn attribute(id: &str, item_id: Option<&str>, body: &str, trusted: bool) -> String {
     if body.trim().is_empty() {
         return String::new();
@@ -269,59 +273,112 @@ pub fn attribute(id: &str, item_id: Option<&str>, body: &str, trusted: bool) -> 
     } else {
         defuse_provenance(body)
     };
+    let body = close_open_fence(body.trim_end_matches('\n'));
     let item = item_id.map(|i| format!(" id={i}")).unwrap_or_default();
-    format!(
-        "<!-- src:{id}{item} -->\n{}\n<!-- /src -->\n",
-        body.trim_end_matches('\n')
-    )
+    format!("<!-- src:{id}{item} -->\n{body}\n<!-- /src -->\n")
 }
 
-/// Strip provenance markup from untrusted text: a `[text](src:id)` span keeps
-/// its text, every HTML comment opener is rewritten so no region marker
-/// survives, and a ```provenance fence becomes a plain ```text fence.
+/// Zero-width space: splits `src:` so no link destination or comment can
+/// start with the scheme, without changing what the reader sees.
+const SCHEME_BREAK: &str = "src\u{200B}:";
+
+/// Strip provenance markup from untrusted text so none of it can reach the
+/// renderer's extraction:
+///
+/// - an inline `[text](src:id)` span keeps its text;
+/// - every other `src:` (a spaced or `<…>` destination, a reference
+///   definition, an autolink, anything inside an admonition body) has the
+///   scheme broken with a zero-width space — the renderer only recognizes a
+///   destination that starts with `src:`, so a purely textual pass covers
+///   every link form at every nesting depth;
+/// - every HTML comment opener is rewritten so no region marker survives;
+/// - a ```provenance info string anywhere on a line (inside a blockquote, a
+///   list item, an admonition) becomes `text`.
 pub fn defuse_provenance(text: &str) -> String {
     let mut s = text.to_string();
-    // Sourced spans → their bare text.
+    // Inline sourced spans → their bare text (a nicety; the scheme break
+    // below is what makes the result safe).
     let mut from = 0;
     while let Some(rel) = s[from..].find("](src:") {
         let mid = from + rel;
         let open = s[..mid].rfind('[');
         let close = s[mid..].find(')').map(|c| mid + c);
         match (open, close) {
-            (Some(open), Some(close)) => {
+            (Some(open), Some(close)) if open >= from => {
                 let inner = s[open + 1..mid].to_string();
                 s.replace_range(open..=close, &inner);
                 from = open + inner.len();
             }
-            // Nothing to pair with: break the scheme so it is not a tag.
-            _ => {
-                s.replace_range(mid..mid + 6, "](src\\:");
-                from = mid + 7;
-            }
+            _ => from = mid + 2,
         }
     }
+    let s = s.replace("src:", SCHEME_BREAK);
     // Region markers: comments are dropped by the renderer anyway, so
     // rewriting every opener changes nothing visible.
     let s = s.replace("<!--", "<!-- quoted:");
     // Registry fences become inert code blocks.
-    let mut out = s
-        .lines()
-        .map(|line| {
-            let t = line.trim_start();
-            let fence: String = t.chars().take_while(|c| *c == '`' || *c == '~').collect();
-            if fence.len() >= 3 && t[fence.len()..].trim_start().starts_with("provenance") {
-                let indent = &line[..line.len() - t.len()];
-                format!("{indent}{fence}text")
-            } else {
-                line.to_string()
-            }
-        })
+    s.split('\n')
+        .map(defuse_provenance_info)
         .collect::<Vec<_>>()
-        .join("\n");
-    if text.ends_with('\n') {
-        out.push('\n');
+        .join("\n")
+}
+
+/// Rewrite every `provenance` info string that follows a run of 3+ backticks
+/// or tildes anywhere on `line` (so a `> ```provenance` or `- ~~~provenance`
+/// opener is caught too) to `text`.
+fn defuse_provenance_info(line: &str) -> String {
+    let mut out = String::with_capacity(line.len());
+    let mut rest = line;
+    while let Some(pos) = rest.find(['`', '~']) {
+        let ch = rest[pos..].chars().next().unwrap_or('`');
+        let run = rest[pos..].chars().take_while(|c| *c == ch).count();
+        let after = &rest[pos + run..];
+        out.push_str(&rest[..pos + run]);
+        rest = after;
+        if run >= 3 {
+            let ws = after.len() - after.trim_start().len();
+            if after[ws..].starts_with("provenance") {
+                out.push_str(&after[..ws]);
+                out.push_str("text");
+                rest = &after[ws + "provenance".len()..];
+            }
+        }
     }
+    out.push_str(rest);
     out
+}
+
+/// Append a closing fence when `body` ends inside a fenced code block
+/// (CommonMark: an opener of 3+ backticks or tildes indented ≤3 spaces,
+/// closed by a run of the same character at least as long with nothing but
+/// whitespace after it). Blockquote/list-nested fences need nothing: an
+/// unindented line after the body ends their container, and the fence with it.
+fn close_open_fence(body: &str) -> String {
+    let mut open: Option<(char, usize)> = None;
+    for line in body.split('\n') {
+        let indent = line.len() - line.trim_start_matches(' ').len();
+        if indent > 3 {
+            continue;
+        }
+        let t = &line[indent..];
+        let Some(ch) = t.chars().next().filter(|c| *c == '`' || *c == '~') else {
+            continue;
+        };
+        let run = t.chars().take_while(|c| *c == ch).count();
+        if run < 3 {
+            continue;
+        }
+        let after = &t[run..];
+        match open {
+            None if ch == '~' || !after.contains('`') => open = Some((ch, run)),
+            Some((c, n)) if c == ch && run >= n && after.trim().is_empty() => open = None,
+            _ => {}
+        }
+    }
+    match open {
+        Some((ch, n)) => format!("{body}\n{}", ch.to_string().repeat(n)),
+        None => body.to_string(),
+    }
 }
 
 /// The ```provenance registry fence. The fence is made longer than any
@@ -360,6 +417,36 @@ mod tests {
         // Trusted bodies pass through.
         assert!(attribute("t", None, "[x](src:k10)", true).contains("[x](src:k10)"));
         assert_eq!(attribute("mda", None, " \n", false), "");
+    }
+
+    #[test]
+    fn defuse_breaks_every_src_link_form_and_nested_registry() {
+        let body = "a [$1]( src:k10) b [$2](<src:k10>) c [$3][r] d <src:k10>\n\n\
+                    [r]: src:k10\n\n\
+                    > ```provenance\n> {}\n> ```\n\n\
+                    - ~~~ provenance\n  {}\n  ~~~\n\n\
+                    ```admonish note\n[$4](src:k10) and [$5]( src:k10)\n```\n";
+        let out = defuse_provenance(body);
+        assert!(!out.contains("src:"), "{out}");
+        assert!(!out.contains("provenance"), "{out}");
+        assert!(out.contains("> ```text"), "{out}");
+        assert!(out.contains("- ~~~ text"), "{out}");
+        // Inline spans still collapse to their text.
+        assert!(out.contains("[$4] and") || out.contains("$4 and"), "{out}");
+        // Untouched text is byte-identical, trailing newline included.
+        assert_eq!(defuse_provenance("plain\n"), "plain\n");
+        assert_eq!(defuse_provenance("plain"), "plain");
+    }
+
+    #[test]
+    fn attribute_closes_a_fence_the_body_left_open() {
+        let out = attribute("mda", None, "Intro.\n\n```python\nx = 1", false);
+        assert!(out.ends_with("x = 1\n```\n<!-- /src -->\n"), "{out}");
+        let out = attribute("mda", None, "~~~~\ncode\n~~~\n", false);
+        assert!(out.ends_with("~~~\n~~~~\n<!-- /src -->\n"), "{out}");
+        // A balanced body is left alone.
+        let out = attribute("mda", None, "```\ncode\n```\n", false);
+        assert_eq!(out, "<!-- src:mda -->\n```\ncode\n```\n<!-- /src -->\n");
     }
 
     #[test]

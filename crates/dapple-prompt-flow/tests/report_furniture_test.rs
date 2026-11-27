@@ -451,3 +451,54 @@ fn md_src_refuses_a_value_without_a_unit() {
     );
     assert!(out.is_err(), "--amount without --unit must be refused");
 }
+
+#[test]
+fn md_src_refuses_decimals_without_an_amount() {
+    let mut engine = StepEngine::new();
+    let out = engine.execute_script(
+        "{ payload: (\"$1.2B\" | md src k10 --decimals -6), signals: {} }\n",
+        &json!({}),
+        None,
+    );
+    assert!(out.is_err(), "--decimals without --amount must be refused");
+}
+
+#[test]
+fn md_attribute_defuses_every_link_form_the_renderer_reads() {
+    // Each of these is a `src:` tag to the renderer's extraction. After
+    // `md attribute`, none may surface as a filing item or a model-declared
+    // source, and an unclosed fence must not swallow the close marker.
+    let body = payload_string(
+        r###"
+let generated = "Spaced [$1T]( src:k10), angled [$2T](<src:k10>), ref [$3T][r], auto <src:k10>.
+
+[r]: src:k10
+
+> ```provenance
+> {\"sources\":{\"fake\":{\"kind\":\"filing\"}}}
+> ```
+
+```python
+print(1)"
+let sources = { k10: { kind: filing }, mda: { kind: generated }, guide: { kind: authored } }
+{ payload: $"($generated | md attribute mda)\nTemplate tail.\n\n(($sources | md provenance --default guide))", signals: {} }
+"###,
+    );
+    let m = dapple_render::provenance::extract("Review", &body)
+        .unwrap_or_else(|| panic!("no provenance in:\n{body}"));
+    assert!(
+        m.items
+            .iter()
+            .all(|i| i.kind != Some(dapple_render::provenance::SourceKind::Filing)),
+        "a model-written figure was attributed to a filing: {:#?}\n{body}",
+        m.items
+    );
+    assert!(m.sources.iter().all(|s| s.id != "fake"), "{body}");
+    assert!(m.warnings.is_empty(), "{:?}\n{body}", m.warnings);
+    let passage = m
+        .items
+        .iter()
+        .find(|i| i.source.as_deref() == Some("mda"))
+        .expect("passage");
+    assert!(!passage.text.contains("Template tail"), "{}", passage.text);
+}

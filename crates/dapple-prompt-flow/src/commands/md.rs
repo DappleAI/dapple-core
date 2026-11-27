@@ -37,7 +37,7 @@ Subcommands:
   md attribute <id>           - attribute a passage or chart to one source
   md provenance               - declare the sources (registry fence)
 
-The last three are provenance tags: invisible in the PDF and HTML, read by
+The last four are provenance tags: invisible in the PDF and HTML, read by
 `document render` into a JSON provenance manifest beside the PDF and HTML.
 
 Both follow the same doctrine: NOTHING TO DRAW RENDERS AS "". A caller tests the
