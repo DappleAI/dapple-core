@@ -421,6 +421,14 @@ impl HtmlWalker<'_> {
     }
 
     fn render_link(&self, dest: &str, body: &str) -> String {
+        // A provenance tag renders as its text; the span is an invisible hook
+        // (no styling) a viewer can use to point back at the sidecar entry.
+        if let Some(id) = dest.strip_prefix(crate::provenance::SRC_SCHEME) {
+            return format!(
+                "<span class=\"src\" data-src=\"{}\">{body}</span>",
+                escape_attr(id.trim())
+            );
+        }
         if let Some(fragment) = dest.strip_prefix('#') {
             if self.known_ids.contains(fragment) {
                 format!("<a href=\"#{}\">{body}</a>", escape_attr(fragment))
@@ -438,6 +446,9 @@ impl HtmlWalker<'_> {
     }
 
     fn render_code_block(&mut self, info: &str, content: &str) -> String {
+        if crate::provenance::is_provenance_info(info) {
+            return String::new();
+        }
         // Inlined verbatim, like the wordmark at the top of every page. The
         // "raw HTML is dropped" rule governs `Event::Html` coming out of the
         // source markdown; this SVG is emitter-generated, so the page stays

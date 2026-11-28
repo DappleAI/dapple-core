@@ -89,6 +89,36 @@ pub fn render_document_pdf(input: &DocumentRenderInput) -> Result<Vec<u8>, Rende
     })
 }
 
+/// What the caller knows about a document before it renders: its identity,
+/// and the document it was derived from. Both are recorded in the manifest.
+#[derive(Clone, Debug, Default)]
+pub struct ProvenanceContext {
+    /// `urn:dapple:document:<uuid>`.
+    pub document_id: Option<String>,
+    /// The document this one is a corrected or improved version of.
+    pub derived_from: Option<String>,
+}
+
+/// The provenance manifest for a document, or `None` when its markdown
+/// carries no provenance markup (`[text](src:id)` spans, `<!-- src:id -->`
+/// regions, or a ```provenance registry) — documents that never opted in
+/// produce no sidecar.
+///
+/// Pure extraction, no rendering. Serialize with
+/// [`ProvenanceManifest::to_json`](crate::provenance::ProvenanceManifest::to_json)
+/// once the caller has filled in what only it knows (render time, stored
+/// asset ids, dispatch). Tagging mistakes land in the manifest's `warnings`;
+/// they never fail the render.
+pub fn render_document_provenance(
+    input: &DocumentRenderInput,
+    context: &ProvenanceContext,
+) -> Option<crate::provenance::ProvenanceManifest> {
+    let mut manifest = crate::provenance::extract(&input.title, &input.markdown)?;
+    manifest.document.id = context.document_id.clone();
+    manifest.document.derived_from = context.derived_from.clone();
+    Some(manifest)
+}
+
 /// Render the same document as a single self-contained HTML page (inline
 /// stylesheet, inline wordmark SVG, no external references) — the inline
 /// result-page view served through the asset content endpoint.
@@ -192,6 +222,44 @@ mod tests {
         let mut suppressed = base_input("## a\n");
         suppressed.toc = Some(false);
         assert!(!suppressed.wants_toc(50));
+    }
+
+    const TAGGED: &str = "## Revenue\n\nRevenue was [$1.2B](src:k10) and \
+        <!-- src:mda -->\nthe narrative is generated.\n<!-- /src -->\n\n\
+        ```provenance\n{\"sources\":{\"k10\":{\"kind\":\"filing\",\"publisher\":\"SEC EDGAR\"},\
+        \"mda\":{\"kind\":\"generated\",\"model\":\"claude-sonnet\"}}}\n```\n";
+
+    #[test]
+    fn provenance_markup_is_invisible_in_both_outputs() {
+        let html = render_document_html(&base_input(TAGGED)).unwrap();
+        assert!(html.contains("<span class=\"src\" data-src=\"k10\">$1.2B</span>"));
+        assert!(!html.contains("src:"), "a src: tag leaked into the HTML");
+        assert!(!html.contains("SEC EDGAR"), "the registry fence rendered");
+        let pdf = render_document_pdf(&base_input(TAGGED)).unwrap();
+        assert!(pdf.starts_with(b"%PDF"));
+    }
+
+    #[test]
+    fn provenance_sidecar_only_for_tagged_documents() {
+        assert!(
+            render_document_provenance(
+                &base_input("## Plain\n\nNo tags."),
+                &ProvenanceContext::default()
+            )
+            .is_none()
+        );
+        let context = ProvenanceContext {
+            document_id: Some("urn:dapple:document:0193-a".into()),
+            derived_from: Some("urn:dapple:document:0193-b".into()),
+        };
+        let manifest = render_document_provenance(&base_input(TAGGED), &context).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&manifest.to_json()).unwrap();
+        assert_eq!(v["document"]["title"], "Test Document");
+        assert_eq!(v["document"]["id"], "urn:dapple:document:0193-a");
+        assert_eq!(v["document"]["derived_from"], "urn:dapple:document:0193-b");
+        assert_eq!(v["items"][0]["kind"], "filing");
+        assert_eq!(v["items"][1]["kind"], "generated");
+        assert!(manifest.warnings.is_empty(), "{:?}", manifest.warnings);
     }
 
     #[test]

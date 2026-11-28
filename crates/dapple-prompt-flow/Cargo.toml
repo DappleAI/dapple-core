@@ -75,6 +75,9 @@ time = { version = "0.3.41" }
 # Property tests (promise-leveling Plan F): bounded-case invariants that run in the
 # normal `cargo test` suite. Committed regressions live in proptest-regressions/.
 proptest = "1"
+# End-to-end provenance tests: markdown a script emitted is read back by the
+# renderer's own extraction, so the flow helpers and the grammar cannot drift.
+dapple-render = { path = "../dapple-render" }
 
 [[bin]]
 name = "dapple-prompt-flow"

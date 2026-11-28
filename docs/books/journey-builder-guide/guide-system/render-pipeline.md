@@ -185,13 +185,111 @@ pub struct DocumentRenderInput {
 }
 pub fn render_document_pdf(input: &DocumentRenderInput) -> Result<Vec<u8>, RenderError>
 pub fn render_document_html(input: &DocumentRenderInput) -> Result<String, RenderError>
+pub fn render_document_provenance(input: &DocumentRenderInput, context: &ProvenanceContext)
+    -> Option<ProvenanceManifest>   // None = no provenance markup; never an error
 ```
 
 The conduit `/render-document` handler renders **both** formats per request
 and persists two assets: PDF (`application/pdf`, download card via
 `display: file`) and HTML (`text/html`, inline result page via
-`display: document`). The `document render` flow command exposes
-`--toc`/`--no-toc` and returns `asset_id` + `html_asset_id`.
+`display: document`). When the markdown carries provenance markup it also
+persists the provenance manifest (`application/json`). The `document render`
+flow command exposes `--toc`/`--no-toc` and returns `asset_id` +
+`html_asset_id`, plus `provenance_json_asset_id` / `provenance_warnings`.
+
+## Provenance
+
+A report mixes origins — a figure from an SEC filing, a paragraph Claude
+wrote, a ticker the operator typed — and concatenating them into one markdown
+body erases the difference. Provenance markup keeps it. The tags are
+**invisible** in the PDF and HTML; `src/provenance.rs` reads them into a
+**separate deliverable**: the JSON **provenance manifest** — the one
+provenance format, readable anywhere. There is no provenance PDF; anything a
+reader needs (a summary, a per-section listing) is a view over the manifest.
+
+| Form | Markup | Flow helper | Use for |
+|---|---|---|---|
+| Sourced span | `[$391.0B](src:k10-fy24 "id=… amount=… unit=…")` | `$row \| md fact k10-fy24 $display`, `$v \| md src k10-fy24 [--amount --unit …]` | one figure / value |
+| Sourced region | `<!-- src:mda id=mda-intro -->` … `<!-- /src -->` | `$text \| md attribute mda [--id …]` | a passage, or a ```chart fence (its data) |
+| Registry | ```provenance JSON fence | `$sources \| md provenance --default guide` | declaring the sources |
+
+### The manifest (`urn:dapple:schema:provenance:1`)
+
+Published as a JSON Schema (draft 2020-12) at
+`crates/dapple-render/schema/provenance.schema.json` (also
+`dapple_render::provenance::SCHEMA_JSON`); every manifest names it in
+`$schema`, and tests validate generated manifests against it.
+
+- **`document`** — `id` (`urn:dapple:document:<uuid>`, minted by the conduit
+  per render and returned as `document_id`), `title`, `rendered_at`,
+  `dispatch_id`, the stored `assets` (pdf / html), and
+  optional **`derived_from`**: the document this one corrects or improves
+  (`document render --derived-from $earlier.document_id`). A correction is a
+  new render whose corrected items are tagged with the person's own source
+  (`kind: operator`); the manifest does not model edits itself.
+- **`sources`** — the registry, each with its `chars` and `items` counts.
+- **`items`** — every tagged piece, in document order:
+  - `id` — stable: author-given (`--id`, `[A-Za-z0-9_.:-]+`), else generated as
+    `<section-anchor>/<source>/<n>`. Generated ids always contain `/` and
+    author ids cannot, so the two never collide; duplicates are suffixed.
+  - `form` (`inline` / `passage` / `figure`), `source`, `kind`, `section`
+    (`title` + the same `anchor` the PDF/HTML carry).
+  - **Full text**: `text` (plain, as the reader saw it) and `markdown` (the
+    exact source bytes — for a figure, its whole fence). Never an excerpt; the
+    report abbreviates, the manifest does not.
+  - **Values as filed** (figures): `value` = `{ amount, unit, decimals? }`.
+    `amount` is an **exact decimal string** (`"103213000000"`, `"0.129"`),
+    never a JSON number, which loses precision past 2^53 in most parsers;
+    `unit` and `decimals` are XBRL's (`USD`, `shares`, `USD/shares`, `pure`;
+    `-6` or `INF`). Plus `period` (`start?` + `end`) and `concept`
+    (`us-gaap:Revenues`). The displayed text (`$103.2B`) sits beside it, so a
+    reader can check the rounding against the filing.
+- **`coverage`** — visible characters in total, attributed, unattributed,
+  and per kind.
+- **`warnings`** — every tagging mistake, as text (also returned by
+  `document render` as `provenance_warnings`).
+
+`md fact` fills `value`/`period`/`concept` from an `edgar facts` row (`val`,
+`unit`, `start`/`end`, `taxonomy:tag`); a float `val` is written without an
+exponent, so the amount stays exact.
+
+Source kinds are a closed set — `filing`, `generated`, `operator`,
+`computed`, `authored` — and every other registry field is free detail,
+carried verbatim into the source's `detail` object. `edgar source` builds a `filing` source
+from an `edgar facts`/`edgar filings` row (accession, form, filed date, the
+sec.gov index link); `prompt send` now returns `.model` and `.request_id` for
+a `generated` source (put `.model` in the source's `model` field).
+
+Rules:
+
+- **Opt-in.** A body with none of the three forms produces no sidecar and the
+  response's `provenance_*` fields are absent — existing guides are unchanged.
+- **Degrade, never fail** (the chart contract). Undeclared ids, unclosed or
+  stray region markers, bad registry JSON, unknown kinds: each is a
+  manifest `warning`, never an error. A tag whose source id is invalid is
+  treated as untagged, so the manifest always validates against its schema.
+- **Innermost wins.** A span inside a region owns its characters; regions nest.
+  Untagged text goes to the registry's `default` (else it counts as `unattributed_chars`), and
+  coverage is reported as a share of visible characters.
+- **Model output is defused.** `md attribute` strips any `src:` span, region
+  marker or ```provenance fence from its body before wrapping (unless
+  `--trusted`), so a model cannot claim a number it wrote came from a filing.
+  Every link form counts (spaced or `<…>` destinations, reference
+  definitions, autolinks, admonition bodies): any leftover `src:` has its
+  scheme broken with a zero-width space, and a fence the body leaves open is
+  closed before the `<!-- /src -->` marker.
+  To show a filed figure inside generated prose, have the model emit a
+  placeholder and substitute the `md fact`/`md src`-tagged figure after
+  attributing.
+- **Emitters stay dumb.** The only emitter changes: a `src:` link renders as
+  its text (`<span class="src" data-src="…">` in HTML) and a ```provenance
+  fence renders as nothing. Extraction is a separate read-only pass that
+  recurses into admonition bodies and reuses `collect_ids`, so each item's
+  `anchor` is the same heading id the PDF/HTML carry. Item attributes ride in
+  the `src:` link's title, which neither emitter renders.
+
+`cargo run -p dapple-render --example render_provenance -- <outdir>` renders a
+tagged sample (report PDF/HTML and the manifest) for eyeballing.
 
 ## Hermetic Compilation
 
@@ -279,11 +377,15 @@ std::fs::write("output.pdf", &pdf_bytes)?;
 | `crates/dapple-render/src/chart.rs` | Chart fence grammar + spec → themed SVG |
 | `crates/dapple-render/src/theme.rs` | Palette, branding ramps, admonition + chart colors |
 | `crates/dapple-render/src/html.rs` | Self-contained themed HTML emitter |
+| `crates/dapple-render/src/provenance.rs` | Provenance markup → manifest |
+| `crates/dapple-render/schema/provenance.schema.json` | JSON Schema of the manifest (`urn:dapple:schema:provenance:1`) |
 | `crates/dapple-render/src/typeset/` | Typst World, compile, escape, transform, brand preamble |
 | `crates/dapple-render/src/filter.rs` | `filter_chapters()`, `block_matches_filter()` |
 | `crates/dapple-render/src/bibliography.rs` | Citation index + bibliography markup |
 | `crates/dapple-prompt-api/src/handler/guide_render.rs` | API handler that assembles `RenderInput` |
-| `crates/dapple-prompt-conduit/src/handler/render_document.rs` | `/render-document` (PDF + HTML assets) |
+| `crates/dapple-prompt-conduit/src/handler/render_document.rs` | `/render-document` (PDF + HTML assets, + provenance manifest JSON when tagged) |
+| `crates/dapple-prompt-flow/src/commands/md_provenance.rs` | `md src` / `md fact` / `md attribute` / `md provenance` |
+| `crates/dapple-prompt-flow/src/commands/edgar_source.rs` | `edgar source` — an EDGAR row as a `filing` source |
 | `crates/dapple-prompt-flow/src/commands/document_render.rs` | The `document render` flow command |
 
 ## Next Steps

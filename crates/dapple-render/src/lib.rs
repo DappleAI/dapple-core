@@ -34,6 +34,7 @@ pub mod document;
 pub mod error;
 pub mod filter;
 pub mod html;
+pub mod provenance;
 pub mod slug;
 pub mod theme;
 pub mod typeset;
@@ -41,7 +42,10 @@ pub mod typeset;
 use std::collections::HashSet;
 
 use dapple_data::model::guides::{Guide, GuideCard};
-pub use document::{DocumentRenderInput, render_document_html, render_document_pdf};
+pub use document::{
+    DocumentRenderInput, ProvenanceContext, render_document_html, render_document_pdf,
+    render_document_provenance,
+};
 use error::RenderError;
 use serde::{Deserialize, Serialize};
 

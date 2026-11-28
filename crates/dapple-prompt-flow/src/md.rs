@@ -171,9 +171,300 @@ pub fn admonish(kind: &str, title: &str, body: &str, fence_len: usize) -> String
     out
 }
 
+// ---------------------------------------------------------------------------
+// Provenance markup — read by `dapple_render::provenance`, invisible in the
+// rendered PDF and HTML. The grammar lives there; these only emit it.
+// ---------------------------------------------------------------------------
+
+/// A source id is `[A-Za-z0-9_.:-]+` — mirrors
+/// `dapple_render::provenance::is_valid_source_id` (this crate does not depend
+/// on the renderer, and the grammar is one character class).
+pub fn is_valid_source_id(id: &str) -> bool {
+    !id.is_empty()
+        && id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | ':' | '-'))
+}
+
+/// An exact decimal (`103213000000`, `-0.129`): no exponent, no grouping, no
+/// leading zeros — mirrors `dapple_render::provenance::is_decimal_string`.
+pub fn is_decimal_string(s: &str) -> bool {
+    let s = s.strip_prefix('-').unwrap_or(s);
+    let (int, frac) = match s.split_once('.') {
+        Some((i, f)) => (i, Some(f)),
+        None => (s, None),
+    };
+    let int_ok = int == "0"
+        || (!int.is_empty() && !int.starts_with('0') && int.chars().all(|c| c.is_ascii_digit()));
+    let frac_ok = frac.is_none_or(|f| !f.is_empty() && f.chars().all(|c| c.is_ascii_digit()));
+    int_ok && frac_ok
+}
+
+/// `YYYY-MM-DD`.
+pub fn is_date(s: &str) -> bool {
+    let b = s.as_bytes();
+    b.len() == 10
+        && b[4] == b'-'
+        && b[7] == b'-'
+        && b.iter()
+            .enumerate()
+            .all(|(i, c)| i == 4 || i == 7 || c.is_ascii_digit())
+}
+
+/// A unit or concept token: `USD`, `USD/shares`, `us-gaap:Revenues`.
+pub fn is_token(s: &str) -> bool {
+    !s.is_empty()
+        && s.chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | ':' | '-' | '/'))
+}
+
+/// `[text](src:id)` — one sourced value. Brackets and backslashes in the text
+/// are escaped so the span cannot end early, and whitespace flattens (link
+/// text cannot cross a paragraph break). Empty text renders as "".
+pub fn src_span(id: &str, text: &str) -> String {
+    src_span_with(id, text, &[])
+}
+
+/// [`src_span`] carrying item attributes in the link title:
+/// `[text](src:id "id=… amount=… unit=…")`. Callers validate the values
+/// (they are ids, decimals, dates and tokens, so none contains a quote or
+/// whitespace); the renderer re-validates and warns on anything malformed.
+pub fn src_span_with(id: &str, text: &str, attrs: &[(&str, String)]) -> String {
+    let flat = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    if flat.is_empty() {
+        return String::new();
+    }
+    let mut out = String::with_capacity(flat.len() + id.len() + 8);
+    out.push('[');
+    for c in flat.chars() {
+        if matches!(c, '[' | ']' | '\\') {
+            out.push('\\');
+        }
+        out.push(c);
+    }
+    out.push_str("](src:");
+    out.push_str(id);
+    if !attrs.is_empty() {
+        let pairs: Vec<String> = attrs.iter().map(|(k, v)| format!("{k}={v}")).collect();
+        out.push_str(" \"");
+        out.push_str(&pairs.join(" "));
+        out.push('"');
+    }
+    out.push(')');
+    out
+}
+
+/// `<!-- src:id -->` … `<!-- /src -->` around a passage or figure; with an
+/// `item_id`, `<!-- src:id id=item -->`. Empty body renders as "".
+///
+/// Unless `trusted`, provenance markup already inside the body is defused
+/// first ([`defuse_provenance`]): the usual body is model output, and a model
+/// must not be able to claim that a number it wrote came from a filing.
+///
+/// A code fence the body leaves open is closed before the close marker, so
+/// the marker can never become code text (visible in the PDF/HTML, and a
+/// region that never closes would claim the rest of the document).
+pub fn attribute(id: &str, item_id: Option<&str>, body: &str, trusted: bool) -> String {
+    if body.trim().is_empty() {
+        return String::new();
+    }
+    let body = if trusted {
+        body.to_string()
+    } else {
+        defuse_provenance(body)
+    };
+    let body = close_open_fence(body.trim_end_matches('\n'));
+    let item = item_id.map(|i| format!(" id={i}")).unwrap_or_default();
+    format!("<!-- src:{id}{item} -->\n{body}\n<!-- /src -->\n")
+}
+
+/// Zero-width space: splits `src:` so no link destination or comment can
+/// start with the scheme, without changing what the reader sees.
+const SCHEME_BREAK: &str = "src\u{200B}:";
+
+/// Strip provenance markup from untrusted text so none of it can reach the
+/// renderer's extraction:
+///
+/// - an inline `[text](src:id)` span keeps its text;
+/// - every other `src:` (a spaced or `<…>` destination, a reference
+///   definition, an autolink, anything inside an admonition body) has the
+///   scheme broken with a zero-width space — the renderer only recognizes a
+///   destination that starts with `src:`, so a purely textual pass covers
+///   every link form at every nesting depth;
+/// - every HTML comment opener is rewritten so no region marker survives;
+/// - a ```provenance info string anywhere on a line (inside a blockquote, a
+///   list item, an admonition) becomes `text`.
+pub fn defuse_provenance(text: &str) -> String {
+    let mut s = text.to_string();
+    // Inline sourced spans → their bare text (a nicety; the scheme break
+    // below is what makes the result safe).
+    let mut from = 0;
+    while let Some(rel) = s[from..].find("](src:") {
+        let mid = from + rel;
+        let open = s[..mid].rfind('[');
+        let close = s[mid..].find(')').map(|c| mid + c);
+        match (open, close) {
+            (Some(open), Some(close)) if open >= from => {
+                let inner = s[open + 1..mid].to_string();
+                s.replace_range(open..=close, &inner);
+                from = open + inner.len();
+            }
+            _ => from = mid + 2,
+        }
+    }
+    let s = s.replace("src:", SCHEME_BREAK);
+    // Region markers: comments are dropped by the renderer anyway, so
+    // rewriting every opener changes nothing visible.
+    let s = s.replace("<!--", "<!-- quoted:");
+    // Registry fences become inert code blocks.
+    s.split('\n')
+        .map(defuse_provenance_info)
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Rewrite every `provenance` info string that follows a run of 3+ backticks
+/// or tildes anywhere on `line` (so a `> ```provenance` or `- ~~~provenance`
+/// opener is caught too) to `text`.
+fn defuse_provenance_info(line: &str) -> String {
+    let mut out = String::with_capacity(line.len());
+    let mut rest = line;
+    while let Some(pos) = rest.find(['`', '~']) {
+        let ch = rest[pos..].chars().next().unwrap_or('`');
+        let run = rest[pos..].chars().take_while(|c| *c == ch).count();
+        let after = &rest[pos + run..];
+        out.push_str(&rest[..pos + run]);
+        rest = after;
+        if run >= 3 {
+            let ws = after.len() - after.trim_start().len();
+            if after[ws..].starts_with("provenance") {
+                out.push_str(&after[..ws]);
+                out.push_str("text");
+                rest = &after[ws + "provenance".len()..];
+            }
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
+/// Append a closing fence when `body` ends inside a fenced code block
+/// (CommonMark: an opener of 3+ backticks or tildes indented ≤3 spaces,
+/// closed by a run of the same character at least as long with nothing but
+/// whitespace after it). Blockquote/list-nested fences need nothing: an
+/// unindented line after the body ends their container, and the fence with it.
+fn close_open_fence(body: &str) -> String {
+    let mut open: Option<(char, usize)> = None;
+    for line in body.split('\n') {
+        let indent = line.len() - line.trim_start_matches(' ').len();
+        if indent > 3 {
+            continue;
+        }
+        let t = &line[indent..];
+        let Some(ch) = t.chars().next().filter(|c| *c == '`' || *c == '~') else {
+            continue;
+        };
+        let run = t.chars().take_while(|c| *c == ch).count();
+        if run < 3 {
+            continue;
+        }
+        let after = &t[run..];
+        match open {
+            None if ch == '~' || !after.contains('`') => open = Some((ch, run)),
+            Some((c, n)) if c == ch && run >= n && after.trim().is_empty() => open = None,
+            _ => {}
+        }
+    }
+    match open {
+        Some((ch, n)) => format!("{body}\n{}", ch.to_string().repeat(n)),
+        None => body.to_string(),
+    }
+}
+
+/// The ```provenance registry fence. The fence is made longer than any
+/// backtick run inside the JSON, so a value can never close it early.
+pub fn provenance_fence(registry: &serde_json::Value) -> String {
+    let json = serde_json::to_string_pretty(registry).unwrap_or_else(|_| "{}".to_string());
+    let longest = json.split(|c| c != '`').map(str::len).max().unwrap_or(0);
+    let fence = "`".repeat(longest.max(2) + 1);
+    format!("{fence}provenance\n{json}\n{fence}\n")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn src_span_escapes_and_flattens() {
+        assert_eq!(src_span("k10", "$391.0B"), "[$391.0B](src:k10)");
+        assert_eq!(src_span("k10", "a [b]\nc"), "[a \\[b\\] c](src:k10)");
+        assert_eq!(src_span("k10", "  "), "");
+    }
+
+    #[test]
+    fn attribute_wraps_and_defuses_untrusted_bodies() {
+        let body = "Revenue hit [$9T](src:k10).\n<!-- /src -->\n```provenance\n{}\n```\n";
+        let out = attribute("mda", None, body, false);
+        assert!(out.starts_with("<!-- src:mda -->\n"));
+        assert!(out.ends_with("\n<!-- /src -->\n"));
+        assert!(out.contains("Revenue hit $9T."), "{out}");
+        assert!(!out.contains("](src:"), "{out}");
+        assert!(out.contains("<!-- quoted: /src -->"), "{out}");
+        assert!(out.contains("```text"), "{out}");
+        // Only the wrapper's own markers remain.
+        assert_eq!(out.matches("<!-- src:").count(), 1);
+        assert_eq!(out.matches("<!-- /src -->").count(), 1);
+        // Trusted bodies pass through.
+        assert!(attribute("t", None, "[x](src:k10)", true).contains("[x](src:k10)"));
+        assert_eq!(attribute("mda", None, " \n", false), "");
+    }
+
+    #[test]
+    fn defuse_breaks_every_src_link_form_and_nested_registry() {
+        let body = "a [$1]( src:k10) b [$2](<src:k10>) c [$3][r] d <src:k10>\n\n\
+                    [r]: src:k10\n\n\
+                    > ```provenance\n> {}\n> ```\n\n\
+                    - ~~~ provenance\n  {}\n  ~~~\n\n\
+                    ```admonish note\n[$4](src:k10) and [$5]( src:k10)\n```\n";
+        let out = defuse_provenance(body);
+        assert!(!out.contains("src:"), "{out}");
+        assert!(!out.contains("provenance"), "{out}");
+        assert!(out.contains("> ```text"), "{out}");
+        assert!(out.contains("- ~~~ text"), "{out}");
+        // Inline spans still collapse to their text.
+        assert!(out.contains("[$4] and") || out.contains("$4 and"), "{out}");
+        // Untouched text is byte-identical, trailing newline included.
+        assert_eq!(defuse_provenance("plain\n"), "plain\n");
+        assert_eq!(defuse_provenance("plain"), "plain");
+    }
+
+    #[test]
+    fn attribute_closes_a_fence_the_body_left_open() {
+        let out = attribute("mda", None, "Intro.\n\n```python\nx = 1", false);
+        assert!(out.ends_with("x = 1\n```\n<!-- /src -->\n"), "{out}");
+        let out = attribute("mda", None, "~~~~\ncode\n~~~\n", false);
+        assert!(out.ends_with("~~~\n~~~~\n<!-- /src -->\n"), "{out}");
+        // A balanced body is left alone.
+        let out = attribute("mda", None, "```\ncode\n```\n", false);
+        assert_eq!(out, "<!-- src:mda -->\n```\ncode\n```\n<!-- /src -->\n");
+    }
+
+    #[test]
+    fn provenance_fence_outgrows_inner_backticks() {
+        let v = serde_json::json!({"sources": {"a": {"kind": "filing", "note": "x ``` y"}}});
+        let out = provenance_fence(&v);
+        assert!(out.starts_with("````provenance\n"), "{out}");
+        assert!(out.ends_with("\n````\n"));
+        assert!(provenance_fence(&serde_json::json!({})).starts_with("```provenance\n"));
+    }
+
+    #[test]
+    fn source_ids() {
+        assert!(is_valid_source_id("k10-fy2024.rev:usd_1"));
+        assert!(!is_valid_source_id(""));
+        assert!(!is_valid_source_id("has space"));
+        assert!(!is_valid_source_id("a)b"));
+    }
 
     fn s(items: &[&str]) -> Vec<String> {
         items.iter().map(|i| i.to_string()).collect()

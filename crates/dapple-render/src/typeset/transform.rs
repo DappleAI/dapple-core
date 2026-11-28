@@ -51,7 +51,7 @@ pub struct Heading {
 /// `ENABLE_HEADING_ATTRIBUTES` is load-bearing: it makes pulldown strip
 /// `{#id}` from the heading text stream, so an explicit id can never leak
 /// into rendered output.
-fn parser_options() -> Options {
+pub(crate) fn parser_options() -> Options {
     Options::ENABLE_TABLES
         | Options::ENABLE_HEADING_ATTRIBUTES
         | Options::ENABLE_STRIKETHROUGH
@@ -440,6 +440,11 @@ impl Walker<'_> {
     }
 
     fn render_link(&self, dest: &str, body: &str) -> String {
+        // A provenance tag (`[text](src:id)`) is not a link: the body renders
+        // as plain text and the tag lives only in the provenance sidecar.
+        if crate::provenance::is_src_dest(dest) {
+            return body.to_string();
+        }
         if let Some(fragment) = dest.strip_prefix('#') {
             if self.known_ids.contains(fragment) {
                 format!("#link(<{}>)[{body}]", label_for_id(fragment))
@@ -455,6 +460,11 @@ impl Walker<'_> {
     }
 
     fn render_code_block(&mut self, info: &str, content: &str) -> String {
+        // The ```provenance source registry is data for the sidecar, never
+        // document content (an empty block is skipped by `block`).
+        if crate::provenance::is_provenance_info(info) {
+            return String::new();
+        }
         // A chart fence carries a JSON spec, never markdown, so unlike an
         // admonition it is not recursed into in pass 1 and not escaped as prose
         // here. `bytes(…)` takes the SVG inline, which keeps charts out of the

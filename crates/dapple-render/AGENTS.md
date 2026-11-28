@@ -75,6 +75,23 @@ two years gets month ticks and a one-month pad. A set of bare `YYYY` events
 keeps the year axis however short its range, which is what makes the month
 scale a pure addition — no diagram that rendered before it moves.
 
+**Provenance:** `src/provenance.rs` reads three invisible markup forms —
+`[text](src:id)` spans, `<!-- src:id -->`…`<!-- /src -->` regions, and a `provenance`
+fenced JSON registry — into a `ProvenanceManifest` (the JSON sidecar, schema
+`schema/provenance.schema.json`, `urn:dapple:schema:provenance:1`) that
+`render_document_provenance` returns. JSON only — there is no provenance PDF.
+Opt-in (no markup ⇒ `None`), and like charts it **degrades,
+never fails**: every tagging mistake is a manifest warning. Kinds are a closed
+set (`filing`/`generated`/`operator`/`computed`/`authored`); other registry
+fields are free detail. The emitters' only part is rendering a `src:` link as
+its text and the registry fence as nothing — keep extraction out of them.
+Untagged text goes to the registry `default`. The manifest is complete: full
+text and exact markdown per item, figures' values as filed (`amount` is a
+decimal STRING — never change it to a JSON number), stable item ids, and a
+`document` block with `id` / `derived_from`. Change the JSON shape only
+together with the schema file (the schema tests will fail otherwise). Full doc:
+`docs/books/journey-builder-guide/guide-system/render-pipeline.md` → Provenance.
+
 **Render Profiles** define which blocks appear in output:
 - Each profile has a `tag_filter` (JSON array of tag names) and `style_config`
 - Blocks with matching tags are included; **untagged blocks are always included**
@@ -99,6 +116,7 @@ crates/dapple-render/
     ├── diagram.rs      # diagram fence grammar + venn2/lanes/flow → hand-emitted SVG
     ├── theme.rs        # palette, branding ramps, admonition + chart colors
     ├── html.rs         # markdown → self-contained themed HTML page
+    ├── provenance.rs   # src: spans / regions / registry → manifest + report
     ├── typeset/        # Typst backend: world (hermetic), compile, escape,
     │                   # transform (two-pass markdown→markup), brand (preamble)
     ├── filter.rs       # tag-based block filtering

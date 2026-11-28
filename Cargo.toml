@@ -18,3 +18,10 @@ license = "Apache-2.0"
 sqlx = { version = "0.9", features = ["runtime-tokio", "tls-rustls", "postgres", "macros"] }
 pgvector = { version = "0.4.2", features = ["sqlx"] }
 
+# typst-layout's line breaker has a debug-only `panic!("bounded inline layout is
+# incomplete")` where release builds fall back to an unbounded retry. hostPath
+# deploys run dev builds, so long report paragraphs crashed conduit's PDF render
+# (run-the-10k "Thread the Story"). Give dev builds the release behavior.
+[profile.dev.package.typst-layout]
+debug-assertions = false
+
